@@ -78,6 +78,14 @@ Every API response uses a common envelope. Successful responses return `{"succes
 
 Each request carries an `X-Request-ID`. O-AI preserves a caller-supplied value or generates a UUID, returns it on successful and error responses, and includes it in logs for unexpected failures. Exception handlers translate validation, configuration, provider, HTTP, and unexpected errors into safe transport responses; internal stack traces remain in server logs only.
 
+## Local conversation persistence
+
+Version 1 stores conversations and messages in local SQLite. API routes call application services; services coordinate repositories and provider-neutral chat; repositories alone access SQLAlchemy sessions and ORM models. Public Pydantic schemas are mapped from persisted entities, so ORM models never cross the API boundary.
+
+The chat flow creates a UUID conversation when needed, saves the user message, loads only a configured chronological window of recent messages, invokes `ChatService`, then saves the assistant reply. If the provider fails, the user message remains as history but no synthetic assistant reply is stored. Provider implementations never access repositories or database models.
+
+`create_all()` runs during the FastAPI lifespan only to create missing Version 1 tables. It cannot alter existing schemas. Any schema change after Version 1 requires an approved, explicit migration strategy; Alembic is intentionally not included in this release. The current string-based provider input is a Version 1 compatibility boundary; a future approved release may adopt structured provider messages.
+
 ## Frontend
 
 The frontend is a Next.js App Router application under `frontend`.

@@ -6,18 +6,24 @@ from uuid import UUID
 
 from app.api.dependencies import get_chat_service
 from app.main import app
-from app.providers.openai_provider import OpenAIChatProvider
-from app.services.chat import ChatService
+from app.services.chat import ChatConfigurationError, ChatProviderError
+from app.services.conversations import ChatTurnResult
 
 
-class TestChatProvider:
-    def generate_reply(self, message: str) -> str:
-        return f"Test reply: {message}"
+class TestConversationService:
+    def send_message(self, message: str, conversation_id=None) -> ChatTurnResult:
+        return ChatTurnResult(reply=f"Test reply: {message}", conversation_id=UUID("11111111-1111-1111-1111-111111111111"))
 
 
-class ExplodingChatProvider:
-    def generate_reply(self, message: str) -> str:
-        _ = message
+class ConfigurationErrorConversationService:
+    def send_message(self, message: str, conversation_id=None) -> ChatTurnResult:
+        _ = (message, conversation_id)
+        raise ChatConfigurationError("Chat is not configured.")
+
+
+class ExplodingConversationService:
+    def send_message(self, message: str, conversation_id=None) -> ChatTurnResult:
+        _ = (message, conversation_id)
         raise RuntimeError("provider internals must not reach the response")
 
 
@@ -85,17 +91,20 @@ class ApiStandardizationTests(unittest.TestCase):
         self.assertEqual(headers["x-request-id"], "request-from-client")
 
     def test_chat_uses_success_envelope_with_override(self) -> None:
-        app.dependency_overrides[get_chat_service] = lambda: ChatService(TestChatProvider())
+        from app.api.dependencies import get_conversation_service
+
+        app.dependency_overrides[get_conversation_service] = lambda: TestConversationService()
         status_code, _, body = self.request("/api/v1/chat", method="POST", body={"message": "Hello"})
         self.assertEqual(status_code, 200)
-        self.assertEqual(body, {"success": True, "data": {"reply": "Test reply: Hello"}})
+        self.assertEqual(body, {"success": True, "data": {"reply": "Test reply: Hello", "conversation_id": "11111111-1111-1111-1111-111111111111"}})
 
     def test_missing_key_uses_safe_standard_error(self) -> None:
-        app.dependency_overrides[get_chat_service] = lambda: ChatService(OpenAIChatProvider(api_key=None, model=None))
+        from app.api.dependencies import get_conversation_service
+
+        app.dependency_overrides[get_conversation_service] = lambda: ConfigurationErrorConversationService()
         status_code, headers, body = self.request("/api/v1/chat", method="POST", body={"message": "Hello"})
         self.assertEqual(status_code, 503)
         self.assertEqual(body["error"]["code"], "CHAT_NOT_CONFIGURED")
-        self.assertIn("OPENAI_API_KEY", body["error"]["message"])
         self.assertIn("x-request-id", headers)
 
     def test_validation_error_uses_standard_error(self) -> None:
@@ -105,7 +114,9 @@ class ApiStandardizationTests(unittest.TestCase):
         self.assertIn("x-request-id", headers)
 
     def test_unexpected_error_is_sanitized(self) -> None:
-        app.dependency_overrides[get_chat_service] = lambda: ChatService(ExplodingChatProvider())
+        from app.api.dependencies import get_conversation_service
+
+        app.dependency_overrides[get_conversation_service] = lambda: ExplodingConversationService()
         status_code, headers, body = self.request("/api/v1/chat", method="POST", body={"message": "Hello"})
         self.assertEqual(status_code, 500)
         self.assertEqual(body["error"]["code"], "INTERNAL_ERROR")

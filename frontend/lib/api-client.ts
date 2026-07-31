@@ -1,4 +1,5 @@
 import type { ChatRequest, ChatResponse } from "../types/chat";
+import type { ConversationDetail } from "../types/conversation";
 import type { ApiResponse } from "../types/api";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -74,7 +75,11 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
   }
 }
 
-export function sendChatMessage(message: string): Promise<ChatResponse> {
-  const payload: ChatRequest = { message };
+export function sendChatMessage(message: string, conversationId?: string): Promise<ChatResponse> {
+  const payload: ChatRequest = { message, ...(conversationId ? { conversation_id: conversationId } : {}) };
   return apiRequest<ChatResponse>("/chat", { method: "POST", body: payload });
+}
+
+export function getConversation(conversationId: string): Promise<ConversationDetail> {
+  return apiRequest<ConversationDetail>(`/conversations/${conversationId}`, { method: "GET" });
 }

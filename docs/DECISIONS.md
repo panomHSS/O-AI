@@ -4,19 +4,19 @@ This document records architectural decisions. New decisions should be appended 
 
 ## ADR-001: FastAPI backend
 
-**Decision**  
+**Decision**
 Use FastAPI as the backend HTTP API framework.
 
-**Context**  
+**Context**
 O-AI needs a typed, versioned API foundation with validation, operational health endpoints, and room for modular capabilities.
 
-**Alternatives**  
+**Alternatives**
 Flask, Django REST Framework, Node.js API frameworks, or a monolithic full-stack framework.
 
-**Rationale**  
+**Rationale**
 FastAPI combines Pydantic validation, async support, OpenAPI generation, and a focused Python service model suited to explicit API contracts.
 
-**Consequences**  
+**Consequences**
 Backend contracts use Pydantic schemas and routes remain versioned. The team must maintain Python typing and separate service logic from route handlers.
 
 ## ADR-002: Next.js frontend
@@ -106,17 +106,34 @@ Provider implementations must honor the `ChatProvider` contract and translate un
 
 ## ADR-007: Standard API response envelopes and request correlation
 
-**Decision**  
+**Decision**
 Return all API results in success or error envelopes and attach an `X-Request-ID` to every response.
 
-**Context**  
+**Context**
 As O-AI grows beyond health and chat, clients need a predictable transport contract and operators need a correlation value for diagnosing failures without exposing internals.
 
-**Alternatives**  
+**Alternatives**
 Use endpoint-specific top-level responses only, expose framework-default errors, or add correlation only to selected endpoints.
 
-**Rationale**  
+**Rationale**
 A shared envelope centralizes client parsing and safe error behavior. Request IDs preserve caller correlation when supplied and make unexpected server failures traceable in logs.
 
-**Consequences**  
+**Consequences**
 Endpoint data contracts are nested under `data`; frontend API clients unwrap the envelope before passing typed data to UI components. New exception handlers must return safe codes and messages, never stack traces or provider details.
+
+## ADR-008: Local SQLite conversation memory for Version 1
+
+**Decision**
+Use SQLite and SQLAlchemy for persistent Version 1 conversation memory, with repository/service boundaries and local-only Docker volume persistence.
+
+**Context**
+O-AI needs durable conversation continuity without introducing external infrastructure, embeddings, vector databases, Redis, or remote persistence services.
+
+**Alternatives**
+Browser-only history, PostgreSQL, a vector database, Redis, external memory services, or no persisted history.
+
+**Rationale**
+SQLite is local-first, deploys with the application, supports transactional message history, and is sufficient for bounded recent-context retrieval. Repositories isolate SQLAlchemy; services own transactions and provider coordination.
+
+**Consequences**
+FastAPI lifespan initialization uses `create_all()` only to create missing Version 1 tables; it cannot migrate existing schemas. Future schema changes require an approved migration plan. Recent context is bounded and string-formatted before the unchanged provider interface; structured provider messages require a future approved architecture decision.

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.schemas.api import ApiError, ApiErrorDetail
 from app.services.chat import ChatConfigurationError, ChatProviderError
+from app.services.conversations import ConversationNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ChatProviderError)
     async def handle_chat_provider_error(_: Request, error: ChatProviderError) -> JSONResponse:
         return error_response(status.HTTP_502_BAD_GATEWAY, "CHAT_PROVIDER_UNAVAILABLE", str(error))
+
+    @app.exception_handler(ConversationNotFoundError)
+    async def handle_conversation_not_found(_: Request, error: ConversationNotFoundError) -> JSONResponse:
+        return error_response(status.HTTP_404_NOT_FOUND, "CONVERSATION_NOT_FOUND", str(error))
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, error: Exception) -> JSONResponse:
