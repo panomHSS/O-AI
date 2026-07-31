@@ -4,34 +4,49 @@ This roadmap is maintained by release. Dates are intentionally omitted until the
 
 ## Released
 
-### 0.2.0 — Milestone 1, Task 1: Environment Stabilization
+### 0.2.0 - Foundation
 
 - Environment templates and bootstrap scripts.
 - Reproducible frontend lockfile and lint configuration.
 - Compose defaults and health-route validation.
 
-### 0.2.1 — Architecture Foundation
+### 0.2.1 - Architecture Foundation
 
-- Architecture, coding, release, vision, and assistant-governance documentation.
-- Initial decision-record and release roadmap practices.
+- Architecture, coding, release, vision, decision, roadmap, and assistant-governance documentation.
+- Initial decision-record and release-roadmap practices.
+
+### 0.3.0 - Core Chat Engine
+
+- First end-to-end chat flow with a reusable frontend chat experience.
+- Chat service and provider abstraction for future provider replacement.
+
+### 0.4.0 - OpenAI Provider Integration
+
+- Environment-configured OpenAI provider behind the chat service interface.
+- Safe configuration and provider error handling while preserving the chat API contract.
+
+### 0.4.1 - API Standardization
+
+- Standard API success and error envelopes.
+- Request-ID propagation and centralized exception handling.
+
+### 0.5.0 - Conversation Memory
+
+- Local-first SQLite persistence for conversations and messages.
+- Conversation retrieval, listing, deletion, and bounded chat context.
+
+### 0.5.1 - Project Quality and Release Automation
+
+- GitHub Actions CI for backend tests and frontend install, lint, and build validation.
+- Release documentation maintenance.
+- License remains unselected; all rights are reserved by default.
 
 ## Planned
 
-### 0.3.0 — Application Foundation
+### 0.6.0 - Local Knowledge Engine
 
-- Approved domain boundaries and initial testing strategy.
-- API client boundary and user-facing application shell.
-- CI validation baseline.
-
-### 0.4.0 — Personal Context Foundation
-
-- Owner-approved Memory and Knowledge module designs.
-- Consent, retention, provenance, and deletion policies.
-
-### 0.5.0 — Document Foundation
-
-- Document ingestion and search architecture.
-- Source attribution, access control, and lifecycle controls.
+- Local document ingestion, metadata, and retrieval foundations.
+- Source attribution, lifecycle controls, and owner-approved knowledge boundaries.
 
 ### Future releases
 
