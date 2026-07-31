@@ -33,7 +33,7 @@ export function Chat() {
     getConversation(storedConversationId)
       .then((conversation) => {
         setConversationId(conversation.id);
-        setMessages(conversation.messages.map((message) => ({ id: message.id, role: message.role, content: message.content })));
+        setMessages(conversation.messages.map((message) => ({ id: message.id, role: message.role, content: message.content, citations: message.citations })));
       })
       .catch((caughtError) => {
         if (caughtError instanceof ApiError && caughtError.status === 404) {
@@ -98,6 +98,16 @@ export function Chat() {
           >
             <p className="mb-1 text-xs font-medium uppercase tracking-wide opacity-60">{chatMessage.role}</p>
             <p>{chatMessage.content}</p>
+            {chatMessage.citations?.length ? (
+              <ol className="mt-3 space-y-2 border-t border-zinc-600 pt-3 text-sm">
+                {chatMessage.citations.map((citation) => (
+                  <li key={`${chatMessage.id}-${citation.order}`}>
+                    <p className="font-medium">[{citation.citation_id}] {citation.file_name} · {citation.source_locator}</p>
+                    <p className="text-zinc-300">{citation.excerpt}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
           </article>
         ))}
         {isRestoring ? <p className="text-sm text-zinc-400">Restoring conversation…</p> : null}

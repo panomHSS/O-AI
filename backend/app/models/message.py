@@ -17,6 +17,8 @@ class Message(Base):
     content: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+    citations: Mapped[list["MessageCitation"]] = relationship(back_populates="message", cascade="all, delete-orphan", passive_deletes=True)
 
 
 from app.models.conversation import Conversation  # noqa: E402
+from app.models.message_citation import MessageCitation  # noqa: E402

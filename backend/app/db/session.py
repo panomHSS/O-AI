@@ -11,7 +11,11 @@ from app.db.base import Base
 
 def ensure_sqlite_directory(database_url: str) -> None:
     url = make_url(database_url)
-    if url.drivername.startswith("sqlite") and url.database and url.database != ":memory:":
+    if (
+        url.drivername.startswith("sqlite")
+        and url.database
+        and url.database != ":memory:"
+    ):
         Path(url.database).parent.mkdir(parents=True, exist_ok=True)
 
 
@@ -35,13 +39,12 @@ engine = create_database_engine(settings.oai_database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
-def initialize_database(database_engine: Engine | None = None) -> None:
-    """Create Version 1 tables; this does not migrate existing schemas."""
+def initialize_test_database(database_engine: Engine) -> None:
+    """Create the schema only for isolated temporary test databases."""
     import app.models  # noqa: F401
 
-    active_engine = database_engine or engine
-    Base.metadata.create_all(bind=active_engine)
-    initialize_knowledge_fts(active_engine)
+    Base.metadata.create_all(bind=database_engine)
+    initialize_knowledge_fts(database_engine)
 
 
 def initialize_knowledge_fts(database_engine: Engine) -> None:

@@ -41,7 +41,7 @@ class AlembicAdoptionTests(unittest.TestCase):
         os.environ["OAI_DATABASE_URL"] = f"sqlite:///{self.database_path.as_posix()}"
         get_settings.cache_clear()
         try:
-            command.upgrade(config, "head")
+            command.upgrade(config, "0001_v061_baseline")
         finally:
             if previous is None:
                 os.environ.pop("OAI_DATABASE_URL", None)

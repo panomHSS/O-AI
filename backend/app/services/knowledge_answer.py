@@ -1,9 +1,11 @@
 import re
+from hashlib import sha256
 from uuid import UUID
 from app.repositories.knowledge import KnowledgeRepository
 from app.schemas.knowledge_answer import CitationResponse, ConflictResponse, KnowledgeAnswerResponse, RetrievalSummaryResponse
 from app.services.chat import ChatService
 from app.services.conversations import ConversationService
+from app.repositories.message_citations import CitationSnapshot, MAX_CITATIONS_PER_MESSAGE
 from app.services.knowledge_intelligence import CitationEngine, ConfidenceEvaluator, ConflictDetector, ContextBuilder, Evidence, EvidenceRanker, GroundedPromptBuilder, IntentAnalyzer, RetrievalPlanner
 
 class KnowledgeAnswerService:
@@ -33,5 +35,13 @@ class KnowledgeAnswerService:
             answer, valid = self._citations.validate(answer, context)
             if not valid: answer = "Sufficient supporting evidence was not found in local documents."
         quality = self._confidence.evaluate(context, valid, conflicts)
-        self._conversations.complete_turn(conversation.id, answer)
+        snapshots = [
+            CitationSnapshot(
+                citation_id=item.citation_id, document_id=item.document_id, file_name=item.file_name,
+                source_path=item.source_path, source_locator=item.source_locator, excerpt=item.content[:500],
+                excerpt_hash=sha256(item.content[:500].encode("utf-8")).hexdigest(), confidence=max(0.0, min(1.0, item.score)),
+            )
+            for item in valid[:MAX_CITATIONS_PER_MESSAGE]
+        ]
+        self._conversations.complete_turn(conversation.id, answer, snapshots)
         return KnowledgeAnswerResponse(answer=answer, citations=[CitationResponse(id=item.citation_id, document_id=UUID(item.document_id), file_name=item.file_name, source_path=item.source_path, source_locator=item.source_locator, excerpt=item.content[:500]) for item in valid], evidence_quality=quality, conversation_id=UUID(conversation.id), retrieval_summary=RetrievalSummaryResponse(candidates_considered=len(records), evidence_selected=len(context), duplicates_removed=duplicates, filtered_out=filtered, conflicting_evidence_count=len(conflicts), queries_used=queries), conflicts=[ConflictResponse(citations=list(item.citation_ids), reason=item.reason) for item in conflicts])

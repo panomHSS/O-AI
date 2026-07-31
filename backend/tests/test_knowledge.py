@@ -11,7 +11,7 @@ from pptx import Presentation
 from sqlalchemy.orm import sessionmaker
 
 from app.api.dependencies import get_knowledge_service
-from app.db.session import create_database_engine, get_db, initialize_database
+from app.db.session import create_database_engine, get_db, initialize_test_database
 from app.readers import create_document_reader_registry
 from app.readers.base import DocumentExtractionError
 from app.repositories.knowledge import KnowledgeRepository
@@ -26,7 +26,7 @@ class KnowledgeTests(unittest.TestCase):
         self.root = Path(self.temporary_directory.name) / "knowledge"
         self.root.mkdir()
         self.engine = create_database_engine(f"sqlite:///{(Path(self.temporary_directory.name) / 'oai.db').as_posix()}")
-        initialize_database(self.engine)
+        initialize_test_database(self.engine)
         self.Session = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, expire_on_commit=False)
         self.sessions = []
 

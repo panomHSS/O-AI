@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
+from app.repositories.message_citations import MessageCitationRepository
 from app.readers import create_document_reader_registry
 from app.services.chat import ChatService
 from app.services.conversations import ConversationService
@@ -34,6 +35,7 @@ def get_conversation_service(
         repository=ConversationRepository(database_session),
         chat_service=chat_service,
         context_message_limit=settings.oai_chat_context_message_limit,
+        citation_repository=MessageCitationRepository(database_session),
     )
 
 
@@ -56,5 +58,5 @@ def get_knowledge_service(database_session: Session = Depends(get_db)) -> Knowle
 
 def get_knowledge_answer_service(database_session: Session = Depends(get_db), chat_service: ChatService = Depends(get_chat_service)) -> KnowledgeAnswerService:
     settings = get_settings()
-    conversation_service = ConversationService(ConversationRepository(database_session), chat_service, settings.oai_chat_context_message_limit)
+    conversation_service = ConversationService(ConversationRepository(database_session), chat_service, settings.oai_chat_context_message_limit, MessageCitationRepository(database_session))
     return KnowledgeAnswerService(KnowledgeRepository(database_session), conversation_service, chat_service, IntentAnalyzer(), RetrievalPlanner(settings.oai_knowledge_answer_max_retrieval_queries), EvidenceRanker(settings.oai_knowledge_answer_max_evidence_per_document), ConflictDetector(), ContextBuilder(settings.oai_knowledge_answer_context_char_budget), GroundedPromptBuilder(), CitationEngine(), ConfidenceEvaluator(), settings.oai_knowledge_answer_candidates_per_query, settings.oai_knowledge_answer_selected_evidence_count)

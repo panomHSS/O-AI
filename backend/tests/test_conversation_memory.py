@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from fastapi import Depends
 
 from app.api.dependencies import get_chat_service, get_conversation_service
-from app.db.session import create_database_engine, get_db, initialize_database
+from app.db.session import create_database_engine, get_db, initialize_test_database
 from app.main import app
 from app.models.message import Message
 from app.repositories.conversations import ConversationRepository
@@ -39,7 +39,7 @@ class ConversationMemoryTests(unittest.TestCase):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.database_path = Path(self.temporary_directory.name) / "oai.db"
         self.engine = create_database_engine(f"sqlite:///{self.database_path.as_posix()}")
-        initialize_database(self.engine)
+        initialize_test_database(self.engine)
         self.Session = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, expire_on_commit=False)
         self.provider = RecordingProvider()
 

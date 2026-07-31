@@ -5,7 +5,8 @@ from uuid import UUID
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.repositories.conversations import ConversationRepository
-from app.schemas.conversations import ConversationDetailResponse, ConversationSummaryResponse, StoredMessageResponse
+from app.repositories.message_citations import CitationSnapshot, MessageCitationRepository
+from app.schemas.conversations import ConversationDetailResponse, ConversationSummaryResponse, StoredCitationResponse, StoredMessageResponse
 from app.services.chat import ChatContextMessage, ChatService
 
 TITLE_MAX_LENGTH = 80
@@ -24,10 +25,11 @@ class ChatTurnResult:
 class ConversationService:
     """Coordinates local conversation persistence with provider-neutral chat."""
 
-    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int) -> None:
+    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None) -> None:
         self._repository = repository
         self._chat_service = chat_service
         self._context_message_limit = context_message_limit
+        self._citation_repository = citation_repository
 
     def send_message(self, message: str, conversation_id: UUID | None = None) -> ChatTurnResult:
         conversation, recent_messages = self.begin_turn(message, conversation_id)
@@ -51,10 +53,14 @@ class ConversationService:
             raise
         return conversation, [ChatContextMessage(role=item.role, content=item.content) for item in recent]
 
-    def complete_turn(self, conversation_id: str, reply: str) -> None:
+    def complete_turn(self, conversation_id: str, reply: str, citations: list[CitationSnapshot] | None = None) -> None:
         conversation = self._require_conversation(UUID(conversation_id))
         try:
-            self._repository.add_message(conversation, "assistant", reply)
+            assistant_message = self._repository.add_message(conversation, "assistant", reply)
+            if citations:
+                if self._citation_repository is None:
+                    raise RuntimeError("Citation persistence is not configured.")
+                self._citation_repository.add_snapshots(assistant_message, citations)
             self._repository.commit()
         except Exception:
             self._repository.rollback()
@@ -119,4 +125,13 @@ class ConversationService:
             role=message.role,
             content=message.content,
             created_at=message.created_at,
+            citations=[
+                StoredCitationResponse(
+                    id=UUID(citation.id), citation_id=citation.citation_id, order=citation.citation_order,
+                    document_id=UUID(citation.document_id), file_name=citation.file_name, source_path=citation.source_path,
+                    source_locator=citation.source_locator, excerpt=citation.excerpt, excerpt_hash=citation.excerpt_hash,
+                    confidence=citation.confidence, evidence_type=citation.evidence_type,
+                )
+                for citation in sorted(message.citations, key=lambda item: item.citation_order)
+            ],
         )

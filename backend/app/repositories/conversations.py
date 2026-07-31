@@ -24,7 +24,8 @@ class ConversationRepository:
         statement: Select[tuple[Conversation]] = (
             select(Conversation)
             .where(Conversation.id == conversation_id)
-            .options(selectinload(Conversation.messages))
+            .options(selectinload(Conversation.messages).selectinload(Message.citations))
+            .execution_options(populate_existing=True)
         )
         return self._session.scalar(statement)
 
