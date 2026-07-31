@@ -153,4 +153,12 @@ Embeddings with a vector database, cloud document storage/search, a managed full
 SQLite is already the local persistence foundation. FTS5 provides a small, local keyword-search index while reader adapters preserve source locations and keep format-specific parsing outside services and API routes.
 
 **Consequences**
-Documents are identified by normalized root-relative source path; identical content at different paths remains separately searchable for provenance. FTS5 is created idempotently outside `create_all()` and requires an explicit migration plan if its definition changes. Search is lexical, not semantic. OCR, attachment extraction, and embeddings remain out of scope; scanned/image-only PDF support is planned for 0.6.1.
+Documents are identified by normalized root-relative source path; identical content at different paths remains separately searchable for provenance. FTS5 is created idempotently outside `create_all()` and requires an explicit migration plan if its definition changes. Search is lexical, not semantic. OCR, attachment extraction, and embeddings remain out of scope; scanned/image-only PDF support is planned for 0.6.2.
+
+## ADR-010: Evidence-first knowledge answers
+
+**Decision**
+Retrieve and deterministically rank local evidence before invoking the unchanged provider, then return only validated citations and transparent evidence quality.
+
+**Consequences**
+The current single-string provider input reduces, but cannot fully prevent, prompt injection. Assistant-message citation persistence is deferred: a new related SQLite table would require an approved migration because `create_all()` cannot alter existing schemas.

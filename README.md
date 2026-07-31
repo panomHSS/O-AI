@@ -59,6 +59,10 @@ Supported formats are PDF (`.pdf`), Word (`.docx`), Excel (`.xlsx`), CSV (`.csv`
 
 The scanner stores only root-relative paths in SQLite, skips hidden paths and symlinks, enforces the configured file-size limit, and never indexes email attachments in this release. Documents remain on the local machine; deleting an indexed document removes only its index entry, never its source file.
 
+## Grounded knowledge answers
+
+`POST /api/v1/knowledge/answer` retrieves local evidence before calling the configured chat provider. Answers return only validated `S1`, `S2`, and similar citations, plus an evidence-quality label. Retrieved documents are untrusted reference material; prompt injection is reduced through explicit boundaries but cannot be fully prevented while the provider uses a single-string input. Citation metadata is returned by the API but durable message-citation persistence requires a future approved SQLite migration.
+
 ## Layout
 
 `backend/app` separates API handlers, core infrastructure, data models, services, and Pydantic schemas. `frontend/app` uses the Next.js App Router. `docs` and `scripts` are reserved for project documentation and automation.

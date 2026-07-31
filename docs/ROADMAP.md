@@ -46,9 +46,14 @@ This roadmap is maintained by release. Dates are intentionally omitted until the
 - Local-only document ingestion, SQLite FTS5 search, and traceable source citations.
 - Secure configured-folder scanning for supported text-based document formats.
 
+### 0.6.1 - Knowledge Intelligence
+
+- Evidence-first local retrieval, deterministic ranking, conflict disclosure, and validated citations.
+- Durable message-citation persistence deferred pending an approved SQLite migration strategy.
+
 ## Planned
 
-### 0.6.1 - OCR Foundation
+### 0.6.2 - OCR Foundation
 
 - Owner-approved OCR support for scanned and image-only PDF documents.
 

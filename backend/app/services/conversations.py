@@ -30,27 +30,35 @@ class ConversationService:
         self._context_message_limit = context_message_limit
 
     def send_message(self, message: str, conversation_id: UUID | None = None) -> ChatTurnResult:
-        conversation = self._get_or_create_conversation(message, conversation_id)
-        recent_messages = self._repository.recent_messages(conversation.id, self._context_message_limit)
+        conversation, recent_messages = self.begin_turn(message, conversation_id)
 
+        context = [ChatContextMessage(role=item.role, content=item.content) for item in recent_messages]
+        reply = self._chat_service.send_message(message, context)
+
+        self.complete_turn(conversation.id, reply)
+
+        return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id))
+
+    def begin_turn(self, message: str, conversation_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
+        """Persist a final user turn and return bounded history for another orchestrator."""
+        conversation = self._get_or_create_conversation(message, conversation_id)
+        recent = self._repository.recent_messages(conversation.id, self._context_message_limit)
         try:
             self._repository.add_message(conversation, "user", message)
             self._repository.commit()
         except Exception:
             self._repository.rollback()
             raise
+        return conversation, [ChatContextMessage(role=item.role, content=item.content) for item in recent]
 
-        context = [ChatContextMessage(role=item.role, content=item.content) for item in recent_messages]
-        reply = self._chat_service.send_message(message, context)
-
+    def complete_turn(self, conversation_id: str, reply: str) -> None:
+        conversation = self._require_conversation(UUID(conversation_id))
         try:
             self._repository.add_message(conversation, "assistant", reply)
             self._repository.commit()
         except Exception:
             self._repository.rollback()
             raise
-
-        return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id))
 
     def list_conversations(self) -> list[ConversationSummaryResponse]:
         return [self._to_summary(conversation) for conversation in self._repository.list()]

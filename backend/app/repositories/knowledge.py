@@ -75,8 +75,8 @@ class KnowledgeRepository:
 
     def search(self, match_query: str, limit: int) -> list[dict[str, object]]:
         statement = text(
-            "SELECT documents.id AS document_id, documents.file_name, documents.source_path, "
-            "document_chunks.source_locator, snippet(document_chunks_fts, 0, '[', ']', '...', 16) AS excerpt, "
+            "SELECT documents.id AS document_id, documents.file_name, documents.source_path, documents.file_extension, "
+            "document_chunks.id AS chunk_id, document_chunks.content, document_chunks.source_locator, snippet(document_chunks_fts, 0, '[', ']', '...', 16) AS excerpt, "
             "-bm25(document_chunks_fts) AS relevance_score "
             "FROM document_chunks_fts "
             "JOIN document_chunks ON document_chunks.id = document_chunks_fts.chunk_id "

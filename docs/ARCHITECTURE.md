@@ -106,6 +106,10 @@ SQLite ORM tables store document metadata and chunks. A separate, idempotently-c
 
 The scanner resolves every candidate beneath `OAI_KNOWLEDGE_ROOT`, skips symlinks and hidden/runtime paths, enforces a maximum file size, and persists/exposes only root-relative paths. It never accepts arbitrary filesystem paths through the API. Supported readers cover PDF, DOCX, XLSX, CSV, PPTX, text, Markdown, HTML, and EML. No OCR, attachment extraction, embeddings, vector database, cloud storage, or background watcher is present. Image-only/scanned PDFs are reported as requiring OCR, planned for Release 0.6.1.
 
+## Knowledge Intelligence
+
+Knowledge answers are evidence-first: deterministic intent analysis and retrieval planning query local FTS5, deterministic ranking selects diverse evidence, conflict detection flags incompatible values, and a bounded prompt passes only selected text to `ChatService`. `GroundedPromptBuilder` delimits every source as untrusted and requires public source IDs. `CitationEngine` validates returned IDs; `ConfidenceEvaluator` emits high, medium, low, or insufficient without probabilities. The existing single-string provider contract is a limitation: prompt injection cannot be claimed fully prevented. Citation metadata is not yet durably tied to persisted assistant messages because `create_all()` cannot migrate existing SQLite schemas.
+
 ## Frontend
 
 The frontend is a Next.js App Router application under `frontend`.

@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     oai_document_max_file_size_mb: int = Field(default=50, gt=0, le=1024)
     oai_chunk_size_chars: int = Field(default=2000, gt=0, le=100_000)
     oai_chunk_overlap_chars: int = Field(default=200, ge=0, le=99_999)
+    oai_knowledge_answer_max_retrieval_queries: int = Field(default=3, ge=1, le=5)
+    oai_knowledge_answer_candidates_per_query: int = Field(default=12, ge=1, le=50)
+    oai_knowledge_answer_selected_evidence_count: int = Field(default=6, ge=1, le=12)
+    oai_knowledge_answer_max_evidence_per_document: int = Field(default=2, ge=1, le=5)
+    oai_knowledge_answer_context_char_budget: int = Field(default=8000, ge=500, le=20000)
 
     @model_validator(mode="after")
     def validate_chunk_settings(self) -> "Settings":

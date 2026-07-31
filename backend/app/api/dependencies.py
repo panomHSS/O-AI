@@ -12,6 +12,8 @@ from app.readers import create_document_reader_registry
 from app.services.chat import ChatService
 from app.services.conversations import ConversationService
 from app.services.knowledge import KnowledgeService
+from app.services.knowledge_answer import KnowledgeAnswerService
+from app.services.knowledge_intelligence import CitationEngine, ConfidenceEvaluator, ConflictDetector, ContextBuilder, EvidenceRanker, GroundedPromptBuilder, IntentAnalyzer, RetrievalPlanner
 
 
 @lru_cache
@@ -50,3 +52,9 @@ def get_knowledge_service(database_session: Session = Depends(get_db)) -> Knowle
         chunk_size=settings.oai_chunk_size_chars,
         chunk_overlap=settings.oai_chunk_overlap_chars,
     )
+
+
+def get_knowledge_answer_service(database_session: Session = Depends(get_db), chat_service: ChatService = Depends(get_chat_service)) -> KnowledgeAnswerService:
+    settings = get_settings()
+    conversation_service = ConversationService(ConversationRepository(database_session), chat_service, settings.oai_chat_context_message_limit)
+    return KnowledgeAnswerService(KnowledgeRepository(database_session), conversation_service, chat_service, IntentAnalyzer(), RetrievalPlanner(settings.oai_knowledge_answer_max_retrieval_queries), EvidenceRanker(settings.oai_knowledge_answer_max_evidence_per_document), ConflictDetector(), ContextBuilder(settings.oai_knowledge_answer_context_char_budget), GroundedPromptBuilder(), CitationEngine(), ConfidenceEvaluator(), settings.oai_knowledge_answer_candidates_per_query, settings.oai_knowledge_answer_selected_evidence_count)

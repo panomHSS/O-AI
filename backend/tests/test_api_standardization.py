@@ -9,6 +9,7 @@ from app.api.dependencies import get_chat_service
 from app.main import app
 from app.services.chat import ChatConfigurationError, ChatProviderError
 from app.services.conversations import ChatTurnResult
+from app.schemas.knowledge_answer import KnowledgeAnswerResponse, RetrievalSummaryResponse
 
 
 class TestConversationService:
@@ -26,6 +27,12 @@ class ExplodingConversationService:
     def send_message(self, message: str, conversation_id=None) -> ChatTurnResult:
         _ = (message, conversation_id)
         raise RuntimeError("provider internals must not reach the response")
+
+
+class TestKnowledgeAnswerService:
+    def answer(self, question: str, conversation_id=None) -> KnowledgeAnswerResponse:
+        _ = (question, conversation_id)
+        return KnowledgeAnswerResponse(answer="Grounded answer S1", citations=[], evidence_quality="insufficient", conversation_id=UUID("11111111-1111-1111-1111-111111111111"), retrieval_summary=RetrievalSummaryResponse(candidates_considered=0, evidence_selected=0, duplicates_removed=0, filtered_out=0, conflicting_evidence_count=0, queries_used=[]), conflicts=[])
 
 
 async def invoke_app(path: str, method: str = "GET", body: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], dict[str, Any]]:
@@ -124,3 +131,11 @@ class ApiStandardizationTests(unittest.TestCase):
         self.assertEqual(body["error"]["code"], "INTERNAL_ERROR")
         self.assertNotIn("provider internals", body["error"]["message"])
         self.assertIn("x-request-id", headers)
+
+    def test_knowledge_answer_uses_standard_envelope_and_request_id(self) -> None:
+        from app.api.dependencies import get_knowledge_answer_service
+        app.dependency_overrides[get_knowledge_answer_service] = lambda: TestKnowledgeAnswerService()
+        status_code, headers, body = self.request("/api/v1/knowledge/answer", method="POST", body={"question": "What does the manual say?"}, headers={"X-Request-ID": "grounded-answer"})
+        self.assertEqual(status_code, 200)
+        self.assertTrue(body["success"])
+        self.assertEqual(headers["x-request-id"], "grounded-answer")

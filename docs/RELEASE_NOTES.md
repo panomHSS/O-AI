@@ -1,5 +1,11 @@
 # Release Notes
 
+## 0.6.1 - Knowledge Intelligence
+
+- Added evidence-first local knowledge answers with deterministic retrieval planning and ranking.
+- Added bounded untrusted-document prompts, citation validation, conflict disclosure, and evidence-quality labels.
+- Deferred durable assistant-message citation persistence until an approved SQLite migration strategy is available.
+
 ## 0.6.0 - Local Knowledge Engine
 
 - Added local-only ingestion for PDF, DOCX, XLSX, CSV, PPTX, text, Markdown, HTML, and EML files.
