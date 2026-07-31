@@ -7,3 +7,4 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     service: str
     environment: str
+    database_revision: str

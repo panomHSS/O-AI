@@ -1,6 +1,14 @@
 # Database migrations and existing-database adoption
 
-O-AI 0.6.2A introduces Alembic revision `0001_v061_baseline` for the verified O-AI 0.6.1 SQLite schema. The application startup path is unchanged; it does not run Alembic migrations.
+O-AI 0.6.2A introduces Alembic revision `0001_v061_baseline` for the verified O-AI 0.6.1 SQLite schema. Application startup opens the configured SQLite database in read-only mode and verifies the baseline schema and revision; it never runs Alembic migrations, creates tables, stamps revisions, or writes backups.
+
+Startup refuses missing, unmanaged, incompatible, or differently stamped databases. The health endpoint reports the verified `database_revision`.
+
+To run the same read-only check without starting the API:
+
+```powershell
+python backend/scripts/verify_database.py --database <path-to-oai.db>
+```
 
 ## Fresh databases
 
