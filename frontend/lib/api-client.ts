@@ -1,5 +1,6 @@
 import type { ChatRequest, ChatResponse } from "../types/chat";
 import type { ConversationDetail } from "../types/conversation";
+import type { KnowledgeDocumentList, KnowledgeScanResult, KnowledgeSearchResponse } from "../types/knowledge";
 import type { ApiResponse } from "../types/api";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -82,4 +83,16 @@ export function sendChatMessage(message: string, conversationId?: string): Promi
 
 export function getConversation(conversationId: string): Promise<ConversationDetail> {
   return apiRequest<ConversationDetail>(`/conversations/${conversationId}`, { method: "GET" });
+}
+
+export function scanKnowledge(): Promise<KnowledgeScanResult> {
+  return apiRequest<KnowledgeScanResult>("/knowledge/scan", { method: "POST" });
+}
+
+export function listKnowledgeDocuments(): Promise<KnowledgeDocumentList> {
+  return apiRequest<KnowledgeDocumentList>("/knowledge/documents", { method: "GET" });
+}
+
+export function searchKnowledge(query: string): Promise<KnowledgeSearchResponse> {
+  return apiRequest<KnowledgeSearchResponse>(`/knowledge/search?q=${encodeURIComponent(query)}`, { method: "GET" });
 }

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import unittest
+from urllib.parse import urlsplit
 from typing import Any
 from uuid import UUID
 
@@ -28,6 +29,7 @@ class ExplodingConversationService:
 
 
 async def invoke_app(path: str, method: str = "GET", body: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], dict[str, Any]]:
+    target = urlsplit(path)
     encoded_body = json.dumps(body).encode() if body is not None else b""
     has_received = False
     messages: list[dict[str, Any]] = []
@@ -50,9 +52,9 @@ async def invoke_app(path: str, method: str = "GET", body: dict[str, Any] | None
         "http_version": "1.1",
         "method": method,
         "scheme": "http",
-        "path": path,
-        "raw_path": path.encode(),
-        "query_string": b"",
+        "path": target.path,
+        "raw_path": target.path.encode(),
+        "query_string": target.query.encode(),
         "headers": [(key.lower().encode(), value.encode()) for key, value in request_headers.items()],
         "client": ("testclient", 1234),
         "server": ("testserver", 80),

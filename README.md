@@ -1,6 +1,6 @@
 # O-AI
 
-O-AI is the foundation for a Personal AI Operating System. This repository intentionally contains no AI implementation yet.
+O-AI is a local-first Personal AI Operating System foundation with chat, conversation memory, and local document knowledge.
 
 ## Stack
 
@@ -50,6 +50,14 @@ macOS/Linux:
 ```
 
 The scripts create missing environment files, create a Python virtual environment at `.venv`, install backend dependencies, and run `npm ci` in `frontend`.
+
+## Local Knowledge Engine
+
+Create a local knowledge folder and set `OAI_KNOWLEDGE_ROOT` to its path (the default is `./knowledge`). Open `/knowledge` and press **Scan Documents** to index supported files. O-AI does not upload files or provide file upload/browsing APIs.
+
+Supported formats are PDF (`.pdf`), Word (`.docx`), Excel (`.xlsx`), CSV (`.csv`), PowerPoint (`.pptx`), text (`.txt`), Markdown (`.md`), HTML (`.html`, `.htm`), and email (`.eml`). Only text-based PDFs are supported; scanned or image-only PDFs are recorded safely without indexed text. OCR is planned for Release 0.6.1.
+
+The scanner stores only root-relative paths in SQLite, skips hidden paths and symlinks, enforces the configured file-size limit, and never indexes email attachments in this release. Documents remain on the local machine; deleting an indexed document removes only its index entry, never its source file.
 
 ## Layout
 

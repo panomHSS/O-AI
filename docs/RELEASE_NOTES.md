@@ -1,5 +1,12 @@
 # Release Notes
 
+## 0.6.0 - Local Knowledge Engine
+
+- Added local-only ingestion for PDF, DOCX, XLSX, CSV, PPTX, text, Markdown, HTML, and EML files.
+- Added SQLite document metadata, chunks, FTS5 keyword search, and source citations.
+- Added explicit-scan Knowledge UI with indexed-document and search-result views.
+- Preserved local privacy boundaries: no upload, cloud storage, OCR, attachment extraction, embeddings, or vector database.
+
 ## 0.5.1 - Project Quality and Release Automation
 
 - Added GitHub Actions CI for pushes to `main` and pull requests targeting `main`.

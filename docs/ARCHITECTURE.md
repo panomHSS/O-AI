@@ -86,6 +86,26 @@ The chat flow creates a UUID conversation when needed, saves the user message, l
 
 `create_all()` runs during the FastAPI lifespan only to create missing Version 1 tables. It cannot alter existing schemas. Any schema change after Version 1 requires an approved, explicit migration strategy; Alembic is intentionally not included in this release. The current string-based provider input is a Version 1 compatibility boundary; a future approved release may adopt structured provider messages.
 
+## Local Knowledge Engine
+
+```mermaid
+flowchart LR
+    Root["Configured local knowledge root"] --> Discovery["Secure discovery"]
+    Discovery --> Reader["Reader registry"]
+    Reader --> Extract["Ordered source sections"]
+    Extract --> Normalize["Normalization and chunking"]
+    Normalize --> Store["SQLite document tables + FTS5"]
+    Store --> Service["Knowledge service"]
+    Service --> API["Versioned knowledge API"]
+    API --> Page["Next.js Knowledge page"]
+```
+
+Knowledge indexing is local-only and begins only after an explicit scan request. API routes call `KnowledgeService`; the service selects reader adapters and coordinates repositories; readers neither use FastAPI nor access database sessions. `Document` represents one root-relative source path, so two files with identical bytes remain separate documents with independent provenance and citations.
+
+SQLite ORM tables store document metadata and chunks. A separate, idempotently-created FTS5 virtual table indexes searchable chunk text; `create_all()` does not create, alter, or migrate that virtual-table definition. Successful re-indexing replaces metadata, chunks, and FTS rows in one transaction. Extraction failures retain a previous successful index and record only a safe error. Missing files retain history but are excluded from normal search results.
+
+The scanner resolves every candidate beneath `OAI_KNOWLEDGE_ROOT`, skips symlinks and hidden/runtime paths, enforces a maximum file size, and persists/exposes only root-relative paths. It never accepts arbitrary filesystem paths through the API. Supported readers cover PDF, DOCX, XLSX, CSV, PPTX, text, Markdown, HTML, and EML. No OCR, attachment extraction, embeddings, vector database, cloud storage, or background watcher is present. Image-only/scanned PDFs are reported as requiring OCR, planned for Release 0.6.1.
+
 ## Frontend
 
 The frontend is a Next.js App Router application under `frontend`.

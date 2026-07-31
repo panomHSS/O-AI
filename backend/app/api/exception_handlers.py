@@ -7,6 +7,10 @@ from fastapi.responses import JSONResponse
 from app.schemas.api import ApiError, ApiErrorDetail
 from app.services.chat import ChatConfigurationError, ChatProviderError
 from app.services.conversations import ConversationNotFoundError
+from app.services.knowledge import (
+    KnowledgeDocumentNotFoundError, KnowledgeRootUnavailableError, KnowledgeScanConflictError,
+    KnowledgeSearchValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +62,22 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ConversationNotFoundError)
     async def handle_conversation_not_found(_: Request, error: ConversationNotFoundError) -> JSONResponse:
         return error_response(status.HTTP_404_NOT_FOUND, "CONVERSATION_NOT_FOUND", str(error))
+
+    @app.exception_handler(KnowledgeDocumentNotFoundError)
+    async def handle_document_not_found(_: Request, error: KnowledgeDocumentNotFoundError) -> JSONResponse:
+        return error_response(status.HTTP_404_NOT_FOUND, "DOCUMENT_NOT_FOUND", str(error))
+
+    @app.exception_handler(KnowledgeRootUnavailableError)
+    async def handle_knowledge_root_unavailable(_: Request, error: KnowledgeRootUnavailableError) -> JSONResponse:
+        return error_response(status.HTTP_503_SERVICE_UNAVAILABLE, "KNOWLEDGE_ROOT_UNAVAILABLE", str(error))
+
+    @app.exception_handler(KnowledgeScanConflictError)
+    async def handle_knowledge_scan_conflict(_: Request, error: KnowledgeScanConflictError) -> JSONResponse:
+        return error_response(status.HTTP_409_CONFLICT, "KNOWLEDGE_SCAN_IN_PROGRESS", str(error))
+
+    @app.exception_handler(KnowledgeSearchValidationError)
+    async def handle_knowledge_search_validation(_: Request, error: KnowledgeSearchValidationError) -> JSONResponse:
+        return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "KNOWLEDGE_SEARCH_VALIDATION_ERROR", str(error))
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, error: Exception) -> JSONResponse:

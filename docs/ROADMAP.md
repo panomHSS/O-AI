@@ -41,12 +41,16 @@ This roadmap is maintained by release. Dates are intentionally omitted until the
 - Release documentation maintenance.
 - License remains unselected; all rights are reserved by default.
 
-## Planned
-
 ### 0.6.0 - Local Knowledge Engine
 
-- Local document ingestion, metadata, and retrieval foundations.
-- Source attribution, lifecycle controls, and owner-approved knowledge boundaries.
+- Local-only document ingestion, SQLite FTS5 search, and traceable source citations.
+- Secure configured-folder scanning for supported text-based document formats.
+
+## Planned
+
+### 0.6.1 - OCR Foundation
+
+- Owner-approved OCR support for scanned and image-only PDF documents.
 
 ### Future releases
 

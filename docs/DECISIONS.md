@@ -137,3 +137,20 @@ SQLite is local-first, deploys with the application, supports transactional mess
 
 **Consequences**
 FastAPI lifespan initialization uses `create_all()` only to create missing Version 1 tables; it cannot migrate existing schemas. Future schema changes require an approved migration plan. Recent context is bounded and string-formatted before the unchanged provider interface; structured provider messages require a future approved architecture decision.
+
+## ADR-009: Local SQLite FTS5 knowledge indexing
+
+**Decision**
+Use reader adapters, SQLite ORM tables, and a separate SQLite FTS5 virtual table for Version 1 local document knowledge.
+
+**Context**
+O-AI needs traceable local document ingestion and keyword search without cloud upload, embeddings, vector infrastructure, OCR, or external search services.
+
+**Alternatives**
+Embeddings with a vector database, cloud document storage/search, a managed full-text service, LangChain/LlamaIndex, or no persistent index.
+
+**Rationale**
+SQLite is already the local persistence foundation. FTS5 provides a small, local keyword-search index while reader adapters preserve source locations and keep format-specific parsing outside services and API routes.
+
+**Consequences**
+Documents are identified by normalized root-relative source path; identical content at different paths remains separately searchable for provenance. FTS5 is created idempotently outside `create_all()` and requires an explicit migration plan if its definition changes. Search is lexical, not semantic. OCR, attachment extraction, and embeddings remain out of scope; scanned/image-only PDF support is planned for 0.6.1.

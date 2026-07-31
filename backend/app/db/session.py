@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -39,7 +39,23 @@ def initialize_database(database_engine: Engine | None = None) -> None:
     """Create Version 1 tables; this does not migrate existing schemas."""
     import app.models  # noqa: F401
 
-    Base.metadata.create_all(bind=database_engine or engine)
+    active_engine = database_engine or engine
+    Base.metadata.create_all(bind=active_engine)
+    initialize_knowledge_fts(active_engine)
+
+
+def initialize_knowledge_fts(database_engine: Engine) -> None:
+    """Create the SQLite FTS5 table separately from ORM-managed tables."""
+    if database_engine.dialect.name != "sqlite":
+        return
+
+    with database_engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts "
+                "USING fts5(content, document_id UNINDEXED, chunk_id UNINDEXED, source_locator UNINDEXED)"
+            )
+        )
 
 
 def get_db() -> Generator[Session, None, None]:
