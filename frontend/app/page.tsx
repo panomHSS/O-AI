@@ -1,0 +1,1 @@
+export default function Home(){return <main><h1>O-AI</h1><p>Sprint 2 Ready</p></main>}
