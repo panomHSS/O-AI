@@ -1,6 +1,16 @@
 import type { ChatRequest, ChatResponse } from "../types/chat";
 import type { ConversationDetail } from "../types/conversation";
 import type { KnowledgeDocumentList, KnowledgeScanResult, KnowledgeSearchResponse } from "../types/knowledge";
+import type {
+  ChangeNextActionRequest,
+  ChangeProjectStatusRequest,
+  CreateProjectRequest,
+  Project,
+  ProjectHistoryResponse,
+  ProjectListResponse,
+  RecordProjectProgressRequest,
+  UpdateProjectDetailsRequest,
+} from "../types/projects";
 import type { ApiResponse } from "../types/api";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -76,8 +86,12 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
   }
 }
 
-export function sendChatMessage(message: string, conversationId?: string): Promise<ChatResponse> {
-  const payload: ChatRequest = { message, ...(conversationId ? { conversation_id: conversationId } : {}) };
+export function sendChatMessage(message: string, conversationId?: string, projectId?: string): Promise<ChatResponse> {
+  const payload: ChatRequest = {
+    message,
+    ...(conversationId ? { conversation_id: conversationId } : {}),
+    ...(!conversationId && projectId ? { project_id: projectId } : {}),
+  };
   return apiRequest<ChatResponse>("/chat", { method: "POST", body: payload });
 }
 
@@ -98,4 +112,36 @@ export function listKnowledgeDocuments(): Promise<KnowledgeDocumentList> {
 
 export function searchKnowledge(query: string): Promise<KnowledgeSearchResponse> {
   return apiRequest<KnowledgeSearchResponse>(`/knowledge/search?q=${encodeURIComponent(query)}`, { method: "GET" });
+}
+
+export function createProject(payload: CreateProjectRequest): Promise<Project> {
+  return apiRequest<Project>("/projects", { method: "POST", body: payload });
+}
+
+export function listProjects(page = 1, pageSize = 25): Promise<ProjectListResponse> {
+  return apiRequest<ProjectListResponse>(`/projects?page=${page}&page_size=${pageSize}`, { method: "GET" });
+}
+
+export function getProject(projectId: string): Promise<Project> {
+  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}`, { method: "GET" });
+}
+
+export function updateProjectDetails(projectId: string, payload: UpdateProjectDetailsRequest): Promise<Project> {
+  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/details`, { method: "PATCH", body: payload });
+}
+
+export function updateProjectProgress(projectId: string, payload: RecordProjectProgressRequest): Promise<Project> {
+  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/progress`, { method: "POST", body: payload });
+}
+
+export function changeProjectNextAction(projectId: string, payload: ChangeNextActionRequest): Promise<Project> {
+  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/next-action`, { method: "PUT", body: payload });
+}
+
+export function changeProjectStatus(projectId: string, payload: ChangeProjectStatusRequest): Promise<Project> {
+  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/status`, { method: "POST", body: payload });
+}
+
+export function getProjectHistory(projectId: string): Promise<ProjectHistoryResponse> {
+  return apiRequest<ProjectHistoryResponse>(`/projects/${encodeURIComponent(projectId)}/history`, { method: "GET" });
 }

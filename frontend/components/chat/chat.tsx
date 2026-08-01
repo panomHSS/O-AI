@@ -2,8 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { ApiError, getConversation, sendChatMessage } from "../../lib/api-client";
+import { ApiError, getConversation, getProject, sendChatMessage } from "../../lib/api-client";
 import type { ChatMessage } from "../../types/chat";
+import type { Project } from "../../types/projects";
 
 const ACTIVE_CONVERSATION_STORAGE_KEY = "oai.activeConversationId";
 
@@ -22,8 +23,20 @@ export function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingProject, setPendingProject] = useState<Project | null>(null);
+  const [associatedProject, setAssociatedProject] = useState<Project | null>(null);
 
   useEffect(() => {
+    const pendingProjectId = new URLSearchParams(window.location.search).get("projectId");
+    if (pendingProjectId) {
+      window.localStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY);
+      getProject(pendingProjectId)
+        .then(setPendingProject)
+        .catch((caughtError) => setError(caughtError instanceof ApiError ? caughtError.message : "Unable to select Project."))
+        .finally(() => setIsRestoring(false));
+      return;
+    }
+
     const storedConversationId = window.localStorage.getItem(ACTIVE_CONVERSATION_STORAGE_KEY);
     if (!storedConversationId) {
       void Promise.resolve().then(() => setIsRestoring(false));
@@ -34,6 +47,10 @@ export function Chat() {
       .then((conversation) => {
         setConversationId(conversation.id);
         setMessages(conversation.messages.map((message) => ({ id: message.id, role: message.role, content: message.content, citations: message.citations })));
+        if (conversation.project_id) {
+          return getProject(conversation.project_id).then(setAssociatedProject);
+        }
+        return undefined;
       })
       .catch((caughtError) => {
         if (caughtError instanceof ApiError && caughtError.status === 404) {
@@ -61,9 +78,14 @@ export function Chat() {
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage(message, conversationId ?? undefined);
+      const response = await sendChatMessage(message, conversationId ?? undefined, conversationId ? undefined : pendingProject?.id);
       setConversationId(response.conversation_id);
       window.localStorage.setItem(ACTIVE_CONVERSATION_STORAGE_KEY, response.conversation_id);
+      if (!conversationId && pendingProject) {
+        setAssociatedProject(pendingProject);
+        setPendingProject(null);
+        window.history.replaceState({}, "", "/chat");
+      }
       setMessages((currentMessages) => [...currentMessages, createMessage("assistant", response.reply)]);
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Something went wrong. Please try again.");
@@ -76,6 +98,9 @@ export function Chat() {
     window.localStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY);
     setConversationId(null);
     setMessages([]);
+    setPendingProject(null);
+    setAssociatedProject(null);
+    window.history.replaceState({}, "", "/chat");
     setError(null);
   }
 
@@ -84,6 +109,8 @@ export function Chat() {
       <header>
         <p className="text-sm font-medium tracking-[0.2em] text-zinc-400">O-AI</p>
         <h1 className="mt-2 text-3xl font-semibold">Chat</h1>
+        {pendingProject ? <p className="mt-2 text-sm text-zinc-300">New conversation Project: {pendingProject.title}</p> : null}
+        {associatedProject ? <p className="mt-2 text-sm text-zinc-300">Project: {associatedProject.title} <span className="text-zinc-500">· linked when this conversation was created</span></p> : null}
         <button className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium hover:border-zinc-400" onClick={handleNewConversation} type="button">
           New Conversation
         </button>

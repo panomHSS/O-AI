@@ -27,5 +27,6 @@ export interface ConversationDetail {
   title: string;
   created_at: string;
   updated_at: string;
+  project_id: string | null;
   messages: StoredMessage[];
 }

@@ -65,6 +65,10 @@ The scanner stores only root-relative paths in SQLite, skips hidden paths and sy
 
 `POST /api/v1/knowledge/answer` retrieves local evidence before calling the configured chat provider. Answers return validated citations and an evidence-quality label. Citation snapshots are durably persisted with the assistant message as historical provenance. Retrieved documents are untrusted reference material; prompt injection is reduced through explicit boundaries but cannot be fully prevented while the provider uses a single-string input.
 
+## Projects
+
+Open `/projects` to create and review owner-controlled Projects. Every Project change requires an explicit owner change note and the revision currently under review; a conflict refreshes the displayed state and requires a new owner submission rather than an automatic retry. Revision history is read-only. Starting a new chat from a Project attaches it only to that conversation's first message; the association cannot later be switched. AI output never writes Project state.
+
 ## Layout
 
 `backend/app` separates API handlers, core infrastructure, data models, services, and Pydantic schemas. `frontend/app` uses the Next.js App Router. `docs` and `scripts` are reserved for project documentation and automation.
