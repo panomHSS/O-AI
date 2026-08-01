@@ -8,6 +8,7 @@ from app.repositories.conversations import ConversationRepository
 from app.repositories.message_citations import CitationSnapshot, MessageCitationRepository
 from app.schemas.conversations import ConversationDetailResponse, ConversationSummaryResponse, StoredCitationResponse, StoredMessageResponse
 from app.services.chat import ChatContextMessage, ChatService
+from app.services.memory_resolver import MemoryResolver, ResolvedMemory
 
 TITLE_MAX_LENGTH = 80
 
@@ -20,26 +21,29 @@ class ConversationNotFoundError(Exception):
 class ChatTurnResult:
     reply: str
     conversation_id: UUID
+    memories_used: tuple[ResolvedMemory, ...] = ()
 
 
 class ConversationService:
     """Coordinates local conversation persistence with provider-neutral chat."""
 
-    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None) -> None:
+    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None, memory_resolver: MemoryResolver | None = None) -> None:
         self._repository = repository
         self._chat_service = chat_service
         self._context_message_limit = context_message_limit
         self._citation_repository = citation_repository
+        self._memory_resolver = memory_resolver
 
     def send_message(self, message: str, conversation_id: UUID | None = None) -> ChatTurnResult:
         conversation, recent_messages = self.begin_turn(message, conversation_id)
 
         context = [ChatContextMessage(role=item.role, content=item.content) for item in recent_messages]
-        reply = self._chat_service.send_message(message, context)
+        memories = self._memory_resolver.resolve(message) if self._memory_resolver else ()
+        reply = self._chat_service.send_message(message, context, memories)
 
         self.complete_turn(conversation.id, reply)
 
-        return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id))
+        return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id), memories_used=memories)
 
     def begin_turn(self, message: str, conversation_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
         """Persist a final user turn and return bounded history for another orchestrator."""

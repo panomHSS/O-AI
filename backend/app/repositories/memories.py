@@ -62,6 +62,16 @@ class MemoryRepository:
         total = self._session.scalar(select(func.count(Memory.id)).where(*filters)) or 0
         return self._session.scalars(statement).all(), total
 
+    def confirmed_versions_for_context(self) -> Sequence[MemoryVersion]:
+        """Return only active, confirmed owner memories for read-only reasoning."""
+        statement: Select[tuple[MemoryVersion]] = (
+            select(MemoryVersion)
+            .join(Memory, (Memory.active_version_id == MemoryVersion.id) & (Memory.id == MemoryVersion.memory_id))
+            .where(Memory.state == "CONFIRMED", MemoryVersion.state == "CONFIRMED")
+            .order_by(MemoryVersion.key, MemoryVersion.id)
+        )
+        return self._session.scalars(statement).all()
+
     def delete(self, memory: Memory) -> None:
         self._session.delete(memory)
 

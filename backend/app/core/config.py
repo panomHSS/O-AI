@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     openai_model: str | None = None
     oai_database_url: str = "sqlite:///./data/oai.db"
     oai_chat_context_message_limit: int = Field(default=20, ge=1, le=100)
+    oai_memory_context_max_items: int = Field(default=8, ge=1, le=25)
+    oai_memory_context_max_chars: int = Field(default=2_000, ge=100, le=10_000)
+    oai_memory_context_max_item_chars: int = Field(default=500, ge=1, le=10_000)
     oai_knowledge_root: str = "./knowledge"
     oai_document_max_file_size_mb: int = Field(default=50, gt=0, le=1024)
     oai_chunk_size_chars: int = Field(default=2000, gt=0, le=100_000)
@@ -31,6 +34,8 @@ class Settings(BaseSettings):
     def validate_chunk_settings(self) -> "Settings":
         if self.oai_chunk_overlap_chars >= self.oai_chunk_size_chars:
             raise ValueError("OAI_CHUNK_OVERLAP_CHARS must be smaller than OAI_CHUNK_SIZE_CHARS.")
+        if self.oai_memory_context_max_item_chars > self.oai_memory_context_max_chars:
+            raise ValueError("OAI_MEMORY_CONTEXT_MAX_ITEM_CHARS must not exceed OAI_MEMORY_CONTEXT_MAX_CHARS.")
         return self
 
 

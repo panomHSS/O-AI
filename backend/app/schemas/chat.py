@@ -15,3 +15,10 @@ class ChatResponse(BaseModel):
 
     reply: str
     conversation_id: UUID
+    memories_used: list["MemoryUsageResponse"] = Field(default_factory=list)
+
+
+class MemoryUsageResponse(BaseModel):
+    memory_id: UUID
+    version: int
+    key: str
