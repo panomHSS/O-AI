@@ -18,11 +18,13 @@ The Phase 2 `app.db.recovery` primitive is deliberately limited to isolated SQLi
 
 SQLite recovery restores the indexed/extracted Knowledge state that is already in the database. It does **not** recreate original Knowledge source files. Database chunks are not a substitute for retaining original files.
 
-## Knowledge persistence prerequisite
+## Knowledge persistence boundary
 
-The current Compose configuration bind-mounts host `./data` to backend `/app/data`. It does not mount a Knowledge source directory. The default `OAI_KNOWLEDGE_ROOT=./knowledge` is therefore container-local unless the owner explicitly provides a persistent Knowledge-root arrangement.
+Compose bind-mounts the repository-relative, owner-controlled host `./knowledge` directory to backend `/app/knowledge` as read-only and explicitly sets `OAI_KNOWLEDGE_ROOT=/app/knowledge`. This keeps original Knowledge source files owner-visible on the host and prevents their loss merely because the backend container is recreated.
 
-Complete Knowledge-source recovery under container recreation is not guaranteed until the owner explicitly persists and separately retains the configured Knowledge root. This is a prerequisite for any future claim of complete O-AI recovery. It is not solved by this runbook.
+Before `docker compose up`, the owner should create and verify the intended repository-relative `./knowledge` directory. It is the owner-controlled original Knowledge source directory; pre-creation avoids relying on Docker's missing-bind-source behavior and lets the owner verify the intended directory will be mounted. This does not create, copy, scan, or populate Knowledge content.
+
+This is persistence, not backup or complete disaster recovery. It does not protect against host disk loss, owner deletion, ransomware, or filesystem corruption. Original Knowledge sources still require a separate owner-approved backup for disaster recovery.
 
 ## Proposed owner backup policy
 
@@ -127,7 +129,7 @@ It must never contain conversation text, Memory values, document excerpts, API k
 
 ## Windows and Docker boundary
 
-Host `./data` is bind-mounted into backend `/app/data`. Recreating a container does not itself remove the host-persisted database, but host disk loss can. Knowledge persistence requires the separate owner action described above. The deployment remains local, single-owner, and unauthenticated at the application API layer; recovery artifacts must remain owner-controlled and increase the number of locations containing sensitive data.
+Host `./data` is bind-mounted into backend `/app/data`, and host `./knowledge` is mounted read-only into backend `/app/knowledge`. Recreating a container does not itself remove those host-persisted files, but host disk loss can. The deployment remains local, single-owner, and unauthenticated at the application API layer; recovery artifacts must remain owner-controlled and increase the number of locations containing sensitive data.
 
 ## Deferred capabilities
 

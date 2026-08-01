@@ -8,10 +8,12 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:3000"]}'
       OAI_DATABASE_URL: ${OAI_DATABASE_URL:-sqlite:///./data/oai.db}
+      OAI_KNOWLEDGE_ROOT: /app/knowledge
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - ./knowledge:/app/knowledge:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 30s
