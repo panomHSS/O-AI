@@ -26,6 +26,7 @@ class KnowledgeAnswerService:
         self._goal_service = goal_service or GoalService()
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
         conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
+        project_context = self._conversations.resolve_project_context(conversation)
         intent = self._analyzer.analyze(question); queries = self._planner.plan(intent)
         records = []; seen = set()
         for query in queries:
@@ -51,7 +52,7 @@ class KnowledgeAnswerService:
             planning_plan = self._planning_service.plan(reasoning_plan)
             decision_analysis = self._decision_service.analyze(reasoning_plan, planning_plan)
             goal_analysis = self._goal_service.analyze(reasoning_plan, planning_plan, decision_analysis)
-            answer = self._chat.send_message(self._prompt.build(intent.question, context, conflicts), history, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis)
+            answer = self._chat.send_message(self._prompt.build(intent.question, context, conflicts), history, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context)
             answer, valid = self._citations.validate(answer, context)
             if not valid: answer = "Sufficient supporting evidence was not found in local documents."
         quality = self._confidence.evaluate(context, valid, conflicts)

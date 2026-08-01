@@ -18,6 +18,7 @@ from app.services.decision import DecisionService
 from app.schemas.goals import GoalAnalysis
 from app.services.goals import GoalService
 from app.services.projects import ProjectNotFoundError
+from app.services.project_context import ProjectContext, ProjectContextResolver
 
 TITLE_MAX_LENGTH = 80
 
@@ -44,7 +45,7 @@ class ChatTurnResult:
 class ConversationService:
     """Coordinates local conversation persistence with provider-neutral chat."""
 
-    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None, decision_service: DecisionService | None = None, goal_service: GoalService | None = None) -> None:
+    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None, decision_service: DecisionService | None = None, goal_service: GoalService | None = None, project_context_resolver: ProjectContextResolver | None = None) -> None:
         self._repository = repository
         self._chat_service = chat_service
         self._context_message_limit = context_message_limit
@@ -54,9 +55,11 @@ class ConversationService:
         self._planning_service = planning_service or PlanningService()
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
+        self._project_context_resolver = project_context_resolver
 
     def send_message(self, message: str, conversation_id: UUID | None = None, project_id: UUID | None = None) -> ChatTurnResult:
         conversation, recent_messages = self.begin_turn(message, conversation_id, project_id)
+        project_context = self.resolve_project_context(conversation)
 
         context = [ChatContextMessage(role=item.role, content=item.content) for item in recent_messages]
         memories = self._memory_resolver.resolve(message) if self._memory_resolver else ()
@@ -64,7 +67,7 @@ class ConversationService:
         planning_plan = self._planning_service.plan(reasoning_plan)
         decision_analysis = self._decision_service.analyze(reasoning_plan, planning_plan)
         goal_analysis = self._goal_service.analyze(reasoning_plan, planning_plan, decision_analysis)
-        reply = self._chat_service.send_message(message, context, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis)
+        reply = self._chat_service.send_message(message, context, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context)
 
         self.complete_turn(conversation.id, reply)
 
@@ -114,6 +117,10 @@ class ConversationService:
         except Exception:
             self._repository.rollback()
             raise
+
+    def resolve_project_context(self, conversation: Conversation) -> ProjectContext | None:
+        """Resolve only current approved Project fields for one provider request."""
+        return self._project_context_resolver.resolve(conversation.project_id) if self._project_context_resolver else None
 
     def _get_or_create_conversation(self, message: str, conversation_id: UUID | None, project_id: UUID | None) -> Conversation:
         if conversation_id is not None:

@@ -18,6 +18,7 @@ from app.services.knowledge import KnowledgeService
 from app.services.knowledge_answer import KnowledgeAnswerService
 from app.services.memories import MemoryService
 from app.services.projects import ProjectService
+from app.services.project_context import ProjectContextReader, ProjectContextResolver
 from app.services.memory_resolver import MemoryResolver
 from app.services.reasoning import ReasoningService
 from app.services.planning import PlanningService
@@ -48,6 +49,7 @@ def get_conversation_service(
         reasoning_service=ReasoningService(),
         planning_service=PlanningService(),
         decision_service=DecisionService(),
+        project_context_resolver=ProjectContextResolver(ProjectContextReader(database_session)),
     )
 
 
@@ -78,5 +80,5 @@ def get_project_service(database_session: Session = Depends(get_db)) -> ProjectS
 
 def get_knowledge_answer_service(database_session: Session = Depends(get_db), chat_service: ChatService = Depends(get_chat_service)) -> KnowledgeAnswerService:
     settings = get_settings()
-    conversation_service = ConversationService(ConversationRepository(database_session), chat_service, settings.oai_chat_context_message_limit, MessageCitationRepository(database_session))
+    conversation_service = ConversationService(ConversationRepository(database_session), chat_service, settings.oai_chat_context_message_limit, MessageCitationRepository(database_session), project_context_resolver=ProjectContextResolver(ProjectContextReader(database_session)))
     return KnowledgeAnswerService(KnowledgeRepository(database_session), conversation_service, chat_service, IntentAnalyzer(), RetrievalPlanner(settings.oai_knowledge_answer_max_retrieval_queries), EvidenceRanker(settings.oai_knowledge_answer_max_evidence_per_document), ConflictDetector(), ContextBuilder(settings.oai_knowledge_answer_context_char_budget), GroundedPromptBuilder(), CitationEngine(), ConfidenceEvaluator(), settings.oai_knowledge_answer_candidates_per_query, settings.oai_knowledge_answer_selected_evidence_count, MemoryResolver(MemoryRepository(database_session), settings.oai_memory_context_max_items, settings.oai_memory_context_max_chars, settings.oai_memory_context_max_item_chars), ReasoningService(), PlanningService(), DecisionService())

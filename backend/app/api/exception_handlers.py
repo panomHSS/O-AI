@@ -13,6 +13,7 @@ from app.services.knowledge import (
 )
 from app.services.memories import MemoryConflictError, MemoryNotFoundError, MemoryValidationError
 from app.services.projects import ProjectConflictError, ProjectNotFoundError, ProjectValidationError
+from app.services.project_context import ProjectContextUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProjectValidationError)
     async def handle_project_validation(_: Request, error: ProjectValidationError) -> JSONResponse:
         return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "PROJECT_VALIDATION_ERROR", str(error))
+
+    @app.exception_handler(ProjectContextUnavailableError)
+    async def handle_project_context_unavailable(_: Request, error: ProjectContextUnavailableError) -> JSONResponse:
+        return error_response(status.HTTP_409_CONFLICT, "PROJECT_CONTEXT_UNAVAILABLE", str(error))
 
     @app.exception_handler(MemoryNotFoundError)
     async def handle_memory_not_found(_: Request, error: MemoryNotFoundError) -> JSONResponse:
