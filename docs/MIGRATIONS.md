@@ -22,6 +22,8 @@ Revision `0003_personal_memory` adds the provider-neutral, owner-controlled `mem
 
 Revision `0004_memory_versioning` adds immutable `memory_versions` snapshots and explicit `memories.active_version_id` and `memories.pending_version_id` pointers. A new memory begins with version 1 in `PENDING`; approval promotes that exact version to `CONFIRMED` and makes it active. Editing a confirmed memory creates one new `PENDING` proposal while the existing confirmed value remains the value returned by normal reads.
 
+Revision `0005_project_backbone` adds owner-controlled `projects`, immutable append-only `project_revisions`, and an optional `conversations.project_id` selected only at first-message conversation creation. It does not inject Project data into provider prompts, create Project state automatically, or add tasks, milestones, or scheduling. ProjectRevision change notes are trimmed, non-empty owner text; revision snapshots are immutable against both update and delete.
+
 Approval and rejection require the requested version number. A decision can be applied only once to the memory's current pending version: approval moves it to active confirmed; rejection moves only that proposal to `REJECTED` and leaves the former active value untouched. A second pending proposal is refused, making concurrent proposal behavior deterministic and preventing stale approvals.
 
 Archiving is an explicit owner action, distinct from rejection. It is refused while a proposal is pending and records a separate `ARCHIVED` snapshot. Version snapshot content, evidence, reason, proposer, and creation audit fields are never updated; a SQLite trigger permits only one pending-to-confirmed or pending-to-rejected decision update, including the owner, timestamp, and decision comment.

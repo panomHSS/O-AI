@@ -6,12 +6,13 @@ from fastapi.responses import JSONResponse
 
 from app.schemas.api import ApiError, ApiErrorDetail
 from app.services.chat import ChatConfigurationError, ChatProviderError
-from app.services.conversations import ConversationNotFoundError
+from app.services.conversations import ConversationAssociationError, ConversationNotFoundError
 from app.services.knowledge import (
     KnowledgeDocumentNotFoundError, KnowledgeRootUnavailableError, KnowledgeScanConflictError,
     KnowledgeSearchValidationError,
 )
 from app.services.memories import MemoryConflictError, MemoryNotFoundError, MemoryValidationError
+from app.services.projects import ProjectConflictError, ProjectNotFoundError, ProjectValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,22 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ConversationNotFoundError)
     async def handle_conversation_not_found(_: Request, error: ConversationNotFoundError) -> JSONResponse:
         return error_response(status.HTTP_404_NOT_FOUND, "CONVERSATION_NOT_FOUND", str(error))
+
+    @app.exception_handler(ConversationAssociationError)
+    async def handle_conversation_association(_: Request, error: ConversationAssociationError) -> JSONResponse:
+        return error_response(status.HTTP_409_CONFLICT, "CONVERSATION_PROJECT_IMMUTABLE", str(error))
+
+    @app.exception_handler(ProjectNotFoundError)
+    async def handle_project_not_found(_: Request, error: ProjectNotFoundError) -> JSONResponse:
+        return error_response(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", str(error))
+
+    @app.exception_handler(ProjectConflictError)
+    async def handle_project_conflict(_: Request, error: ProjectConflictError) -> JSONResponse:
+        return error_response(status.HTTP_409_CONFLICT, "PROJECT_REVISION_CONFLICT", str(error))
+
+    @app.exception_handler(ProjectValidationError)
+    async def handle_project_validation(_: Request, error: ProjectValidationError) -> JSONResponse:
+        return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "PROJECT_VALIDATION_ERROR", str(error))
 
     @app.exception_handler(MemoryNotFoundError)
     async def handle_memory_not_found(_: Request, error: MemoryNotFoundError) -> JSONResponse:

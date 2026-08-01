@@ -24,8 +24,8 @@ class KnowledgeAnswerService:
         self._planning_service = planning_service or PlanningService()
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
-    def answer(self, question: str, conversation_id: UUID | None) -> KnowledgeAnswerResponse:
-        conversation, history = self._conversations.begin_turn(question, conversation_id)
+    def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
+        conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
         intent = self._analyzer.analyze(question); queries = self._planner.plan(intent)
         records = []; seen = set()
         for query in queries:

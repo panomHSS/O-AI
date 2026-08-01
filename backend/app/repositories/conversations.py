@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.db.base import utc_now
 from app.models.conversation import Conversation
 from app.models.message import Message
+from app.models.project import Project
 
 
 class ConversationRepository:
@@ -14,8 +15,8 @@ class ConversationRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def create(self, title: str) -> Conversation:
-        conversation = Conversation(title=title)
+    def create(self, title: str, project_id: str | None = None) -> Conversation:
+        conversation = Conversation(title=title, project_id=project_id)
         self._session.add(conversation)
         self._session.flush()
         return conversation
@@ -57,6 +58,9 @@ class ConversationRepository:
 
     def delete(self, conversation: Conversation) -> None:
         self._session.delete(conversation)
+
+    def project_exists(self, project_id: str) -> bool:
+        return self._session.scalar(select(Project.id).where(Project.id == project_id).limit(1)) is not None
 
     def commit(self) -> None:
         self._session.commit()

@@ -32,6 +32,7 @@ class ConversationSummaryResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    project_id: UUID | None = None
 
 
 class ConversationDetailResponse(ConversationSummaryResponse):

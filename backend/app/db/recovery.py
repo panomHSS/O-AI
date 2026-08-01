@@ -141,6 +141,9 @@ def _fingerprint_rows(connection: sqlite3.Connection) -> tuple[object, ...]:
         ),
         ("memory_versions", "id, memory_id, version, state"),
         ("memories", "id, active_version_id, pending_version_id, state"),
+        ("projects", "id, current_revision, status"),
+        ("project_revisions", "id, project_id, revision_number, status"),
+        ("conversations", "id, project_id"),
         ("document_chunks", "id, document_id, chunk_index"),
     ):
         relationships.extend(
@@ -341,6 +344,57 @@ def validate_citation_invariants(path: Path) -> None:
         raise RecoveryError("Citation recovery invariants are invalid.")
 
 
+def validate_project_invariants(path: Path) -> None:
+    """Validate Project state and append-only snapshots without reading content fields."""
+    path = _guard(path)
+    try:
+        with closing(_connect(path, readonly=True)) as connection:
+            invalid = connection.execute(
+                "SELECT p.id FROM projects p LEFT JOIN project_revisions r ON r.project_id = p.id "
+                "GROUP BY p.id, p.current_revision, p.status HAVING p.status NOT IN ('ACTIVE','PAUSED','COMPLETED','ARCHIVED') "
+                "OR count(r.id) = 0 OR min(r.revision_number) != 1 OR max(r.revision_number) != p.current_revision "
+                "OR count(r.id) != count(DISTINCT r.revision_number)"
+            ).fetchone()
+            mismatch = connection.execute(
+                "SELECT p.id FROM projects p JOIN project_revisions r ON r.project_id=p.id AND r.revision_number=p.current_revision "
+                "WHERE p.status != r.status OR p.title != r.title OR p.objective != r.objective "
+                "OR NOT (p.current_summary IS r.current_summary) OR NOT (p.next_action IS r.next_action)"
+            ).fetchone()
+    except sqlite3.Error as error:
+        raise RecoveryError("Project recovery invariant validation failed.") from error
+    if invalid is not None or mismatch is not None:
+        raise RecoveryError("Project recovery invariants are invalid.")
+    _verify_project_immutability_behavior(path)
+
+
+def _verify_project_immutability_behavior(path: Path) -> None:
+    with closing(_connect(path)) as connection:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("SAVEPOINT project_immutability_probe")
+        try:
+            connection.execute("INSERT INTO projects (id,title,objective,status,current_revision,created_at,updated_at) VALUES ('recovery-project-probe','probe','probe','ACTIVE',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+            connection.execute("INSERT INTO project_revisions (id,project_id,revision_number,title,objective,status,change_note,created_at) VALUES ('recovery-project-revision-probe','recovery-project-probe',1,'probe','probe','ACTIVE','probe',CURRENT_TIMESTAMP)")
+            try:
+                connection.execute("UPDATE project_revisions SET title='changed' WHERE id='recovery-project-revision-probe'")
+            except sqlite3.DatabaseError:
+                update_rejected = True
+            else:
+                update_rejected = False
+            try:
+                connection.execute("DELETE FROM project_revisions WHERE id='recovery-project-revision-probe'")
+            except sqlite3.DatabaseError:
+                delete_rejected = True
+            else:
+                delete_rejected = False
+        except sqlite3.Error as error:
+            raise RecoveryError("Project immutability verification failed.") from error
+        finally:
+            connection.execute("ROLLBACK TO project_immutability_probe")
+            connection.execute("RELEASE project_immutability_probe")
+    if not update_rejected or not delete_rejected:
+        raise RecoveryError("Project immutability protection is ineffective.")
+
+
 def verify(path: Path) -> RecoveryArtifact:
     """Verify an isolated database and return only non-sensitive metadata."""
     path = _guard(path)
@@ -354,6 +408,7 @@ def verify(path: Path) -> RecoveryArtifact:
         validate_fts(path)
         validate_memory_invariants(path)
         validate_citation_invariants(path)
+        validate_project_invariants(path)
     except (sqlite3.Error, DatabaseVerificationError) as error:
         raise RecoveryError("Recovery database verification failed.") from error
     return RecoveryArtifact(path, True, integrity, result.revision, fingerprint(path))

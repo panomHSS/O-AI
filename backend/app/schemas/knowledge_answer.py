@@ -10,6 +10,7 @@ from app.schemas.goals import GoalAnalysis
 class KnowledgeAnswerRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     conversation_id: UUID | None = None
+    project_id: UUID | None = None
 class CitationResponse(BaseModel):
     id: str; document_id: UUID; file_name: str; source_path: str; source_locator: str; excerpt: str
 class ConflictResponse(BaseModel):

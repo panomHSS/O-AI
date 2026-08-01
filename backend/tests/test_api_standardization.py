@@ -15,25 +15,26 @@ from app.schemas.planning import PlanningPlan
 
 
 class TestConversationService:
-    def send_message(self, message: str, conversation_id=None) -> ChatTurnResult:
+    def send_message(self, message: str, conversation_id=None, project_id=None) -> ChatTurnResult:
+        _ = project_id
         return ChatTurnResult(reply=f"Test reply: {message}", conversation_id=UUID("11111111-1111-1111-1111-111111111111"))
 
 
 class ConfigurationErrorConversationService:
-    def send_message(self, message: str, conversation_id=None) -> ChatTurnResult:
-        _ = (message, conversation_id)
+    def send_message(self, message: str, conversation_id=None, project_id=None) -> ChatTurnResult:
+        _ = (message, conversation_id, project_id)
         raise ChatConfigurationError("Chat is not configured.")
 
 
 class ExplodingConversationService:
-    def send_message(self, message: str, conversation_id=None) -> ChatTurnResult:
-        _ = (message, conversation_id)
+    def send_message(self, message: str, conversation_id=None, project_id=None) -> ChatTurnResult:
+        _ = (message, conversation_id, project_id)
         raise RuntimeError("provider internals must not reach the response")
 
 
 class TestKnowledgeAnswerService:
-    def answer(self, question: str, conversation_id=None) -> KnowledgeAnswerResponse:
-        _ = (question, conversation_id)
+    def answer(self, question: str, conversation_id=None, project_id=None) -> KnowledgeAnswerResponse:
+        _ = (question, conversation_id, project_id)
         return KnowledgeAnswerResponse(answer="Grounded answer S1", citations=[], evidence_quality="insufficient", conversation_id=UUID("11111111-1111-1111-1111-111111111111"), retrieval_summary=RetrievalSummaryResponse(candidates_considered=0, evidence_selected=0, duplicates_removed=0, filtered_out=0, conflicting_evidence_count=0, queries_used=[]), conflicts=[], reasoning_plan=ReasoningPlan(intent="general", normalized_question="", required_information=[], missing_information=[], evidence_map=[]), planning_plan=PlanningPlan(intent="general"))
 
 
@@ -92,7 +93,7 @@ class ApiStandardizationTests(unittest.TestCase):
         self.assertEqual(status_code, 200)
         self.assertEqual(body["success"], True)
         self.assertEqual(body["data"]["status"], "ok")
-        self.assertEqual(body["data"]["database_revision"], "0004_memory_versioning")
+        self.assertEqual(body["data"]["database_revision"], "0005_project_backbone")
 
     def test_request_id_is_generated(self) -> None:
         _, headers, _ = self.request("/api/v1/health")

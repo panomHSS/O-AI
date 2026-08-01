@@ -10,28 +10,32 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0004_memory_versioning"
-EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions"}
+TARGET_REVISION = "0005_project_backbone"
+EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions", "projects", "project_revisions"}
 EXPECTED_COLUMNS = {
-    "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0)],
+    "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0)],
     "messages": [("id", "VARCHAR(36)", 1), ("conversation_id", "VARCHAR(36)", 0), ("role", "VARCHAR(16)", 0), ("content", "VARCHAR", 0), ("created_at", "DATETIME", 0)],
     "documents": [("id", "VARCHAR(36)", 1), ("source_path", "VARCHAR(1024)", 0), ("file_name", "VARCHAR(512)", 0), ("file_extension", "VARCHAR(32)", 0), ("mime_type", "VARCHAR(255)", 0), ("file_size", "INTEGER", 0), ("content_hash", "VARCHAR(64)", 0), ("status", "VARCHAR(32)", 0), ("error_message", "TEXT", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("indexed_at", "DATETIME", 0)],
     "document_chunks": [("id", "VARCHAR(36)", 1), ("document_id", "VARCHAR(36)", 0), ("chunk_index", "INTEGER", 0), ("content", "TEXT", 0), ("source_locator", "VARCHAR(512)", 0), ("created_at", "DATETIME", 0)],
     "message_citations": [("id", "VARCHAR(36)", 1), ("message_id", "VARCHAR(36)", 0), ("citation_order", "INTEGER", 0), ("citation_id", "VARCHAR(16)", 0), ("document_id", "VARCHAR(36)", 0), ("file_name", "VARCHAR(512)", 0), ("source_path", "VARCHAR(1024)", 0), ("source_locator", "VARCHAR(512)", 0), ("excerpt", "TEXT", 0), ("excerpt_hash", "VARCHAR(64)", 0), ("confidence", "FLOAT", 0), ("evidence_type", "VARCHAR(32)", 0), ("created_at", "DATETIME", 0)],
     "memories": [("id", "VARCHAR(36)", 1), ("key", "VARCHAR(128)", 0), ("value", "TEXT", 0), ("value_type", "VARCHAR(16)", 0), ("state", "VARCHAR(16)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("current_version", "INTEGER", 0), ("active_version_id", "VARCHAR(36)", 0), ("pending_version_id", "VARCHAR(36)", 0)],
     "memory_versions": [("id", "VARCHAR(36)", 1), ("memory_id", "VARCHAR(36)", 0), ("version", "INTEGER", 0), ("key", "VARCHAR(128)", 0), ("value", "TEXT", 0), ("value_type", "VARCHAR(16)", 0), ("state", "VARCHAR(16)", 0), ("change_reason", "VARCHAR(512)", 0), ("decision_comment", "TEXT", 0), ("evidence_snapshot", "TEXT", 0), ("created_by", "VARCHAR(64)", 0), ("proposed_by", "VARCHAR(64)", 0), ("proposed_at", "DATETIME", 0), ("decided_by", "VARCHAR(64)", 0), ("decided_at", "DATETIME", 0), ("created_at", "DATETIME", 0)],
+    "projects": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(160)", 0), ("objective", "TEXT", 0), ("status", "VARCHAR(16)", 0), ("current_summary", "TEXT", 0), ("next_action", "VARCHAR(512)", 0), ("current_revision", "INTEGER", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0)],
+    "project_revisions": [("id", "VARCHAR(36)", 1), ("project_id", "VARCHAR(36)", 0), ("revision_number", "INTEGER", 0), ("title", "VARCHAR(160)", 0), ("objective", "TEXT", 0), ("status", "VARCHAR(16)", 0), ("current_summary", "TEXT", 0), ("next_action", "VARCHAR(512)", 0), ("change_note", "VARCHAR(512)", 0), ("created_at", "DATETIME", 0)],
 }
 EXPECTED_INDEXES = {
-    "conversations": {"ix_conversations_updated_at": (["updated_at"], False)},
+    "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False)},
     "messages": {"ix_messages_conversation_id": (["conversation_id"], False), "ix_messages_created_at": (["created_at"], False)},
     "documents": {"ix_documents_source_path": (["source_path"], True), "ix_documents_content_hash": (["content_hash"], False), "ix_documents_status": (["status"], False), "ix_documents_updated_at": (["updated_at"], False)},
     "document_chunks": {"ix_document_chunks_document_id": (["document_id"], False)},
     "message_citations": {"ix_message_citations_message_id": (["message_id"], False)},
     "memories": {"ix_memories_key": (["key"], True), "ix_memories_state": (["state"], False), "ix_memories_updated_at": (["updated_at"], False)},
     "memory_versions": {"ix_memory_versions_memory_id": (["memory_id"], False)},
+    "projects": {"ix_projects_status": (["status"], False), "ix_projects_updated_at": (["updated_at"], False)},
+    "project_revisions": {"ix_project_revisions_project_id": (["project_id"], False)},
 }
-EXPECTED_FOREIGN_KEYS = {"messages": ("conversation_id", "conversations", "id"), "document_chunks": ("document_id", "documents", "id"), "message_citations": ("message_id", "messages", "id"), "memory_versions": ("memory_id", "memories", "id")}
-NULLABLE_COLUMNS = {"documents": {"error_message", "indexed_at"}, "memories": {"active_version_id", "pending_version_id"}, "memory_versions": {"decision_comment", "evidence_snapshot", "decided_by", "decided_at"}}
+EXPECTED_FOREIGN_KEYS = {"messages": ("conversation_id", "conversations", "id"), "document_chunks": ("document_id", "documents", "id"), "message_citations": ("message_id", "messages", "id"), "memory_versions": ("memory_id", "memories", "id"), "project_revisions": ("project_id", "projects", "id"), "conversations": ("project_id", "projects", "id")}
+NULLABLE_COLUMNS = {"documents": {"error_message", "indexed_at"}, "memories": {"active_version_id", "pending_version_id"}, "memory_versions": {"decision_comment", "evidence_snapshot", "decided_by", "decided_at"}, "conversations": {"project_id"}, "projects": {"current_summary", "next_action"}, "project_revisions": {"current_summary", "next_action"}}
 
 
 class DatabaseVerificationError(RuntimeError):
@@ -82,7 +86,7 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
     for table_name, (column_name, referred_table, referred_column) in EXPECTED_FOREIGN_KEYS.items():
         foreign_keys = connection.execute(f"PRAGMA foreign_key_list({table_name})").fetchall()
         matching = [row for row in foreign_keys if row[3:5] == (column_name, referred_column) and row[2] == referred_table]
-        if len(matching) != 1 or matching[0][6].upper() != "CASCADE":
+        if len(matching) != 1 or (table_name not in {"project_revisions", "conversations"} and matching[0][6].upper() != "CASCADE"):
             raise DatabaseVerificationError(f"Configured database has incompatible foreign keys in {table_name}.")
     message_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'messages'").fetchone()[0]
     if "CHECK (ROLE IN ('USER', 'ASSISTANT'))" not in message_sql.upper():
@@ -105,6 +109,19 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
     version_trigger = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'trigger' AND name = 'trg_memory_versions_immutable'").fetchone()
     if version_trigger is None:
         raise DatabaseVerificationError("Configured database is missing memory version immutability protection.")
+    project_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'projects'").fetchone()[0].upper()
+    revision_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'project_revisions'").fetchone()[0].upper()
+    if (
+        "STATUS IN ('ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED')" not in project_sql
+        or "CURRENT_REVISION >= 1" not in project_sql
+        or "LENGTH(TITLE) <= 160" not in project_sql
+        or "LENGTH(OBJECTIVE) <= 4000" not in project_sql
+        or "REVISION_NUMBER >= 1" not in revision_sql
+        or "LENGTH(TRIM(CHANGE_NOTE)) > 0" not in revision_sql
+    ):
+        raise DatabaseVerificationError("Configured database is missing project constraints.")
+    if not all(connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'trigger' AND name = ?", (name,)).fetchone() for name in ("trg_project_revisions_immutable_update", "trg_project_revisions_immutable_delete")):
+        raise DatabaseVerificationError("Configured database is missing project revision immutability protection.")
     memory_foreign_keys = connection.execute("PRAGMA foreign_key_list(memories)").fetchall()
     if {(row[3], row[2], row[4]) for row in memory_foreign_keys} != {("active_version_id", "memory_versions", "id"), ("pending_version_id", "memory_versions", "id")}:
         raise DatabaseVerificationError("Configured database is missing memory version pointers.")

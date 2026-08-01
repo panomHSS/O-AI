@@ -17,12 +17,17 @@ from app.schemas.decision import DecisionAnalysis
 from app.services.decision import DecisionService
 from app.schemas.goals import GoalAnalysis
 from app.services.goals import GoalService
+from app.services.projects import ProjectNotFoundError
 
 TITLE_MAX_LENGTH = 80
 
 
 class ConversationNotFoundError(Exception):
     """Raised when a requested conversation does not exist."""
+
+
+class ConversationAssociationError(Exception):
+    """Raised when an immutable conversation-project timing rule is violated."""
 
 
 @dataclass(frozen=True)
@@ -50,8 +55,8 @@ class ConversationService:
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
 
-    def send_message(self, message: str, conversation_id: UUID | None = None) -> ChatTurnResult:
-        conversation, recent_messages = self.begin_turn(message, conversation_id)
+    def send_message(self, message: str, conversation_id: UUID | None = None, project_id: UUID | None = None) -> ChatTurnResult:
+        conversation, recent_messages = self.begin_turn(message, conversation_id, project_id)
 
         context = [ChatContextMessage(role=item.role, content=item.content) for item in recent_messages]
         memories = self._memory_resolver.resolve(message) if self._memory_resolver else ()
@@ -65,11 +70,11 @@ class ConversationService:
 
         return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id), memories_used=memories, reasoning_plan=reasoning_plan, planning_plan=planning_plan, decision_analysis=decision_analysis, goal_analysis=goal_analysis)
 
-    def begin_turn(self, message: str, conversation_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
+    def begin_turn(self, message: str, conversation_id: UUID | None = None, project_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
         """Persist a final user turn and return bounded history for another orchestrator."""
-        conversation = self._get_or_create_conversation(message, conversation_id)
-        recent = self._repository.recent_messages(conversation.id, self._context_message_limit)
         try:
+            conversation = self._get_or_create_conversation(message, conversation_id, project_id)
+            recent = self._repository.recent_messages(conversation.id, self._context_message_limit)
             self._repository.add_message(conversation, "user", message)
             self._repository.commit()
         except Exception:
@@ -110,17 +115,14 @@ class ConversationService:
             self._repository.rollback()
             raise
 
-    def _get_or_create_conversation(self, message: str, conversation_id: UUID | None) -> Conversation:
+    def _get_or_create_conversation(self, message: str, conversation_id: UUID | None, project_id: UUID | None) -> Conversation:
         if conversation_id is not None:
+            if project_id is not None:
+                raise ConversationAssociationError("A project can only be selected when creating a conversation.")
             return self._require_conversation(conversation_id)
-
-        try:
-            conversation = self._repository.create(self._create_title(message))
-            self._repository.commit()
-            return conversation
-        except Exception:
-            self._repository.rollback()
-            raise
+        if project_id is not None and not self._repository.project_exists(str(project_id)):
+            raise ProjectNotFoundError("The requested project was not found.")
+        return self._repository.create(self._create_title(message), str(project_id) if project_id else None)
 
     def _require_conversation(self, conversation_id: UUID) -> Conversation:
         conversation = self._repository.get(str(conversation_id))
@@ -140,6 +142,7 @@ class ConversationService:
             title=conversation.title,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
+            project_id=UUID(conversation.project_id) if conversation.project_id else None,
         )
 
     @staticmethod

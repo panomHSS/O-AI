@@ -16,5 +16,5 @@ def send_chat_message(
     conversation_service: Annotated[ConversationService, Depends(get_conversation_service)],
 ) -> ApiSuccess[ChatResponse]:
     """Handle a single chat turn through the configured chat service."""
-    result = conversation_service.send_message(payload.message, payload.conversation_id)
+    result = conversation_service.send_message(payload.message, payload.conversation_id, payload.project_id)
     return ApiSuccess(data=ChatResponse(reply=result.reply, conversation_id=result.conversation_id, memories_used=[MemoryUsageResponse(memory_id=item.memory_id, version=item.version, key=item.key) for item in result.memories_used], reasoning_plan=result.reasoning_plan, planning_plan=result.planning_plan, decision_analysis=result.decision_analysis, goal_analysis=result.goal_analysis))

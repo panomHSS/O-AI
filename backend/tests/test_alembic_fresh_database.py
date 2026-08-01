@@ -20,16 +20,18 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0004_memory_versioning"
-EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions"}
+REVISION = "0005_project_backbone"
+EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions", "projects", "project_revisions"}
 EXPECTED_INDEXES = {
-    "conversations": {"ix_conversations_updated_at"},
+    "conversations": {"ix_conversations_updated_at", "ix_conversations_project_id"},
     "messages": {"ix_messages_conversation_id", "ix_messages_created_at"},
     "documents": {"ix_documents_source_path", "ix_documents_content_hash", "ix_documents_status", "ix_documents_updated_at"},
     "document_chunks": {"ix_document_chunks_document_id"},
     "message_citations": {"ix_message_citations_message_id"},
     "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at"},
     "memory_versions": {"ix_memory_versions_memory_id"},
+    "projects": {"ix_projects_status", "ix_projects_updated_at"},
+    "project_revisions": {"ix_project_revisions_project_id"},
 }
 
 
@@ -164,6 +166,19 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
             connection.execute(text("UPDATE memories SET pending_version_id = 'immutable-version' WHERE id = 'immutable-memory'"))
             with self.assertRaises(IntegrityError):
                 connection.execute(text("UPDATE memory_versions SET value = '\"Changed\"' WHERE id = 'immutable-version'"))
+
+    def test_project_backbone_upgrade_preserves_existing_conversations_with_null_project(self) -> None:
+        self._upgrade_to_head("0004_memory_versioning")
+        self.engine = create_database_engine(self.database_url)
+        with self.engine.begin() as connection:
+            connection.execute(text("INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('pre-project', 'Existing', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+        self.engine.dispose()
+        self.engine = None
+        self._upgrade_to_head()
+        self.engine = create_database_engine(self.database_url)
+        with self.engine.connect() as connection:
+            self.assertIsNone(connection.scalar(text("SELECT project_id FROM conversations WHERE id = 'pre-project'")))
+            self.assertEqual(connection.scalar(text("SELECT count(*) FROM projects")), 0)
 
     def _assert_foreign_key(self, inspector, table_name: str, column_name: str, target_table: str) -> None:
         foreign_keys = inspector.get_foreign_keys(table_name)

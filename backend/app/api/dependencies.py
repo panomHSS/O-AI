@@ -10,12 +10,14 @@ from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.message_citations import MessageCitationRepository
 from app.repositories.memories import MemoryRepository
+from app.repositories.projects import ProjectRepository
 from app.readers import create_document_reader_registry
 from app.services.chat import ChatService
 from app.services.conversations import ConversationService
 from app.services.knowledge import KnowledgeService
 from app.services.knowledge_answer import KnowledgeAnswerService
 from app.services.memories import MemoryService
+from app.services.projects import ProjectService
 from app.services.memory_resolver import MemoryResolver
 from app.services.reasoning import ReasoningService
 from app.services.planning import PlanningService
@@ -68,6 +70,10 @@ def get_knowledge_service(database_session: Session = Depends(get_db)) -> Knowle
 
 def get_memory_service(database_session: Session = Depends(get_db)) -> MemoryService:
     return MemoryService(MemoryRepository(database_session))
+
+
+def get_project_service(database_session: Session = Depends(get_db)) -> ProjectService:
+    return ProjectService(ProjectRepository(database_session))
 
 
 def get_knowledge_answer_service(database_session: Session = Depends(get_db), chat_service: ChatService = Depends(get_chat_service)) -> KnowledgeAnswerService:

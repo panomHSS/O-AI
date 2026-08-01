@@ -12,6 +12,7 @@ class ChatRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=4_000)
     conversation_id: UUID | None = None
+    project_id: UUID | None = None
 
 
 class ChatResponse(BaseModel):
