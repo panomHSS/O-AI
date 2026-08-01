@@ -13,6 +13,8 @@ from app.schemas.reasoning import ReasoningPlan
 from app.services.reasoning import ReasoningService
 from app.schemas.planning import PlanningPlan
 from app.services.planning import PlanningService
+from app.schemas.decision import DecisionAnalysis
+from app.services.decision import DecisionService
 
 TITLE_MAX_LENGTH = 80
 
@@ -28,12 +30,13 @@ class ChatTurnResult:
     memories_used: tuple[ResolvedMemory, ...] = ()
     reasoning_plan: ReasoningPlan | None = None
     planning_plan: PlanningPlan | None = None
+    decision_analysis: DecisionAnalysis | None = None
 
 
 class ConversationService:
     """Coordinates local conversation persistence with provider-neutral chat."""
 
-    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None) -> None:
+    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None, decision_service: DecisionService | None = None) -> None:
         self._repository = repository
         self._chat_service = chat_service
         self._context_message_limit = context_message_limit
@@ -41,6 +44,7 @@ class ConversationService:
         self._memory_resolver = memory_resolver
         self._reasoning_service = reasoning_service or ReasoningService()
         self._planning_service = planning_service or PlanningService()
+        self._decision_service = decision_service or DecisionService()
 
     def send_message(self, message: str, conversation_id: UUID | None = None) -> ChatTurnResult:
         conversation, recent_messages = self.begin_turn(message, conversation_id)
@@ -49,11 +53,12 @@ class ConversationService:
         memories = self._memory_resolver.resolve(message) if self._memory_resolver else ()
         reasoning_plan = self._reasoning_service.plan(message, memories)
         planning_plan = self._planning_service.plan(reasoning_plan)
-        reply = self._chat_service.send_message(message, context, memories, reasoning_plan, planning_plan)
+        decision_analysis = self._decision_service.analyze(reasoning_plan, planning_plan)
+        reply = self._chat_service.send_message(message, context, memories, reasoning_plan, planning_plan, decision_analysis)
 
         self.complete_turn(conversation.id, reply)
 
-        return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id), memories_used=memories, reasoning_plan=reasoning_plan, planning_plan=planning_plan)
+        return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id), memories_used=memories, reasoning_plan=reasoning_plan, planning_plan=planning_plan, decision_analysis=decision_analysis)
 
     def begin_turn(self, message: str, conversation_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
         """Persist a final user turn and return bounded history for another orchestrator."""

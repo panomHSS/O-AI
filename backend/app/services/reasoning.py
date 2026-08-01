@@ -1,5 +1,6 @@
 """Deterministic reasoning between retrieval and provider prompt composition."""
 
+import re
 from collections.abc import Sequence
 
 from app.schemas.reasoning import ReasoningEvidence, ReasoningIntent, ReasoningPlan
@@ -19,7 +20,11 @@ class RuleBasedIntentClassifier:
         ("factual_lookup", ("what", "which", "when", "where", "who", "อะไร", "ไหน", "เมื่อ")),
     )
 
+    _EXPLICIT_OR_ALTERNATIVES = re.compile(r"^\s*[^\s?!.]{1,80}\s+or\s+[^\s?!.]{1,80}\s*[?!.]?\s*$", re.IGNORECASE)
+
     def classify(self, question: str) -> ReasoningIntent:
+        if self._EXPLICIT_OR_ALTERNATIVES.fullmatch(question):
+            return "comparison"
         normalized = f" {question.casefold()} "
         for intent, keywords in self._RULES:
             if any(keyword in normalized for keyword in keywords):
