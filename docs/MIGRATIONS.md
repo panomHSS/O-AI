@@ -72,3 +72,5 @@ The `backups/` directory contains recoverable database copies and should be reta
 ## Isolated recovery primitive
 
 `app.db.recovery` is a developer/test primitive for isolated SQLite paths. It resolves protected paths from the repository root, uses `sqlite3.Connection.backup()` through an operation-owned temporary artifact, and publishes only a new destination without overwriting an existing file. It verifies integrity, foreign keys, the current O-AI schema, operational FTS5 access, Alembic revision, effective Memory version immutability/governance, and citation/message relationships. Its structural fingerprint contains only revision, table names, row counts, and identifiers/relationships; it excludes application content. It is not an operational production restore command or policy.
+
+See [Recovery Runbook](RECOVERY.md) for the owner policy, recovery-set boundaries, approval gates, and isolated drill guidance. It does not turn this primitive into live production backup or restore tooling.
