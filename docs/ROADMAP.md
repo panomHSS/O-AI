@@ -49,7 +49,78 @@ This roadmap is maintained by release. Dates are intentionally omitted until the
 ### 0.6.1 - Knowledge Intelligence
 
 - Evidence-first local retrieval, deterministic ranking, conflict disclosure, and validated citations.
-- Durable message-citation persistence deferred pending an approved SQLite migration strategy.
+- Durable message-citation persistence was deferred at this release pending an approved SQLite migration strategy.
+
+## Implemented after 0.6.1 - Unreleased
+
+The following capabilities are implemented in the current codebase but have not been assigned retrospective release numbers or Git release tags.
+
+### Citation Persistence
+
+- Durable grounded-answer citation snapshots.
+- Historical provenance retained with assistant messages.
+
+### Personal Memory Foundation
+
+- Owner-controlled personal memory persistence.
+- Explicit memory lifecycle and local-first storage.
+
+### Memory Governance
+
+- Immutable memory versions.
+- Explicit owner approval and rejection.
+- Confirmed memory remains active while a proposed update is pending.
+
+### Memory-aware Chat
+
+- Selected confirmed personal memory can be included in bounded chat context.
+- Memory usage remains separate from Knowledge evidence and citations.
+
+### Reasoning Foundation
+
+- Deterministic reasoning metadata before provider prompt composition.
+- Reasoning remains explanatory metadata rather than hidden chain-of-thought or autonomous execution.
+
+### Planning Engine
+
+- Deterministic response-planning metadata.
+- Planning structures responses without creating or executing workflows or tasks.
+
+### Decision Analysis
+
+- Deterministic comparison and decision-support metadata.
+- Owner decision remains required; O-AI does not autonomously select or execute an alternative.
+
+### Goal Analysis
+
+- Explicit goal/project candidate analysis.
+- Goal analysis does not automatically create, activate, schedule, or execute durable Projects.
+
+### Recovery Foundation
+
+- Verified SQLite recovery primitives.
+- Manual recovery policy and runbook.
+- Recovery remains owner-controlled.
+
+### Durable Project Backbone
+
+- Owner-created durable Projects.
+- Immutable append-only Project revision history.
+- Explicit owner-controlled status, details, progress, and next-action changes.
+- Optional Project association at conversation creation.
+
+### Runtime Project Context
+
+- Project-associated conversations receive bounded read-only current Project context.
+- Project state is not automatically changed by AI output.
+- Existing associated conversations resolve the current Project state at provider-request time.
+
+### Project UI and Project-associated Conversations
+
+- Project list, creation, detail, revision-history, progress, next-action, and lifecycle UI.
+- New conversations can be explicitly started from a Project.
+- Project association is established at conversation creation and cannot later be switched.
+- Subsequent conversation turns use the persisted association rather than resubmitting a Project selection.
 
 ## Planned
 
@@ -57,7 +128,7 @@ This roadmap is maintained by release. Dates are intentionally omitted until the
 
 - Owner-approved OCR support for scanned and image-only PDF documents.
 
-### Future releases
+## Future releases
 
 - Gmail and Calendar integrations.
 - Plugin Engine.
