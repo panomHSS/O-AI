@@ -2,6 +2,8 @@
 
 O-AI is a local-first Personal AI Operating System foundation with chat, conversation memory, and local document knowledge.
 
+O-AI currently supports a trusted local, single-owner deployment model. The API has no authentication or authorization layer and must not be exposed as a public untrusted-network service. Broader exposure requires a separate approved authentication/authorization decision.
+
 ## Stack
 
 - Backend: Python 3.14, FastAPI, Pydantic, Uvicorn
@@ -61,7 +63,7 @@ The scanner stores only root-relative paths in SQLite, skips hidden paths and sy
 
 ## Grounded knowledge answers
 
-`POST /api/v1/knowledge/answer` retrieves local evidence before calling the configured chat provider. Answers return only validated `S1`, `S2`, and similar citations, plus an evidence-quality label. Retrieved documents are untrusted reference material; prompt injection is reduced through explicit boundaries but cannot be fully prevented while the provider uses a single-string input. Citation metadata is returned by the API but durable message-citation persistence requires a future approved SQLite migration.
+`POST /api/v1/knowledge/answer` retrieves local evidence before calling the configured chat provider. Answers return validated citations and an evidence-quality label. Citation snapshots are durably persisted with the assistant message as historical provenance. Retrieved documents are untrusted reference material; prompt injection is reduced through explicit boundaries but cannot be fully prevented while the provider uses a single-string input.
 
 ## Layout
 

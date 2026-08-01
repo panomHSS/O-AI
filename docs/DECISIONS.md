@@ -136,7 +136,7 @@ Browser-only history, PostgreSQL, a vector database, Redis, external memory serv
 SQLite is local-first, deploys with the application, supports transactional message history, and is sufficient for bounded recent-context retrieval. Repositories isolate SQLAlchemy; services own transactions and provider coordination.
 
 **Consequences**
-FastAPI lifespan initialization uses `create_all()` only to create missing Version 1 tables; it cannot migrate existing schemas. Future schema changes require an approved migration plan. Recent context is bounded and string-formatted before the unchanged provider interface; structured provider messages require a future approved architecture decision.
+Alembic owns production schema evolution. Startup verifies the configured managed SQLite schema read-only and never creates, upgrades, or stamps it. Recent context is bounded and string-formatted before the unchanged provider interface.
 
 ## ADR-009: Local SQLite FTS5 knowledge indexing
 
@@ -161,4 +161,12 @@ Documents are identified by normalized root-relative source path; identical cont
 Retrieve and deterministically rank local evidence before invoking the unchanged provider, then return only validated citations and transparent evidence quality.
 
 **Consequences**
-The current single-string provider input reduces, but cannot fully prevent, prompt injection. Assistant-message citation persistence is deferred: a new related SQLite table would require an approved migration because `create_all()` cannot alter existing schemas.
+The current single-string provider input reduces, but cannot fully prevent, prompt injection. Assistant-message citation snapshots are persisted through Alembic revision `0002_message_citations` and are transactionally associated with assistant messages as historical evidence.
+
+## ADR-011: Architecture Review 1.0 operational baseline
+
+**Decision**
+Treat O-AI as ready with required pre-hardening corrections for the trusted local, single-owner deployment model.
+
+**Consequences**
+No P0 architectural finding is confirmed. Releases 0.9.0A through 0.9.0E prioritize documentation truth, backup/restore confidence, retry/privacy boundaries, composition/test hardening, and measured readiness. Authentication, distributed infrastructure, semantic/vector retrieval, and local-LLM infrastructure remain deferred until an owner-approved requirement and evidence justify them.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-O-AI is a Personal AI Operating System with a web client and a versioned HTTP API. The current release establishes the application boundary, operational health checks, configuration, and observability foundation. AI capabilities are intentionally deferred.
+O-AI is a local-first Personal AI Operating System with a web client and a versioned HTTP API. It currently includes local Knowledge ingestion/retrieval, owner-controlled Personal Memory, persisted citations, and deterministic runtime intelligence metadata.
 
 ```mermaid
 flowchart LR
@@ -84,7 +84,7 @@ Version 1 stores conversations and messages in local SQLite. API routes call app
 
 The chat flow creates a UUID conversation when needed, saves the user message, loads only a configured chronological window of recent messages, invokes `ChatService`, then saves the assistant reply. If the provider fails, the user message remains as history but no synthetic assistant reply is stored. Provider implementations never access repositories or database models.
 
-`create_all()` runs during the FastAPI lifespan only to create missing Version 1 tables. It cannot alter existing schemas. Any schema change after Version 1 requires an approved, explicit migration strategy; Alembic is intentionally not included in this release. The current string-based provider input is a Version 1 compatibility boundary; a future approved release may adopt structured provider messages.
+Alembic owns production schema evolution. FastAPI startup opens the configured SQLite database read-only for compatibility verification; it verifies the expected revision, tables, constraints, foreign keys, FTS5 definition, and applicable Memory immutability protections. Startup never creates tables, upgrades, stamps, or rewrites the schema. The current string-based provider input remains a compatibility boundary.
 
 ## Local Knowledge Engine
 
@@ -108,7 +108,7 @@ The scanner resolves every candidate beneath `OAI_KNOWLEDGE_ROOT`, skips symlink
 
 ## Knowledge Intelligence
 
-Knowledge answers are evidence-first: deterministic intent analysis and retrieval planning query local FTS5, deterministic ranking selects diverse evidence, conflict detection flags incompatible values, and a bounded prompt passes only selected text to `ChatService`. `GroundedPromptBuilder` delimits every source as untrusted and requires public source IDs. `CitationEngine` validates returned IDs; `ConfidenceEvaluator` emits high, medium, low, or insufficient without probabilities. The existing single-string provider contract is a limitation: prompt injection cannot be claimed fully prevented. Citation metadata is not yet durably tied to persisted assistant messages because `create_all()` cannot migrate existing SQLite schemas.
+Knowledge answers are evidence-first: deterministic lexical retrieval queries local FTS5, ranking selects bounded evidence, conflict detection flags incompatible values, and a bounded prompt passes only selected text to `ChatService`. `GroundedPromptBuilder` delimits every source as untrusted and requires public source IDs. `CitationEngine` validates returned IDs; citation snapshots are transactionally persisted with the assistant message as historical evidence. `ConfidenceEvaluator` emits high, medium, low, or insufficient without probabilities. The existing single-string provider contract is a limitation: prompt injection cannot be claimed fully prevented.
 
 ## Memory-aware chat
 
@@ -145,6 +145,16 @@ Decision analysis never selects, ranks, scores, or automatically recommends an a
 ### Goal Constitution
 
 Goals and projects are owner-controlled concepts, not commands. GoalAnalysis is explanatory metadata only: it never creates, persists, activates, schedules, executes, completes, or changes the status of a goal or project. Only explicit marker input may produce a candidate, and every real-world action requires separate explicit owner approval through a future approved execution system. Goal, Project, Decision, Planning, Reasoning, Personal Memory, and Knowledge remain separate context blocks; user-supplied marker text is untrusted data and cannot override system, developer, safety, grounding, citation, or owner-control requirements.
+
+## Provider, privacy, and deployment boundary
+
+For normal chat, selected provider input may include recent conversation history, the current user message, runtime Reasoning/Planning/Decision/Goal metadata, selected CONFIRMED Personal Memory values, and selected Knowledge evidence for grounded answers. This repository does not establish an external provider's retention or training policy. API memory-usage metadata exposes only memory ID, version, and key; it does not expose selected values.
+
+O-AI supports a trusted local, single-owner deployment model. There is currently no authentication or authorization layer; the backend must not be treated as a public untrusted-network service. SQLite plus FTS5 is intentional for the supported workload. PostgreSQL, Redis, vector databases, distributed workers, microservices, Kubernetes, an async rewrite, and local-LLM infrastructure are deliberately deferred until evidence requires them.
+
+## Architecture Review 1.0
+
+Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.
 
 ## Frontend
 
