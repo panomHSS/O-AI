@@ -1,4 +1,4 @@
-from uuid import UUID
+﻿from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError, OperationalError
 
@@ -70,9 +70,88 @@ class ProjectService:
             values["objective"] = payload.objective.strip()
         return self._mutate(project, payload.expected_revision, payload.change_note, values)
 
-    def record_progress(self, project_id: UUID, payload: RecordProjectProgressRequest) -> ProjectResponse:
+    def apply_progress_update(
+        self,
+        project_id: UUID,
+        *,
+        expected_revision: int,
+        current_summary: str | None,
+        next_action: str | None,
+        change_note: str,
+    ) -> ProjectResponse:
+        """Apply an approved progress update as one Project revision."""
+        project = self._checked(project_id, expected_revision)
+
+        values = {
+            "current_summary": self._clean_optional(current_summary),
+            "next_action": self._clean_optional(next_action),
+        }
+
+        return self._mutate(
+            project,
+            expected_revision,
+            change_note,
+            values,
+        )
+
+    def stage_progress_update(
+        self,
+        project_id: UUID,
+        *,
+        expected_revision: int,
+        current_summary: str | None,
+        next_action: str | None,
+        change_note: str,
+    ) -> ProjectResponse:
+        """Stage an approved progress update without committing the transaction."""
+        project = self._checked(project_id, expected_revision)
+
+        values: dict[str, object] = {}
+
+        if current_summary is not None:
+            values["current_summary"] = self._clean_optional(current_summary)
+
+        if next_action is not None:
+            values["next_action"] = self._clean_optional(next_action)
+
+        if not values:
+            raise ProjectValidationError(
+                "At least one Project progress field is required."
+            )
+
+        try:
+            updated = self._repository.mutate_if_current(
+                project,
+                expected_revision,
+                values,
+            )
+            if updated is None:
+                raise ProjectConflictError(
+                    "The project has a newer revision. Refresh and try again."
+                )
+
+            self._repository.snapshot(updated, change_note)
+            return self._response(updated)
+
+        except ProjectConflictError:
+            raise
+        except (IntegrityError, OperationalError) as error:
+            raise ProjectConflictError(
+                "The project could not be updated because a newer revision exists."
+            ) from error
+
+    def record_progress(
+        self,
+        project_id: UUID,
+        payload: RecordProjectProgressRequest,
+    ) -> ProjectResponse:
         project = self._checked(project_id, payload.expected_revision)
-        return self._mutate(project, payload.expected_revision, payload.change_note, {"current_summary": self._clean_optional(payload.current_summary)})
+        return self._mutate(
+            project,
+            payload.expected_revision,
+            payload.change_note,
+            {"current_summary": self._clean_optional(payload.current_summary)},
+        )
 
     def change_next_action(self, project_id: UUID, payload: ChangeNextActionRequest) -> ProjectResponse:
         project = self._checked(project_id, payload.expected_revision)

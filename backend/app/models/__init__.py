@@ -9,5 +9,17 @@ from app.models.memory import Memory
 from app.models.memory_version import MemoryVersion
 from app.models.project import Project
 from app.models.project_revision import ProjectRevision
+from app.models.project_update_proposal import ProjectUpdateProposal
 
-__all__ = ["Conversation", "Document", "DocumentChunk", "Memory", "MemoryVersion", "Message", "MessageCitation", "Project", "ProjectRevision"]
+__all__ = [
+    "Conversation",
+    "Document",
+    "DocumentChunk",
+    "Memory",
+    "MemoryVersion",
+    "Message",
+    "MessageCitation",
+    "Project",
+    "ProjectRevision",
+    "ProjectUpdateProposal",
+]

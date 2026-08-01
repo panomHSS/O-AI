@@ -24,6 +24,8 @@ from app.services.reasoning import ReasoningService
 from app.services.planning import PlanningService
 from app.services.decision import DecisionService
 from app.services.knowledge_intelligence import CitationEngine, ConfidenceEvaluator, ConflictDetector, ContextBuilder, EvidenceRanker, GroundedPromptBuilder, IntentAnalyzer, RetrievalPlanner
+from app.repositories.project_update_proposals import ProjectUpdateProposalRepository
+from app.services.project_update_proposals import ProjectUpdateProposalService
 
 
 @lru_cache
@@ -77,6 +79,16 @@ def get_memory_service(database_session: Session = Depends(get_db)) -> MemorySer
 def get_project_service(database_session: Session = Depends(get_db)) -> ProjectService:
     return ProjectService(ProjectRepository(database_session))
 
+def get_project_update_proposal_service(
+    database_session: Session = Depends(get_db),
+) -> ProjectUpdateProposalService:
+    project_service = ProjectService(ProjectRepository(database_session))
+
+    return ProjectUpdateProposalService(
+        repository=ProjectUpdateProposalRepository(database_session),
+        conversation_repository=ConversationRepository(database_session),
+        project_service=project_service,
+    )
 
 def get_knowledge_answer_service(database_session: Session = Depends(get_db), chat_service: ChatService = Depends(get_chat_service)) -> KnowledgeAnswerService:
     settings = get_settings()

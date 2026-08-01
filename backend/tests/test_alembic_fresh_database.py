@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0005_project_backbone"
+REVISION = "0006_project_update_proposals"
 EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions", "projects", "project_revisions"}
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at", "ix_conversations_project_id"},

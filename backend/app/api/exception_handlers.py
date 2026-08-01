@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +13,11 @@ from app.services.knowledge import (
 )
 from app.services.memories import MemoryConflictError, MemoryNotFoundError, MemoryValidationError
 from app.services.projects import ProjectConflictError, ProjectNotFoundError, ProjectValidationError
+from app.services.project_update_proposals import (
+    ProjectUpdateProposalConflictError,
+    ProjectUpdateProposalNotFoundError,
+    ProjectUpdateProposalValidationError,
+)
 from app.services.project_context import ProjectContextUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -81,6 +86,38 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProjectValidationError)
     async def handle_project_validation(_: Request, error: ProjectValidationError) -> JSONResponse:
         return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "PROJECT_VALIDATION_ERROR", str(error))
+    @app.exception_handler(ProjectUpdateProposalNotFoundError)
+    async def handle_project_update_proposal_not_found(
+        _: Request,
+        error: ProjectUpdateProposalNotFoundError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_404_NOT_FOUND,
+            "PROJECT_UPDATE_PROPOSAL_NOT_FOUND",
+            str(error),
+        )
+
+    @app.exception_handler(ProjectUpdateProposalConflictError)
+    async def handle_project_update_proposal_conflict(
+        _: Request,
+        error: ProjectUpdateProposalConflictError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_409_CONFLICT,
+            "PROJECT_UPDATE_PROPOSAL_CONFLICT",
+            str(error),
+        )
+
+    @app.exception_handler(ProjectUpdateProposalValidationError)
+    async def handle_project_update_proposal_validation(
+        _: Request,
+        error: ProjectUpdateProposalValidationError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "PROJECT_UPDATE_PROPOSAL_VALIDATION_ERROR",
+            str(error),
+        )
 
     @app.exception_handler(ProjectContextUnavailableError)
     async def handle_project_context_unavailable(_: Request, error: ProjectContextUnavailableError) -> JSONResponse:
