@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 from app.schemas.reasoning import ReasoningPlan
+from app.schemas.planning import PlanningPlan
 
 
 class ChatRequest(BaseModel):
@@ -18,6 +19,7 @@ class ChatResponse(BaseModel):
     conversation_id: UUID
     memories_used: list["MemoryUsageResponse"] = Field(default_factory=list)
     reasoning_plan: ReasoningPlan | None = None
+    planning_plan: PlanningPlan | None = None
 
 
 class MemoryUsageResponse(BaseModel):

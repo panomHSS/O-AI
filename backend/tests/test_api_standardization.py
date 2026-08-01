@@ -11,6 +11,7 @@ from app.services.chat import ChatConfigurationError, ChatProviderError
 from app.services.conversations import ChatTurnResult
 from app.schemas.knowledge_answer import KnowledgeAnswerResponse, RetrievalSummaryResponse
 from app.schemas.reasoning import ReasoningPlan
+from app.schemas.planning import PlanningPlan
 
 
 class TestConversationService:
@@ -33,7 +34,7 @@ class ExplodingConversationService:
 class TestKnowledgeAnswerService:
     def answer(self, question: str, conversation_id=None) -> KnowledgeAnswerResponse:
         _ = (question, conversation_id)
-        return KnowledgeAnswerResponse(answer="Grounded answer S1", citations=[], evidence_quality="insufficient", conversation_id=UUID("11111111-1111-1111-1111-111111111111"), retrieval_summary=RetrievalSummaryResponse(candidates_considered=0, evidence_selected=0, duplicates_removed=0, filtered_out=0, conflicting_evidence_count=0, queries_used=[]), conflicts=[], reasoning_plan=ReasoningPlan(intent="general", normalized_question="", required_information=[], missing_information=[], evidence_map=[]))
+        return KnowledgeAnswerResponse(answer="Grounded answer S1", citations=[], evidence_quality="insufficient", conversation_id=UUID("11111111-1111-1111-1111-111111111111"), retrieval_summary=RetrievalSummaryResponse(candidates_considered=0, evidence_selected=0, duplicates_removed=0, filtered_out=0, conflicting_evidence_count=0, queries_used=[]), conflicts=[], reasoning_plan=ReasoningPlan(intent="general", normalized_question="", required_information=[], missing_information=[], evidence_map=[]), planning_plan=PlanningPlan(intent="general"))
 
 
 async def invoke_app(path: str, method: str = "GET", body: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], dict[str, Any]]:
@@ -107,7 +108,7 @@ class ApiStandardizationTests(unittest.TestCase):
         app.dependency_overrides[get_conversation_service] = lambda: TestConversationService()
         status_code, _, body = self.request("/api/v1/chat", method="POST", body={"message": "Hello"})
         self.assertEqual(status_code, 200)
-        self.assertEqual(body, {"success": True, "data": {"reply": "Test reply: Hello", "conversation_id": "11111111-1111-1111-1111-111111111111", "memories_used": [], "reasoning_plan": None}})
+        self.assertEqual(body, {"success": True, "data": {"reply": "Test reply: Hello", "conversation_id": "11111111-1111-1111-1111-111111111111", "memories_used": [], "reasoning_plan": None, "planning_plan": None}})
 
     def test_missing_key_uses_safe_standard_error(self) -> None:
         from app.api.dependencies import get_conversation_service
