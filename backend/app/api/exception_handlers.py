@@ -11,6 +11,7 @@ from app.services.knowledge import (
     KnowledgeDocumentNotFoundError, KnowledgeRootUnavailableError, KnowledgeScanConflictError,
     KnowledgeSearchValidationError,
 )
+from app.services.memories import MemoryConflictError, MemoryNotFoundError, MemoryValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,18 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ConversationNotFoundError)
     async def handle_conversation_not_found(_: Request, error: ConversationNotFoundError) -> JSONResponse:
         return error_response(status.HTTP_404_NOT_FOUND, "CONVERSATION_NOT_FOUND", str(error))
+
+    @app.exception_handler(MemoryNotFoundError)
+    async def handle_memory_not_found(_: Request, error: MemoryNotFoundError) -> JSONResponse:
+        return error_response(status.HTTP_404_NOT_FOUND, "MEMORY_NOT_FOUND", str(error))
+
+    @app.exception_handler(MemoryConflictError)
+    async def handle_memory_conflict(_: Request, error: MemoryConflictError) -> JSONResponse:
+        return error_response(status.HTTP_409_CONFLICT, "MEMORY_KEY_CONFLICT", str(error))
+
+    @app.exception_handler(MemoryValidationError)
+    async def handle_memory_validation(_: Request, error: MemoryValidationError) -> JSONResponse:
+        return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "MEMORY_VALUE_INVALID", str(error))
 
     @app.exception_handler(KnowledgeDocumentNotFoundError)
     async def handle_document_not_found(_: Request, error: KnowledgeDocumentNotFoundError) -> JSONResponse:

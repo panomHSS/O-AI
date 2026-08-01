@@ -16,16 +16,18 @@ from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.message import Message
 from app.models.message_citation import MessageCitation
+from app.models.memory import Memory
 
 
-REVISION = "0002_message_citations"
-EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts"}
+REVISION = "0003_personal_memory"
+EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories"}
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at"},
     "messages": {"ix_messages_conversation_id", "ix_messages_created_at"},
     "documents": {"ix_documents_source_path", "ix_documents_content_hash", "ix_documents_status", "ix_documents_updated_at"},
     "document_chunks": {"ix_document_chunks_document_id"},
     "message_citations": {"ix_message_citations_message_id"},
+    "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at"},
 }
 
 
@@ -111,12 +113,14 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
                 Message(id="message-1", conversation=conversation, role="user", content="Hello", created_at=now),
                 DocumentChunk(id="chunk-1", document=document, chunk_index=0, content="Hello", source_locator="line 1", created_at=now),
                 MessageCitation(id="citation-1", message_id="message-1", citation_order=1, citation_id="S1", document_id="document-1", file_name="example.txt", source_path="notes/example.txt", source_locator="line 1", excerpt="Hello", excerpt_hash="a" * 64, confidence=0.9, evidence_type="document_chunk", created_at=now),
+                Memory(id="memory-1", key="profile.name", value="\"Ada\"", value_type="STRING", state="CONFIRMED", created_at=now, updated_at=now),
             ])
 
         with Session() as session:
             self.assertEqual(session.scalar(select(Message.content)), "Hello")
             self.assertEqual(session.scalar(select(DocumentChunk.content)), "Hello")
             self.assertEqual(session.scalar(select(MessageCitation.excerpt)), "Hello")
+            self.assertEqual(session.scalar(select(Memory.key)), "profile.name")
 
         with Session.begin() as session:
             session.delete(session.get(Conversation, "conversation-1"))

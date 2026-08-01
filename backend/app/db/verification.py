@@ -10,14 +10,15 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0002_message_citations"
-EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts"}
+TARGET_REVISION = "0003_personal_memory"
+EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories"}
 EXPECTED_COLUMNS = {
     "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0)],
     "messages": [("id", "VARCHAR(36)", 1), ("conversation_id", "VARCHAR(36)", 0), ("role", "VARCHAR(16)", 0), ("content", "VARCHAR", 0), ("created_at", "DATETIME", 0)],
     "documents": [("id", "VARCHAR(36)", 1), ("source_path", "VARCHAR(1024)", 0), ("file_name", "VARCHAR(512)", 0), ("file_extension", "VARCHAR(32)", 0), ("mime_type", "VARCHAR(255)", 0), ("file_size", "INTEGER", 0), ("content_hash", "VARCHAR(64)", 0), ("status", "VARCHAR(32)", 0), ("error_message", "TEXT", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("indexed_at", "DATETIME", 0)],
     "document_chunks": [("id", "VARCHAR(36)", 1), ("document_id", "VARCHAR(36)", 0), ("chunk_index", "INTEGER", 0), ("content", "TEXT", 0), ("source_locator", "VARCHAR(512)", 0), ("created_at", "DATETIME", 0)],
     "message_citations": [("id", "VARCHAR(36)", 1), ("message_id", "VARCHAR(36)", 0), ("citation_order", "INTEGER", 0), ("citation_id", "VARCHAR(16)", 0), ("document_id", "VARCHAR(36)", 0), ("file_name", "VARCHAR(512)", 0), ("source_path", "VARCHAR(1024)", 0), ("source_locator", "VARCHAR(512)", 0), ("excerpt", "TEXT", 0), ("excerpt_hash", "VARCHAR(64)", 0), ("confidence", "FLOAT", 0), ("evidence_type", "VARCHAR(32)", 0), ("created_at", "DATETIME", 0)],
+    "memories": [("id", "VARCHAR(36)", 1), ("key", "VARCHAR(128)", 0), ("value", "TEXT", 0), ("value_type", "VARCHAR(16)", 0), ("state", "VARCHAR(16)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0)],
 }
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at": (["updated_at"], False)},
@@ -25,6 +26,7 @@ EXPECTED_INDEXES = {
     "documents": {"ix_documents_source_path": (["source_path"], True), "ix_documents_content_hash": (["content_hash"], False), "ix_documents_status": (["status"], False), "ix_documents_updated_at": (["updated_at"], False)},
     "document_chunks": {"ix_document_chunks_document_id": (["document_id"], False)},
     "message_citations": {"ix_message_citations_message_id": (["message_id"], False)},
+    "memories": {"ix_memories_key": (["key"], True), "ix_memories_state": (["state"], False), "ix_memories_updated_at": (["updated_at"], False)},
 }
 EXPECTED_FOREIGN_KEYS = {"messages": ("conversation_id", "conversations", "id"), "document_chunks": ("document_id", "documents", "id"), "message_citations": ("message_id", "messages", "id")}
 NULLABLE_COLUMNS = {"documents": {"error_message", "indexed_at"}}
@@ -92,6 +94,9 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
     citation_unique_indexes = [row[1] for row in connection.execute("PRAGMA index_list(message_citations)") if row[2]]
     if not any([row[2] for row in connection.execute(f"PRAGMA index_info({index_name})")] == ["message_id", "citation_order"] for index_name in citation_unique_indexes):
         raise DatabaseVerificationError("Configured database is missing citation ordering uniqueness.")
+    memory_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'memories'").fetchone()[0].upper()
+    if "STATE IN ('PENDING', 'CONFIRMED', 'ARCHIVED')" not in memory_sql or "VALUE_TYPE IN ('STRING', 'INTEGER', 'BOOLEAN', 'DATE', 'JSON')" not in memory_sql:
+        raise DatabaseVerificationError("Configured database is missing memory constraints.")
     fts_definition = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'document_chunks_fts'").fetchone()
     expected_fts = "CREATE VIRTUAL TABLE DOCUMENT_CHUNKS_FTS USING FTS5(CONTENT, DOCUMENT_ID UNINDEXED, CHUNK_ID UNINDEXED, SOURCE_LOCATOR UNINDEXED)"
     if fts_definition is None or " ".join(fts_definition[0].upper().split()) != expected_fts:
