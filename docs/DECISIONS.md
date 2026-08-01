@@ -170,3 +170,46 @@ Treat O-AI as ready with required pre-hardening corrections for the trusted loca
 
 **Consequences**
 No P0 architectural finding is confirmed. Releases 0.9.0A through 0.9.0E prioritize documentation truth, backup/restore confidence, retry/privacy boundaries, composition/test hardening, and measured readiness. Authentication, distributed infrastructure, semantic/vector retrieval, and local-LLM infrastructure remain deferred until an owner-approved requirement and evidence justify them.
+
+## ADR-012: Durable owner-approved Project update proposals
+
+**Decision**
+Introduce durable Project update proposals as the write-intent boundary between Project-aware AI conversations and owner-controlled Project state.
+
+A Project-associated conversation may produce a proposal for `current_summary` and/or `next_action`, but the proposal must not mutate the Project when it is created. Applying a proposal requires explicit owner approval.
+
+Each proposal records the Project revision on which it was based. Approval must pass through the existing `ProjectService` mutation boundary and its optimistic-concurrency rules rather than writing Project state directly.
+
+Project update proposals use the lifecycle states `PENDING`, `APPLIED`, `REJECTED`, and `STALE`.
+
+**Context**
+O-AI can already associate a conversation with a durable Project and resolve the Project's current read-only state at provider-request time. The Project backbone also provides immutable revision history and owner-controlled mutations.
+
+The next capability should allow O-AI to identify useful Project progress during conversation without weakening the existing rule that AI output cannot autonomously change durable owner-controlled Project state.
+
+A proposal also needs to survive browser refreshes and application restarts and must remain traceable to the Project revision that informed it.
+
+**Alternatives**
+Allow the AI to update Projects directly, return transient non-persisted suggestions only in chat responses, allow the frontend to write proposed values directly to Project endpoints, or introduce a separate autonomous task/execution system.
+
+**Rationale**
+A durable proposal separates AI-generated intent from authoritative Project state. Explicit approval preserves owner control, while persistence provides continuity, auditability, and safe handling across sessions.
+
+Recording `base_revision` allows approval to detect when the Project has changed since the proposal was generated. Reusing `ProjectService` preserves the existing mutation, immutable revision, validation, and optimistic-concurrency boundaries instead of creating a second Project write path.
+
+Limiting Version 1 proposals to `current_summary` and `next_action` keeps AI-assisted changes focused on operational Project progress. Project `title`, `objective`, and `status` remain outside automatic proposal generation.
+
+**Consequences**
+Project update proposals require durable SQLite persistence and an Alembic migration.
+
+Creating a proposal never creates a Project revision and never changes Project state.
+
+A `PENDING` proposal may be explicitly approved or rejected by the owner. Approval applies the proposed Project fields through `ProjectService` only when the proposal's `base_revision` still matches the Project's current revision.
+
+If the Project has changed since proposal creation, the proposal must not overwrite newer state and must be treated as stale according to the approved service contract.
+
+Rejecting a proposal changes only proposal state and does not create a Project revision.
+
+Conversations without a Project association cannot create Project update proposals.
+
+Proposal generation does not authorize autonomous execution, scheduling, status transitions, title changes, objective changes, external side effects, or plugin/integration actions.
