@@ -86,7 +86,10 @@ export function getConversation(conversationId: string): Promise<ConversationDet
 }
 
 export function scanKnowledge(): Promise<KnowledgeScanResult> {
-  return apiRequest<KnowledgeScanResult>("/knowledge/scan", { method: "POST" });
+  return apiRequest<KnowledgeScanResult>("/knowledge/scan", {
+    method: "POST",
+    headers: { "X-OAI-Local-Request": "1" },
+  });
 }
 
 export function listKnowledgeDocuments(): Promise<KnowledgeDocumentList> {

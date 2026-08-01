@@ -15,7 +15,7 @@ from app.db.session import create_database_engine, get_db, initialize_test_datab
 from app.readers import create_document_reader_registry
 from app.readers.base import DocumentExtractionError
 from app.repositories.knowledge import KnowledgeRepository
-from app.services.knowledge import KnowledgeScanConflictError, KnowledgeSearchValidationError, KnowledgeService
+from app.services.knowledge import KnowledgeScanConflictError, KnowledgeSearchValidationError, KnowledgeService, ScanCounts
 from app.main import app
 from tests.test_api_standardization import invoke_app
 
@@ -63,7 +63,84 @@ class KnowledgeTests(unittest.TestCase):
         return asyncio.run(invoke_app(*args, **kwargs))
 
     def scan(self):
-        return self.request("/api/v1/knowledge/scan", method="POST")
+        return self.request(
+            "/api/v1/knowledge/scan",
+            method="POST",
+            headers={"X-OAI-Local-Request": "1"},
+        )
+
+    def preflight(self, origin: str) -> tuple[int, dict[str, str]]:
+        async def invoke() -> tuple[int, dict[str, str]]:
+            messages: list[dict[str, object]] = []
+
+            async def receive() -> dict[str, object]:
+                return {"type": "http.request", "body": b"", "more_body": False}
+
+            async def send(message: dict[str, object]) -> None:
+                messages.append(message)
+
+            await app(
+                {
+                    "type": "http",
+                    "asgi": {"version": "3.0", "spec_version": "2.3"},
+                    "http_version": "1.1",
+                    "method": "OPTIONS",
+                    "scheme": "http",
+                    "path": "/api/v1/knowledge/scan",
+                    "raw_path": b"/api/v1/knowledge/scan",
+                    "query_string": b"",
+                    "headers": [
+                        (b"origin", origin.encode()),
+                        (b"access-control-request-method", b"POST"),
+                        (b"access-control-request-headers", b"x-oai-local-request"),
+                    ],
+                    "client": ("testclient", 1234),
+                    "server": ("testserver", 80),
+                    "root_path": "",
+                },
+                receive,
+                send,
+            )
+            start = next(message for message in messages if message["type"] == "http.response.start")
+            return start["status"], {
+                key.decode().lower(): value.decode()
+                for key, value in start["headers"]
+            }
+
+        return asyncio.run(invoke())
+
+    def test_scan_requires_local_request_marker_before_execution(self) -> None:
+        class ScanSpy:
+            calls = 0
+
+            def scan(self) -> ScanCounts:
+                self.calls += 1
+                return ScanCounts()
+
+        service = ScanSpy()
+        app.dependency_overrides[get_knowledge_service] = lambda: service
+        for headers in ({}, {"X-OAI-Local-Request": "invalid"}):
+            with self.subTest(headers=headers):
+                status_code, _, body = self.request("/api/v1/knowledge/scan", method="POST", headers=headers)
+                self.assertEqual(status_code, 403)
+                self.assertEqual(body["error"]["code"], "HTTP_403")
+        self.assertEqual(service.calls, 0)
+
+    def test_valid_local_request_marker_scans_temporary_knowledge_root(self) -> None:
+        (self.root / "marker.txt").write_text("guarded scan", encoding="utf-8")
+        status_code, _, body = self.scan()
+        self.assertEqual(status_code, 200)
+        self.assertEqual(body["data"]["indexed"], 1)
+
+    def test_scan_marker_cors_preflight_allows_only_the_configured_origin(self) -> None:
+        status_code, headers = self.preflight("http://localhost:3000")
+        self.assertEqual(status_code, 200)
+        self.assertEqual(headers["access-control-allow-origin"], "http://localhost:3000")
+        self.assertIn("x-oai-local-request", headers["access-control-allow-headers"])
+
+        status_code, headers = self.preflight("https://unapproved.example")
+        self.assertEqual(status_code, 400)
+        self.assertNotIn("access-control-allow-origin", headers)
 
     def test_readers_extract_supported_formats(self) -> None:
         (self.root / "note.txt").write_text("plain text", encoding="utf-8")

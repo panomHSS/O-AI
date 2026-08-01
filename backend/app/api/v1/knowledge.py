@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.api.dependencies import get_knowledge_service
 from app.schemas.api import ApiSuccess
@@ -13,9 +13,22 @@ from app.services.knowledge import KnowledgeService
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
+LOCAL_REQUEST_HEADER_VALUE = "1"
+
+
+def require_local_request_marker(
+    x_oai_local_request: Annotated[str | None, Header()] = None,
+) -> None:
+    """Require explicit browser request intent for the scan side effect."""
+    if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
 
 @router.post("/scan", response_model=ApiSuccess[ScanKnowledgeResponse], status_code=status.HTTP_200_OK)
-def scan_documents(knowledge_service: Annotated[KnowledgeService, Depends(get_knowledge_service)]) -> ApiSuccess[ScanKnowledgeResponse]:
+def scan_documents(
+    _: Annotated[None, Depends(require_local_request_marker)],
+    knowledge_service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
+) -> ApiSuccess[ScanKnowledgeResponse]:
     return ApiSuccess(data=ScanKnowledgeResponse(**knowledge_service.scan().__dict__))
 
 
