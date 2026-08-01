@@ -17,7 +17,7 @@ from app.readers.base import DocumentExtractionError
 from app.repositories.knowledge import KnowledgeRepository
 from app.services.knowledge import KnowledgeScanConflictError, KnowledgeSearchValidationError, KnowledgeService
 from app.main import app
-from test_api_standardization import invoke_app
+from tests.test_api_standardization import invoke_app
 
 
 class KnowledgeTests(unittest.TestCase):

@@ -19,7 +19,7 @@ from app.repositories.conversations import ConversationRepository
 from app.services.chat import ChatProviderError, ChatService
 from app.services.conversations import ConversationService
 
-from test_api_standardization import invoke_app
+from tests.test_api_standardization import invoke_app
 
 
 class RecordingProvider:

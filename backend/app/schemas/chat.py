@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from app.schemas.reasoning import ReasoningPlan
 from app.schemas.planning import PlanningPlan
 from app.schemas.decision import DecisionAnalysis
+from app.schemas.goals import GoalAnalysis
 
 
 class ChatRequest(BaseModel):
@@ -22,6 +23,7 @@ class ChatResponse(BaseModel):
     reasoning_plan: ReasoningPlan | None = None
     planning_plan: PlanningPlan | None = None
     decision_analysis: DecisionAnalysis | None = None
+    goal_analysis: GoalAnalysis | None = None
 
 
 class MemoryUsageResponse(BaseModel):
