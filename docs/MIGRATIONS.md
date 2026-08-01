@@ -68,3 +68,7 @@ Each item in the manifest's `backups` list contains:
 - `target_alembic_revision`: Alembic revision stamped after successful backup and validation.
 
 The `backups/` directory contains recoverable database copies and should be retained outside source control or backed up according to the deployment policy.
+
+## Isolated recovery primitive
+
+`app.db.recovery` is a developer/test primitive for isolated SQLite paths. It resolves protected paths from the repository root, uses `sqlite3.Connection.backup()` through an operation-owned temporary artifact, and publishes only a new destination without overwriting an existing file. It verifies integrity, foreign keys, the current O-AI schema, operational FTS5 access, Alembic revision, effective Memory version immutability/governance, and citation/message relationships. Its structural fingerprint contains only revision, table names, row counts, and identifiers/relationships; it excludes application content. It is not an operational production restore command or policy.
