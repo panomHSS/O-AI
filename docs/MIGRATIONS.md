@@ -18,6 +18,14 @@ Revision `0002_message_citations` adds immutable evidence snapshots for assistan
 
 Revision `0003_personal_memory` adds the provider-neutral, owner-controlled `memories` table. It has no automatic learning or links to provider, knowledge, conversation, or citation behavior. Memory values are explicitly typed as `STRING`, `INTEGER`, `BOOLEAN`, `DATE`, or `JSON`, and owners control their `PENDING`, `CONFIRMED`, or `ARCHIVED` state through the memory CRUD API.
 
+## Safe memory governance (0.7.0B)
+
+Revision `0004_memory_versioning` adds immutable `memory_versions` snapshots and explicit `memories.active_version_id` and `memories.pending_version_id` pointers. A new memory begins with version 1 in `PENDING`; approval promotes that exact version to `CONFIRMED` and makes it active. Editing a confirmed memory creates one new `PENDING` proposal while the existing confirmed value remains the value returned by normal reads.
+
+Approval and rejection require the requested version number. A decision can be applied only once to the memory's current pending version: approval moves it to active confirmed; rejection moves only that proposal to `REJECTED` and leaves the former active value untouched. A second pending proposal is refused, making concurrent proposal behavior deterministic and preventing stale approvals.
+
+Archiving is an explicit owner action, distinct from rejection. It is refused while a proposal is pending and records a separate `ARCHIVED` snapshot. Version snapshot content, evidence, reason, proposer, and creation audit fields are never updated; a SQLite trigger permits only one pending-to-confirmed or pending-to-rejected decision update, including the owner, timestamp, and decision comment.
+
 ## Fresh databases
 
 Set `OAI_DATABASE_URL` to the intended empty SQLite database, then run from the repository root:

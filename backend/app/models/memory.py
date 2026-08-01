@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, utc_now
@@ -12,7 +12,7 @@ class Memory(Base):
 
     __tablename__ = "memories"
     __table_args__ = (
-        CheckConstraint("state IN ('PENDING', 'CONFIRMED', 'ARCHIVED')", name="ck_memories_state"),
+        CheckConstraint("state IN ('PENDING', 'CONFIRMED', 'REJECTED', 'ARCHIVED')", name="ck_memories_state"),
         CheckConstraint("value_type IN ('STRING', 'INTEGER', 'BOOLEAN', 'DATE', 'JSON')", name="ck_memories_value_type"),
     )
 
@@ -21,5 +21,8 @@ class Memory(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False)
     value_type: Mapped[str] = mapped_column(String(16), nullable=False)
     state: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING", index=True)
+    current_version: Mapped[int] = mapped_column(nullable=False, default=1)
+    active_version_id: Mapped[str | None] = mapped_column(ForeignKey("memory_versions.id"), nullable=True)
+    pending_version_id: Mapped[str | None] = mapped_column(ForeignKey("memory_versions.id"), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False, index=True)

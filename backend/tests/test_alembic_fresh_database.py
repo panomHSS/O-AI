@@ -7,6 +7,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import func, inspect, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import get_settings
@@ -19,8 +20,8 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0003_personal_memory"
-EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories"}
+REVISION = "0004_memory_versioning"
+EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions"}
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at"},
     "messages": {"ix_messages_conversation_id", "ix_messages_created_at"},
@@ -28,6 +29,7 @@ EXPECTED_INDEXES = {
     "document_chunks": {"ix_document_chunks_document_id"},
     "message_citations": {"ix_message_citations_message_id"},
     "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at"},
+    "memory_versions": {"ix_memory_versions_memory_id"},
 }
 
 
@@ -55,8 +57,8 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
         repository_root = Path(__file__).resolve().parents[2]
         return Config(str(repository_root / "alembic.ini"))
 
-    def _upgrade_to_head(self) -> None:
-        command.upgrade(self._config(), "head")
+    def _upgrade_to_head(self, target: str = "head") -> None:
+        command.upgrade(self._config(), target)
 
     def test_fresh_database_upgrade_creates_current_schema_and_is_idempotent(self) -> None:
         self._upgrade_to_head()
@@ -130,6 +132,38 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
             self.assertEqual(session.scalar(select(func.count(Message.id))), 0)
             self.assertEqual(session.scalar(select(func.count(DocumentChunk.id))), 0)
             self.assertEqual(session.scalar(select(func.count(MessageCitation.id))), 0)
+
+    def test_versioning_upgrade_preserves_existing_memory_lifecycle(self) -> None:
+        self._upgrade_to_head("0003_personal_memory")
+        self.engine = create_database_engine(self.database_url)
+        now = datetime.now(timezone.utc)
+        with self.engine.begin() as connection:
+            connection.execute(text("INSERT INTO memories (id, key, value, value_type, state, created_at, updated_at) VALUES ('confirmed', 'profile.confirmed', '\"Ada\"', 'STRING', 'CONFIRMED', :now, :now)"), {"now": now})
+            connection.execute(text("INSERT INTO memories (id, key, value, value_type, state, created_at, updated_at) VALUES ('pending', 'profile.pending', '42', 'INTEGER', 'PENDING', :now, :now)"), {"now": now})
+        self.engine.dispose()
+        self.engine = None
+
+        self._upgrade_to_head()
+        self.engine = create_database_engine(self.database_url)
+        with self.engine.connect() as connection:
+            confirmed = connection.execute(text("SELECT active_version_id, pending_version_id FROM memories WHERE id = 'confirmed'")).one()
+            pending = connection.execute(text("SELECT active_version_id, pending_version_id FROM memories WHERE id = 'pending'")).one()
+            self.assertIsNotNone(confirmed[0])
+            self.assertIsNone(confirmed[1])
+            self.assertIsNone(pending[0])
+            self.assertIsNotNone(pending[1])
+            self.assertEqual(connection.scalar(text("SELECT state FROM memory_versions WHERE memory_id = 'confirmed'")), "CONFIRMED")
+            self.assertEqual(connection.scalar(text("SELECT state FROM memory_versions WHERE memory_id = 'pending'")), "PENDING")
+
+    def test_versioning_migration_protects_snapshot_content(self) -> None:
+        self._upgrade_to_head()
+        self.engine = create_database_engine(self.database_url)
+        with self.engine.begin() as connection:
+            connection.execute(text("INSERT INTO memories (id, key, value, value_type, state, current_version, created_at, updated_at) VALUES ('immutable-memory', 'profile.immutable', '\"Ada\"', 'STRING', 'PENDING', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+            connection.execute(text("INSERT INTO memory_versions (id, memory_id, version, key, value, value_type, state, change_reason, created_by, proposed_by, proposed_at, created_at) VALUES ('immutable-version', 'immutable-memory', 1, 'profile.immutable', '\"Ada\"', 'STRING', 'PENDING', 'Created', 'owner', 'owner', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+            connection.execute(text("UPDATE memories SET pending_version_id = 'immutable-version' WHERE id = 'immutable-memory'"))
+            with self.assertRaises(IntegrityError):
+                connection.execute(text("UPDATE memory_versions SET value = '\"Changed\"' WHERE id = 'immutable-version'"))
 
     def _assert_foreign_key(self, inspector, table_name: str, column_name: str, target_table: str) -> None:
         foreign_keys = inspector.get_foreign_keys(table_name)
