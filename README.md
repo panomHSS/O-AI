@@ -2,7 +2,7 @@
 
 O-AI is a local-first Personal AI Operating System foundation with chat, conversation memory, and local document knowledge.
 
-O-AI currently supports a trusted local, single-owner deployment model. The API has no authentication or authorization layer and must not be exposed as a public untrusted-network service. Broader exposure requires a separate approved authentication/authorization decision.
+O-AI currently supports a trusted local, single-owner deployment model. The default Docker deployment publishes the frontend and backend only through the Windows host loopback interface, for a browser on that same host. Another LAN computer, phone/tablet over LAN, and public/Internet access are not currently supported as secured paths; they require a separately designed security boundary before exposure. The API has no authentication or authorization layer.
 
 ## Stack
 

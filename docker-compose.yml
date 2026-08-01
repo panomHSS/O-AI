@@ -10,7 +10,7 @@ services:
       OAI_DATABASE_URL: ${OAI_DATABASE_URL:-sqlite:///./data/oai.db}
       OAI_KNOWLEDGE_ROOT: /app/knowledge
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data
       - ./knowledge:/app/knowledge:ro
@@ -27,7 +27,7 @@ services:
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       backend:
         condition: service_healthy

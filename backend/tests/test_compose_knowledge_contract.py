@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 class ComposeKnowledgeContractTests(unittest.TestCase):
-    def test_backend_mounts_only_the_repository_knowledge_directory_read_only(self) -> None:
+    def _render_compose(self) -> tuple[Path, dict[str, object]]:
         if shutil.which("docker") is None:
             self.skipTest("Docker Compose is required to render the deployment contract.")
 
@@ -24,7 +24,11 @@ class ComposeKnowledgeContractTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        backend = json.loads(completed.stdout)["services"]["backend"]
+        return repository_root, json.loads(completed.stdout)["services"]
+
+    def test_backend_mounts_only_the_repository_knowledge_directory_read_only(self) -> None:
+        repository_root, services = self._render_compose()
+        backend = services["backend"]
 
         self.assertEqual(backend["environment"]["OAI_KNOWLEDGE_ROOT"], "/app/knowledge")
         volumes = {item["target"]: item for item in backend["volumes"]}
@@ -46,3 +50,18 @@ class ComposeKnowledgeContractTests(unittest.TestCase):
             and not mount.get("read_only", False)
         ]
         self.assertEqual(read_write_ancestors, [])
+
+    def test_frontend_and_backend_publish_only_to_loopback(self) -> None:
+        _, services = self._render_compose()
+        for service_name, expected_port in (("backend", 8000), ("frontend", 3000)):
+            with self.subTest(service=service_name):
+                self.assertEqual(
+                    services[service_name]["ports"],
+                    [{
+                        "mode": "ingress",
+                        "host_ip": "127.0.0.1",
+                        "target": expected_port,
+                        "published": str(expected_port),
+                        "protocol": "tcp",
+                    }],
+                )
