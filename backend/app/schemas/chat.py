@@ -6,7 +6,7 @@ from app.schemas.planning import PlanningPlan
 from app.schemas.decision import DecisionAnalysis
 from app.schemas.goals import GoalAnalysis
 from app.schemas.project_update_proposals import ProjectUpdateProposalResponse
-
+from app.schemas.project_actions import ProjectActionAnalysis
 
 class ChatRequest(BaseModel):
     """Validated input for a chat turn."""
@@ -22,12 +22,12 @@ class ChatResponse(BaseModel):
     reply: str
     conversation_id: UUID
     project_update_proposal: ProjectUpdateProposalResponse | None = None
+    project_action_analysis: ProjectActionAnalysis | None = None
     memories_used: list["MemoryUsageResponse"] = Field(default_factory=list)
     reasoning_plan: ReasoningPlan | None = None
     planning_plan: PlanningPlan | None = None
     decision_analysis: DecisionAnalysis | None = None
     goal_analysis: GoalAnalysis | None = None
-
 
 class MemoryUsageResponse(BaseModel):
     memory_id: UUID

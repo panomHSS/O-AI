@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import json
 import unittest
 from urllib.parse import urlsplit
@@ -109,7 +109,23 @@ class ApiStandardizationTests(unittest.TestCase):
         app.dependency_overrides[get_conversation_service] = lambda: TestConversationService()
         status_code, _, body = self.request("/api/v1/chat", method="POST", body={"message": "Hello"})
         self.assertEqual(status_code, 200)
-        self.assertEqual(body, {"success": True, "data": {"reply": "Test reply: Hello", "conversation_id": "11111111-1111-1111-1111-111111111111", "project_update_proposal": None, "memories_used": [], "reasoning_plan": None, "planning_plan": None, "decision_analysis": None, "goal_analysis": None}})
+        self.assertEqual(
+    body,
+    {
+        "success": True,
+        "data": {
+            "reply": "Test reply: Hello",
+            "conversation_id": "11111111-1111-1111-1111-111111111111",
+            "project_update_proposal": None,
+            "project_action_analysis": None,
+            "memories_used": [],
+            "reasoning_plan": None,
+            "planning_plan": None,
+            "decision_analysis": None,
+            "goal_analysis": None,
+        },
+    },
+)
 
     def test_missing_key_uses_safe_standard_error(self) -> None:
         from app.api.dependencies import get_conversation_service

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -19,6 +19,8 @@ from app.schemas.goals import GoalAnalysis
 from app.services.goals import GoalService
 from app.services.projects import ProjectNotFoundError
 from app.services.project_context import ProjectContext, ProjectContextResolver
+from app.schemas.project_actions import ProjectActionAnalysis
+from app.services.project_actions import ProjectActionService
 
 TITLE_MAX_LENGTH = 80
 
@@ -42,12 +44,26 @@ class ChatTurnResult:
     decision_analysis: DecisionAnalysis | None = None
     goal_analysis: GoalAnalysis | None = None
     project_context: ProjectContext | None = None
+    project_action_analysis: ProjectActionAnalysis | None = None
 
 
 class ConversationService:
     """Coordinates local conversation persistence with provider-neutral chat."""
 
-    def __init__(self, repository: ConversationRepository, chat_service: ChatService, context_message_limit: int, citation_repository: MessageCitationRepository | None = None, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None, decision_service: DecisionService | None = None, goal_service: GoalService | None = None, project_context_resolver: ProjectContextResolver | None = None) -> None:
+    def __init__(
+        self,
+        repository: ConversationRepository,
+        chat_service: ChatService,
+        context_message_limit: int,
+        citation_repository: MessageCitationRepository | None = None,
+        memory_resolver: MemoryResolver | None = None,
+        reasoning_service: ReasoningService | None = None,
+        planning_service: PlanningService | None = None,
+        decision_service: DecisionService | None = None,
+        goal_service: GoalService | None = None,
+        project_context_resolver: ProjectContextResolver | None = None,
+        project_action_service: ProjectActionService | None = None,
+    ) -> None:
         self._repository = repository
         self._chat_service = chat_service
         self._context_message_limit = context_message_limit
@@ -58,11 +74,18 @@ class ConversationService:
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
         self._project_context_resolver = project_context_resolver
+        self._project_action_service = (
+        project_action_service or ProjectActionService()
+)
 
     def send_message(self, message: str, conversation_id: UUID | None = None, project_id: UUID | None = None) -> ChatTurnResult:
         conversation, recent_messages = self.begin_turn(message, conversation_id, project_id)
         project_context = self.resolve_project_context(conversation)
-
+        project_action_analysis = (
+    self._project_action_service.analyze(project_context)
+    if project_context is not None
+    else None
+)
         context = [ChatContextMessage(role=item.role, content=item.content) for item in recent_messages]
         memories = self._memory_resolver.resolve(message) if self._memory_resolver else ()
         reasoning_plan = self._reasoning_service.plan(message, memories)
@@ -87,6 +110,7 @@ class ConversationService:
             decision_analysis=decision_analysis,
             goal_analysis=goal_analysis,
             project_context=project_context,
+            project_action_analysis=project_action_analysis,
         )
     def begin_turn(self, message: str, conversation_id: UUID | None = None, project_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
         """Persist a final user turn and return bounded history for another orchestrator."""

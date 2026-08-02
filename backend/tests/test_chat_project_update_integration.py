@@ -211,8 +211,9 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
 
         self.assertEqual(status_code, 200)
         self.assertIn("conversation_id", response["data"])
-
-
+        self.assertIsNone(
+    response["data"]["project_action_analysis"]
+)
     def test_ordinary_project_chat_does_not_create_proposal(self) -> None:
         project = self.projects.create(
             CreateProjectRequest(
@@ -428,6 +429,51 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
         self.assertEqual(current.current_revision, 1)
         self.assertIsNone(current.current_summary)
         self.assertIsNone(current.next_action)
+    def test_chat_surfaces_project_action_analysis(
+        self,
+    ) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Project action API",
+                objective="Surface owner-controlled Project actions.",
+            )
+        )
+
+        self.projects.apply_progress_update(
+    project.id,
+    expected_revision=1,
+    current_summary="Project Action Intelligence is ready.",
+    next_action="Run acceptance tests",
+    change_note="Prepare Project Action Intelligence API test.",
+)
+
+        status_code, _, response = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "What should we do next?",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        action_analysis = response["data"]["project_action_analysis"]
+
+        self.assertIsNotNone(action_analysis)
+        self.assertEqual(
+            action_analysis["status"],
+            "suggestion_available",
+        )
+        self.assertTrue(
+            action_analysis["owner_approval_required"]
+        )
+        self.assertEqual(
+            action_analysis["suggested_actions"][0]["description"],
+            "Run acceptance tests",
+        )
 
 if __name__ == "__main__":
     unittest.main()
