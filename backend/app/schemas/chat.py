@@ -5,6 +5,7 @@ from app.schemas.reasoning import ReasoningPlan
 from app.schemas.planning import PlanningPlan
 from app.schemas.decision import DecisionAnalysis
 from app.schemas.goals import GoalAnalysis
+from app.schemas.project_update_proposals import ProjectUpdateProposalResponse
 
 
 class ChatRequest(BaseModel):
@@ -20,6 +21,7 @@ class ChatResponse(BaseModel):
 
     reply: str
     conversation_id: UUID
+    project_update_proposal: ProjectUpdateProposalResponse | None = None
     memories_used: list["MemoryUsageResponse"] = Field(default_factory=list)
     reasoning_plan: ReasoningPlan | None = None
     planning_plan: PlanningPlan | None = None

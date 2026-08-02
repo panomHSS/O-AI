@@ -39,7 +39,11 @@ from app.services.project_update_proposals import (
 )
 from app.services.projects import ProjectService
 from tests.test_api_standardization import invoke_app
-
+from app.api.dependencies import (
+    get_conversation_service,
+    get_project_update_proposal_service,
+    get_project_update_turn_orchestrator,
+)
 
 class StaticProvider:
     def generate_reply(self, *args, **kwargs) -> str:
@@ -110,6 +114,10 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
             get_project_update_turn_orchestrator
         ] = lambda: self.orchestrator
 
+        app.dependency_overrides[
+            get_project_update_proposal_service
+        ] = lambda: self.proposals
+
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
         self.session.close()
@@ -145,6 +153,23 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
         )
 
         self.assertEqual(status_code, 200)
+        surfaced = response["data"]["project_update_proposal"]
+
+        self.assertIsNotNone(surfaced)
+        self.assertEqual(surfaced["status"], "PENDING")
+        self.assertEqual(
+            surfaced["project_id"],
+            str(project.id),
+        )
+        self.assertEqual(
+            surfaced["conversation_id"],
+            response["data"]["conversation_id"],
+        )
+        self.assertEqual(surfaced["base_revision"], 1)
+        self.assertEqual(
+            surfaced["proposed_summary"],
+            "Chat proposal integration completed.",
+        )
 
         conversation_id = UUID(response["data"]["conversation_id"])
 
@@ -196,7 +221,7 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
             )
         )
 
-        status_code, _, _ = asyncio.run(
+        status_code, _, response = asyncio.run(
             invoke_app(
                 "/api/v1/chat",
                 method="POST",
@@ -208,6 +233,9 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
         )
 
         self.assertEqual(status_code, 200)
+        self.assertIsNone(
+            response["data"]["project_update_proposal"]
+        )
 
         proposals = self.proposals.list_for_project(
             project.id,
@@ -241,7 +269,7 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
 
         conversation_id = first["data"]["conversation_id"]
 
-        status_code, _, _ = asyncio.run(
+        status_code, _, response = asyncio.run(
             invoke_app(
                 "/api/v1/chat",
                 method="POST",
@@ -254,6 +282,23 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
 
         self.assertEqual(status_code, 200)
 
+        surfaced = response["data"]["project_update_proposal"]
+
+        self.assertIsNotNone(surfaced)
+        self.assertEqual(surfaced["status"], "PENDING")
+        self.assertEqual(
+            surfaced["project_id"],
+            str(project.id),
+        )
+        self.assertEqual(
+            surfaced["conversation_id"],
+            conversation_id,
+        )
+        self.assertEqual(surfaced["base_revision"], 1)
+        self.assertEqual(
+            surfaced["proposed_summary"],
+            "Existing conversation wiring completed.",
+        )
         proposals = self.proposals.list_for_project(
             project.id,
             status="PENDING",
@@ -278,7 +323,111 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
 
         self.assertEqual(current.current_revision, 1)
         self.assertIsNone(current.current_summary)
+    def test_surfaced_chat_proposal_can_be_approved_by_owner(self) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Owner approval",
+                objective="Approve a surfaced chat proposal.",
+            )
+        )
 
+        status_code, _, chat_response = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "Progress: Owner-approved integration completed.",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        surfaced = chat_response["data"]["project_update_proposal"]
+
+        self.assertIsNotNone(surfaced)
+        self.assertEqual(surfaced["status"], "PENDING")
+
+        proposal_id = surfaced["id"]
+
+        current = self.projects.get(project.id)
+
+        self.assertEqual(current.current_revision, 1)
+        self.assertIsNone(current.current_summary)
+
+        status_code, _, approved = asyncio.run(
+            invoke_app(
+                f"/api/v1/project-update-proposals/{proposal_id}/approve",
+                method="POST",
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+        self.assertEqual(approved["data"]["id"], proposal_id)
+        self.assertEqual(approved["data"]["status"], "APPLIED")
+        self.assertEqual(approved["data"]["applied_revision"], 2)
+
+        current = self.projects.get(project.id)
+
+        self.assertEqual(current.current_revision, 2)
+        self.assertEqual(
+            current.current_summary,
+            "Owner-approved integration completed.",
+      )
+
+    def test_surfaced_chat_proposal_can_be_rejected_without_mutating_project(
+        self,
+    ) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Owner rejection",
+                objective="Reject a surfaced chat proposal safely.",
+            )
+        )
+
+        status_code, _, chat_response = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "Progress: This proposal should be rejected.",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        surfaced = chat_response["data"]["project_update_proposal"]
+
+        self.assertIsNotNone(surfaced)
+        self.assertEqual(surfaced["status"], "PENDING")
+
+        proposal_id = surfaced["id"]
+
+        current = self.projects.get(project.id)
+
+        self.assertEqual(current.current_revision, 1)
+        self.assertIsNone(current.current_summary)
+
+        status_code, _, rejected = asyncio.run(
+            invoke_app(
+                f"/api/v1/project-update-proposals/{proposal_id}/reject",
+                method="POST",
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+        self.assertEqual(rejected["data"]["id"], proposal_id)
+        self.assertEqual(rejected["data"]["status"], "REJECTED")
+        self.assertIsNone(rejected["data"]["applied_revision"])
+
+        current = self.projects.get(project.id)
+
+        self.assertEqual(current.current_revision, 1)
+        self.assertIsNone(current.current_summary)
+        self.assertIsNone(current.next_action)
 
 if __name__ == "__main__":
     unittest.main()

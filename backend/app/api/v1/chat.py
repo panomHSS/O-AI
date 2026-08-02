@@ -40,11 +40,13 @@ def send_chat_message(
         payload.project_id,
     )
 
+    project_update_proposal = None
+
     if (
         result.project_id is not None
         and result.project_context is not None
     ):
-        project_update_orchestrator.process(
+        project_update_proposal = project_update_orchestrator.process(
             ProjectUpdateTurnInput(
                 conversation_id=result.conversation_id,
                 project_id=result.project_id,
@@ -59,6 +61,7 @@ def send_chat_message(
         data=ChatResponse(
             reply=result.reply,
             conversation_id=result.conversation_id,
+            project_update_proposal=project_update_proposal,
             memories_used=[
                 MemoryUsageResponse(
                     memory_id=item.memory_id,
