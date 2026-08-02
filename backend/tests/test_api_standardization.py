@@ -118,6 +118,7 @@ class ApiStandardizationTests(unittest.TestCase):
             "conversation_id": "11111111-1111-1111-1111-111111111111",
             "project_update_proposal": None,
             "project_action_analysis": None,
+            "project_action_plan": None,
             "memories_used": [],
             "reasoning_plan": None,
             "planning_plan": None,

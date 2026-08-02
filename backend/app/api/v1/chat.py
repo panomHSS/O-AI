@@ -63,6 +63,7 @@ def send_chat_message(
             conversation_id=result.conversation_id,
             project_update_proposal=project_update_proposal,
             project_action_analysis=result.project_action_analysis,
+            project_action_plan=result.project_action_plan,
             memories_used=[
                 MemoryUsageResponse(
                     memory_id=item.memory_id,

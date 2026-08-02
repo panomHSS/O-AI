@@ -4,6 +4,9 @@ from uuid import uuid4
 from app.services.chat import ChatService
 from app.services.conversations import ConversationService
 from app.services.project_actions import ProjectActionService
+from app.services.project_action_planning import (
+    ProjectActionPlanningService,
+)
 from app.services.project_context import ProjectContext
 
 
@@ -62,6 +65,7 @@ class StubConversationService(ConversationService):
                 project_context
             ),
             project_action_service=ProjectActionService(),
+            project_action_planning_service=ProjectActionPlanningService(),
         )
         self._conversation = conversation
 
@@ -179,6 +183,105 @@ class ConversationProjectActionTests(unittest.TestCase):
         )
         self.assertEqual(
             result.project_action_analysis.suggested_actions,
+            [],
+        )
+    def test_project_action_is_planned_for_chat_turn(
+        self,
+    ) -> None:
+        project_id = uuid4()
+
+        conversation = FakeConversation(str(project_id))
+
+        context = ProjectContext(
+            title="Action planning integration",
+            objective="Expose Project action plans through conversation.",
+            status="ACTIVE",
+            current_summary="Project Action Intelligence is complete.",
+            next_action="Run acceptance tests",
+            current_revision=11,
+        )
+
+        service = StubConversationService(
+            conversation,
+            context,
+        )
+
+        result = service.send_message(
+            "How should we proceed?"
+        )
+
+        self.assertIsNotNone(result.project_action_plan)
+        self.assertEqual(
+            result.project_action_plan.status,
+            "plan_available",
+        )
+        self.assertEqual(
+            result.project_action_plan.project_revision,
+            11,
+        )
+        self.assertEqual(
+            result.project_action_plan.source_action,
+            "Run acceptance tests",
+        )
+        self.assertTrue(
+            result.project_action_plan.owner_approval_required
+        )
+        self.assertGreaterEqual(
+            len(result.project_action_plan.steps),
+            1,
+        )
+    def test_project_without_next_action_has_no_available_plan(
+        self,
+    ) -> None:
+        project_id = uuid4()
+
+        conversation = FakeConversation(str(project_id))
+
+        context = ProjectContext(
+            title="No action Project",
+            objective="Preserve the absence of an explicit next action.",
+            status="ACTIVE",
+            current_summary="Current work is understood.",
+            next_action=None,
+            current_revision=12,
+        )
+
+        service = StubConversationService(
+            conversation,
+            context,
+        )
+
+        result = service.send_message(
+            "What should we do next?"
+        )
+
+        self.assertIsNotNone(
+            result.project_action_analysis
+        )
+        self.assertEqual(
+            result.project_action_analysis.status,
+            "no_explicit_action",
+        )
+
+        self.assertIsNotNone(
+            result.project_action_plan
+        )
+        self.assertEqual(
+            result.project_action_plan.status,
+            "no_plan_available",
+        )
+        self.assertEqual(
+            result.project_action_plan.project_revision,
+            12,
+        )
+        self.assertIsNone(
+            result.project_action_plan.source_action
+        )
+        self.assertFalse(
+            result.project_action_plan.owner_approval_required
+        )
+        self.assertEqual(
+            result.project_action_plan.steps,
             [],
         )
 

@@ -7,6 +7,7 @@ from app.schemas.decision import DecisionAnalysis
 from app.schemas.goals import GoalAnalysis
 from app.schemas.project_update_proposals import ProjectUpdateProposalResponse
 from app.schemas.project_actions import ProjectActionAnalysis
+from app.schemas.project_action_planning import ProjectActionPlan
 
 class ChatRequest(BaseModel):
     """Validated input for a chat turn."""
@@ -28,7 +29,7 @@ class ChatResponse(BaseModel):
     planning_plan: PlanningPlan | None = None
     decision_analysis: DecisionAnalysis | None = None
     goal_analysis: GoalAnalysis | None = None
-
+    project_action_plan: ProjectActionPlan | None = None
 class MemoryUsageResponse(BaseModel):
     memory_id: UUID
     version: int

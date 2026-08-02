@@ -118,6 +118,64 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
             get_project_update_proposal_service
         ] = lambda: self.proposals
 
+    def test_chat_surfaces_project_action_plan(
+        self,
+    ) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Project action planning API",
+                objective="Surface owner-controlled Project action plans.",
+            )
+        )
+
+        self.projects.apply_progress_update(
+            project.id,
+            expected_revision=1,
+            current_summary="Project Action Planning is ready.",
+            next_action="Run acceptance tests",
+            change_note="Prepare Project Action Planning API test.",
+        )
+
+        status_code, _, response = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "How should we proceed?",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        action_plan = response["data"]["project_action_plan"]
+
+        self.assertIsNotNone(action_plan)
+        self.assertEqual(
+            action_plan["status"],
+            "plan_available",
+        )
+        self.assertEqual(
+            action_plan["project_revision"],
+            2,
+        )
+        self.assertEqual(
+            action_plan["source_action"],
+            "Run acceptance tests",
+        )
+        self.assertTrue(
+            action_plan["owner_approval_required"]
+        )
+        self.assertGreaterEqual(
+            len(action_plan["steps"]),
+            1,
+        )
+        self.assertEqual(
+            action_plan["steps"][0]["sequence"],
+            1,
+        )
+
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
         self.session.close()
