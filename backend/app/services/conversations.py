@@ -35,11 +35,13 @@ class ConversationAssociationError(Exception):
 class ChatTurnResult:
     reply: str
     conversation_id: UUID
+    project_id: UUID | None = None
     memories_used: tuple[ResolvedMemory, ...] = ()
     reasoning_plan: ReasoningPlan | None = None
     planning_plan: PlanningPlan | None = None
     decision_analysis: DecisionAnalysis | None = None
     goal_analysis: GoalAnalysis | None = None
+    project_context: ProjectContext | None = None
 
 
 class ConversationService:
@@ -71,8 +73,21 @@ class ConversationService:
 
         self.complete_turn(conversation.id, reply)
 
-        return ChatTurnResult(reply=reply, conversation_id=UUID(conversation.id), memories_used=memories, reasoning_plan=reasoning_plan, planning_plan=planning_plan, decision_analysis=decision_analysis, goal_analysis=goal_analysis)
-
+        return ChatTurnResult(
+            reply=reply,
+            conversation_id=UUID(conversation.id),
+            project_id=(
+                UUID(conversation.project_id)
+                if conversation.project_id
+                else None
+            ),
+            memories_used=memories,
+            reasoning_plan=reasoning_plan,
+            planning_plan=planning_plan,
+            decision_analysis=decision_analysis,
+            goal_analysis=goal_analysis,
+            project_context=project_context,
+        )
     def begin_turn(self, message: str, conversation_id: UUID | None = None, project_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
         """Persist a final user turn and return bounded history for another orchestrator."""
         try:

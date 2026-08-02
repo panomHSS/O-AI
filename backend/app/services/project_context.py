@@ -43,6 +43,7 @@ class ProjectContextRecord:
     status: str | None
     current_summary: str | None
     next_action: str | None
+    current_revision: int | None
 
 
 class ProjectContextReaderPort(Protocol):
@@ -66,6 +67,7 @@ class ProjectContextReader:
                     Project.status,
                     Project.current_summary,
                     Project.next_action,
+                    Project.current_revision,
                 ).where(Project.id == project_id)
             ).mappings().one_or_none()
         except SQLAlchemyError as error:
@@ -78,6 +80,7 @@ class ProjectContextReader:
             status=row["status"],
             current_summary=row["current_summary"],
             next_action=row["next_action"],
+            current_revision=row["current_revision"],
         )
 
 
@@ -90,6 +93,7 @@ class ProjectContext:
     status: str
     current_summary: str | None
     next_action: str | None
+    current_revision: int
 
 
 class ProjectContextResolver:
@@ -114,6 +118,7 @@ class ProjectContextResolver:
                 status=_status(project.status),
                 current_summary=_optional_bound(project.current_summary, SUMMARY_MAX_CHARS),
                 next_action=_optional_bound(project.next_action, NEXT_ACTION_MAX_CHARS),
+                current_revision=_revision(project.current_revision),
             )
         except (TypeError, UnicodeError, ValueError) as error:
             raise ProjectContextUnavailableError("The associated Project context is unavailable.") from error
@@ -159,4 +164,9 @@ def _optional_bound(value: str | None, limit: int) -> str | None:
 def _status(value: str | None) -> str:
     if not isinstance(value, str) or value not in ALLOWED_PROJECT_STATUSES:
         raise ValueError("Project status is invalid.")
+    return value
+
+def _revision(value: int | None) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError("Project revision is invalid.")
     return value

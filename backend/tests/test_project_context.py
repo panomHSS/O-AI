@@ -133,6 +133,15 @@ class ProjectContextTests(unittest.TestCase):
         ))
 
         result = self._conversation_service().send_message("What is the status?", project_id=project.id)
+        self.assertIsNotNone(result.project_context)
+        self.assertEqual(
+    result.project_context.current_revision,
+    self.session.get(
+        Project,
+        str(project.id),
+    ).current_revision,
+)
+        self.assertEqual(result.project_context.status, "ACTIVE")
         prompt = self.provider.inputs[-1]
         payload = self._project_payload(prompt)
 
@@ -230,6 +239,7 @@ class ProjectContextTests(unittest.TestCase):
 
         context = resolver.resolve(str(project.id))
 
+        self.assertEqual(context.current_revision, before_revision)
         self.assertEqual(context.title, "Launch")
         self.assertEqual(context.objective, "Deliver the approved launch.")
         self.assertEqual(context.status, "ACTIVE")
@@ -247,11 +257,40 @@ class ProjectContextTests(unittest.TestCase):
         before_revisions = self.session.scalar(select(func.count(ProjectRevision.id)))
         before_revision = self.session.get(Project, str(project.id)).current_revision
         invalid_records = [
-            StaticProjectReader(error=ProjectContextReadError("database unavailable")),
-            StaticProjectReader(ProjectContextRecord(None, "objective", "ACTIVE", None, None)),
-            StaticProjectReader(ProjectContextRecord("title", None, "ACTIVE", None, None)),
-            StaticProjectReader(ProjectContextRecord("title", "objective", "INVALID", None, None)),
-        ]
+        StaticProjectReader(
+        error=ProjectContextReadError("database unavailable")
+    ),
+    StaticProjectReader(
+        ProjectContextRecord(
+            None,
+            "objective",
+            "ACTIVE",
+            None,
+            None,
+            1,
+        )
+    ),
+    StaticProjectReader(
+        ProjectContextRecord(
+            "title",
+            None,
+            "ACTIVE",
+            None,
+            None,
+            1,
+        )
+    ),
+    StaticProjectReader(
+        ProjectContextRecord(
+            "title",
+            "objective",
+            "INVALID",
+            None,
+            None,
+            1,
+        )
+    ),
+]
         for reader in invalid_records:
             with self.subTest(reader=reader):
                 self.provider.inputs.clear()

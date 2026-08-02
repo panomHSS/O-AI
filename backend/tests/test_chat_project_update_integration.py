@@ -1,0 +1,284 @@
+import asyncio
+import os
+import tempfile
+import unittest
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from sqlalchemy.orm import sessionmaker
+from uuid import UUID
+
+from app.api.dependencies import (
+    get_conversation_service,
+    get_project_update_turn_orchestrator,
+)
+from app.core.config import get_settings
+from app.db.session import create_database_engine
+from app.main import app
+from app.repositories.conversations import ConversationRepository
+from app.repositories.project_update_proposals import (
+    ProjectUpdateProposalRepository,
+)
+from app.repositories.projects import ProjectRepository
+from app.schemas.projects import CreateProjectRequest
+from app.services.chat import ChatService
+from app.services.conversations import ConversationService
+from app.services.project_context import (
+    ProjectContextReader,
+    ProjectContextResolver,
+)
+from app.services.project_update_generation import (
+    ProjectUpdateProposalGenerator,
+)
+from app.services.project_update_orchestrator import (
+    ProjectUpdateTurnOrchestrator,
+)
+from app.services.project_update_proposals import (
+    ProjectUpdateProposalService,
+)
+from app.services.projects import ProjectService
+from tests.test_api_standardization import invoke_app
+
+
+class StaticProvider:
+    def generate_reply(self, *args, **kwargs) -> str:
+        return "Acknowledged."
+
+
+class ChatProjectUpdateIntegrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.database_path = (
+            Path(self.temporary_directory.name) / "chat-project-update.db"
+        )
+
+        self.previous_url = os.environ.get("OAI_DATABASE_URL")
+        os.environ["OAI_DATABASE_URL"] = (
+            f"sqlite:///{self.database_path.as_posix()}"
+        )
+        get_settings.cache_clear()
+
+        command.upgrade(
+            Config(
+                str(
+                    Path(__file__).resolve().parents[2]
+                    / "alembic.ini"
+                )
+            ),
+            "head",
+        )
+
+        self.engine = create_database_engine(
+            os.environ["OAI_DATABASE_URL"]
+        )
+        self.Session = sessionmaker(
+            bind=self.engine,
+            expire_on_commit=False,
+        )
+        self.session = self.Session()
+
+        self.projects = ProjectService(
+            ProjectRepository(self.session)
+        )
+
+        self.conversations = ConversationService(
+            repository=ConversationRepository(self.session),
+            chat_service=ChatService(StaticProvider()),
+            context_message_limit=20,
+            project_context_resolver=ProjectContextResolver(
+                ProjectContextReader(self.session)
+            ),
+        )
+
+        self.proposals = ProjectUpdateProposalService(
+            repository=ProjectUpdateProposalRepository(self.session),
+            conversation_repository=ConversationRepository(self.session),
+            project_service=self.projects,
+        )
+
+        self.orchestrator = ProjectUpdateTurnOrchestrator(
+            generator=ProjectUpdateProposalGenerator(),
+            proposal_service=self.proposals,
+        )
+
+        app.dependency_overrides[
+            get_conversation_service
+        ] = lambda: self.conversations
+
+        app.dependency_overrides[
+            get_project_update_turn_orchestrator
+        ] = lambda: self.orchestrator
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        self.session.close()
+        self.engine.dispose()
+
+        if self.previous_url is None:
+            os.environ.pop("OAI_DATABASE_URL", None)
+        else:
+            os.environ["OAI_DATABASE_URL"] = self.previous_url
+
+        get_settings.cache_clear()
+        self.temporary_directory.cleanup()
+
+    def test_explicit_progress_chat_creates_pending_proposal_without_mutating_project(
+        self,
+    ) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Chat integration",
+                objective="Generate reviewed Project updates.",
+            )
+        )
+
+        status_code, _, response = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "Progress: Chat proposal integration completed.",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        conversation_id = UUID(response["data"]["conversation_id"])
+
+        proposals = self.proposals.list_for_project(
+            project.id,
+            status="PENDING",
+        )
+
+        self.assertEqual(len(proposals.items), 1)
+
+        proposal = proposals.items[0]
+
+        self.assertEqual(
+            proposal.conversation_id,
+            conversation_id,
+        )
+        self.assertEqual(proposal.project_id, project.id)
+        self.assertEqual(proposal.base_revision, 1)
+        self.assertEqual(
+            proposal.proposed_summary,
+            "Chat proposal integration completed.",
+        )
+        self.assertEqual(proposal.status, "PENDING")
+
+        current = self.projects.get(project.id)
+
+        self.assertEqual(current.current_revision, 1)
+        self.assertIsNone(current.current_summary)
+    def test_chat_without_project_does_not_create_proposal(self) -> None:
+        status_code, _, response = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "Progress: This conversation has no Project.",
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+        self.assertIn("conversation_id", response["data"])
+
+
+    def test_ordinary_project_chat_does_not_create_proposal(self) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Ordinary chat",
+                objective="Do not infer progress from ordinary conversation.",
+            )
+        )
+
+        status_code, _, _ = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "What should we work on next?",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        proposals = self.proposals.list_for_project(
+            project.id,
+            status="PENDING",
+        )
+
+        self.assertEqual(len(proposals.items), 0)
+
+    def test_existing_project_conversation_can_create_proposal_without_resending_project_id(
+        self,
+    ) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Existing conversation",
+                objective="Preserve immutable Project association.",
+            )
+        )
+
+        status_code, _, first = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "Start the Project discussion.",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        conversation_id = first["data"]["conversation_id"]
+
+        status_code, _, _ = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "Progress: Existing conversation wiring completed.",
+                    "conversation_id": conversation_id,
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        proposals = self.proposals.list_for_project(
+            project.id,
+            status="PENDING",
+        )
+
+        self.assertEqual(len(proposals.items), 1)
+
+        proposal = proposals.items[0]
+
+        self.assertEqual(proposal.project_id, project.id)
+        self.assertEqual(
+            proposal.conversation_id,
+            UUID(conversation_id),
+        )
+        self.assertEqual(proposal.base_revision, 1)
+        self.assertEqual(
+            proposal.proposed_summary,
+            "Existing conversation wiring completed.",
+        )
+
+        current = self.projects.get(project.id)
+
+        self.assertEqual(current.current_revision, 1)
+        self.assertIsNone(current.current_summary)
+
+
+if __name__ == "__main__":
+    unittest.main()

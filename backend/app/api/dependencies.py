@@ -26,7 +26,8 @@ from app.services.decision import DecisionService
 from app.services.knowledge_intelligence import CitationEngine, ConfidenceEvaluator, ConflictDetector, ContextBuilder, EvidenceRanker, GroundedPromptBuilder, IntentAnalyzer, RetrievalPlanner
 from app.repositories.project_update_proposals import ProjectUpdateProposalRepository
 from app.services.project_update_proposals import ProjectUpdateProposalService
-
+from app.services.project_update_generation import ProjectUpdateProposalGenerator
+from app.services.project_update_orchestrator import ProjectUpdateTurnOrchestrator
 
 @lru_cache
 def get_chat_service() -> ChatService:
@@ -89,7 +90,15 @@ def get_project_update_proposal_service(
         conversation_repository=ConversationRepository(database_session),
         project_service=project_service,
     )
-
+def get_project_update_turn_orchestrator(
+    proposal_service: ProjectUpdateProposalService = Depends(
+        get_project_update_proposal_service
+    ),
+) -> ProjectUpdateTurnOrchestrator:
+    return ProjectUpdateTurnOrchestrator(
+        generator=ProjectUpdateProposalGenerator(),
+        proposal_service=proposal_service,
+    )
 def get_knowledge_answer_service(database_session: Session = Depends(get_db), chat_service: ChatService = Depends(get_chat_service)) -> KnowledgeAnswerService:
     settings = get_settings()
     conversation_service = ConversationService(ConversationRepository(database_session), chat_service, settings.oai_chat_context_message_limit, MessageCitationRepository(database_session), project_context_resolver=ProjectContextResolver(ProjectContextReader(database_session)))

@@ -2,19 +2,74 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.dependencies import get_conversation_service
+from app.api.dependencies import (
+    get_conversation_service,
+    get_project_update_turn_orchestrator,
+)
 from app.schemas.api import ApiSuccess
 from app.schemas.chat import ChatRequest, ChatResponse, MemoryUsageResponse
 from app.services.conversations import ConversationService
+from app.services.project_update_orchestrator import (
+    ProjectUpdateTurnInput,
+    ProjectUpdateTurnOrchestrator,
+)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@router.post("", response_model=ApiSuccess[ChatResponse], status_code=status.HTTP_200_OK)
+@router.post(
+    "",
+    response_model=ApiSuccess[ChatResponse],
+    status_code=status.HTTP_200_OK,
+)
 def send_chat_message(
     payload: ChatRequest,
-    conversation_service: Annotated[ConversationService, Depends(get_conversation_service)],
+    conversation_service: Annotated[
+        ConversationService,
+        Depends(get_conversation_service),
+    ],
+    project_update_orchestrator: Annotated[
+        ProjectUpdateTurnOrchestrator,
+        Depends(get_project_update_turn_orchestrator),
+    ],
 ) -> ApiSuccess[ChatResponse]:
     """Handle a single chat turn through the configured chat service."""
-    result = conversation_service.send_message(payload.message, payload.conversation_id, payload.project_id)
-    return ApiSuccess(data=ChatResponse(reply=result.reply, conversation_id=result.conversation_id, memories_used=[MemoryUsageResponse(memory_id=item.memory_id, version=item.version, key=item.key) for item in result.memories_used], reasoning_plan=result.reasoning_plan, planning_plan=result.planning_plan, decision_analysis=result.decision_analysis, goal_analysis=result.goal_analysis))
+    result = conversation_service.send_message(
+        payload.message,
+        payload.conversation_id,
+        payload.project_id,
+    )
+
+    if (
+        result.project_id is not None
+        and result.project_context is not None
+    ):
+        project_update_orchestrator.process(
+            ProjectUpdateTurnInput(
+                conversation_id=result.conversation_id,
+                project_id=result.project_id,
+                base_revision=result.project_context.current_revision,
+                user_message=payload.message,
+                assistant_reply=result.reply,
+                project_context=result.project_context,
+            )
+        )
+
+    return ApiSuccess(
+        data=ChatResponse(
+            reply=result.reply,
+            conversation_id=result.conversation_id,
+            memories_used=[
+                MemoryUsageResponse(
+                    memory_id=item.memory_id,
+                    version=item.version,
+                    key=item.key,
+                )
+                for item in result.memories_used
+            ],
+            reasoning_plan=result.reasoning_plan,
+            planning_plan=result.planning_plan,
+            decision_analysis=result.decision_analysis,
+            goal_analysis=result.goal_analysis,
+        )
+    )
