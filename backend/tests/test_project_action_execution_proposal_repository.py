@@ -7,6 +7,7 @@ from app.db.base import Base
 from app.repositories.project_action_execution_proposals import (
     ProjectActionExecutionProposalRepository,
 )
+from app.models.project import Project
 
 
 class ProjectActionExecutionProposalRepositoryTests(
@@ -126,6 +127,262 @@ class ProjectActionExecutionProposalRepositoryTests(
 
         self.assertFalse(decided_again)
 
+    def test_claim_if_executable_claims_approved_proposal_once(
+        self,
+    ) -> None:
+        project = Project(
+            title="Atomic execution claim",
+            objective="Claim an approved proposal only once.",
+            status="ACTIVE",
+            current_revision=40,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=40,
+            source_action="Run acceptance tests",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run acceptance tests",
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        claimed = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertTrue(claimed)
+        self.repository.commit()
+
+        loaded = self.repository.get(proposal.id)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(
+            loaded.status,
+            "EXECUTING",
+        )
+        self.assertTrue(loaded.approved)
+        self.assertFalse(loaded.executed)
+
+        claimed_again = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertFalse(claimed_again)
+
+    def test_claim_if_executable_rejects_non_executable_states(
+        self,
+    ) -> None:
+        cases = [
+            ("PENDING", False, False),
+            ("REJECTED", False, False),
+            ("APPROVED", False, False),
+            ("APPROVED", True, True),
+            ("EXECUTING", True, False),
+        ]
+
+        for status, approved, executed in cases:
+            with self.subTest(
+                status=status,
+                approved=approved,
+                executed=executed,
+            ):
+                proposal = self.repository.create(
+                    project_id=(
+                        "11111111-1111-1111-1111-111111111111"
+                    ),
+                    conversation_id=(
+                        "22222222-2222-2222-2222-222222222222"
+                    ),
+                    project_revision=41,
+                    source_action="Run acceptance tests",
+                    steps=[
+                        {
+                            "sequence": 1,
+                            "description": "Run acceptance tests",
+                        }
+                    ],
+                )
+
+                proposal.status = status
+                proposal.approved = approved
+                proposal.executed = executed
+                self.repository.commit()
+
+                claimed = self.repository.claim_if_executable(
+                    proposal.id,
+                )
+
+                self.assertFalse(claimed)
+
+                self.repository.rollback()
+
+                loaded = self.repository.get(proposal.id)
+
+                self.assertIsNotNone(loaded)
+                self.assertEqual(loaded.status, status)
+                self.assertEqual(loaded.approved, approved)
+                self.assertEqual(loaded.executed, executed)
+
+    def test_claim_if_executable_rejects_stale_project_revision(
+        self,
+    ) -> None:
+        project = Project(
+            title="Atomic execution claim",
+            objective="Reject stale execution proposals.",
+            status="ACTIVE",
+            current_revision=18,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=17,
+            source_action="Run acceptance tests",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run acceptance tests",
+                }
+            ],
+        )
+
+        proposal.status = "APPROVED"
+        proposal.approved = True
+        proposal.executed = False
+
+        self.repository.commit()
+
+        claimed = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertFalse(claimed)
+
+        self.repository.rollback()
+
+        loaded = self.repository.get(proposal.id)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(
+            loaded.status,
+            "APPROVED",
+        )
+        self.assertTrue(loaded.approved)
+        self.assertFalse(loaded.executed)
+
+    def test_claim_if_executable_accepts_matching_project_revision(
+        self,
+    ) -> None:
+        project = Project(
+            title="Atomic execution claim",
+            objective="Allow current execution proposals.",
+            status="ACTIVE",
+            current_revision=17,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=17,
+            source_action="Run acceptance tests",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run acceptance tests",
+                }
+            ],
+        )
+
+        proposal.status = "APPROVED"
+        proposal.approved = True
+        proposal.executed = False
+
+        self.repository.commit()
+
+        claimed = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertTrue(claimed)
+        self.repository.commit()
+
+        loaded = self.repository.get(proposal.id)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded.status, "EXECUTING")
+        self.assertTrue(loaded.approved)
+        self.assertFalse(loaded.executed)
+
+
+    def test_claim_if_executable_rejects_missing_project(
+        self,
+    ) -> None:
+        proposal = self.repository.create(
+            project_id=(
+                "11111111-1111-1111-1111-111111111111"
+            ),
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=17,
+            source_action="Run acceptance tests",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run acceptance tests",
+                }
+            ],
+        )
+
+        proposal.status = "APPROVED"
+        proposal.approved = True
+        proposal.executed = False
+
+        self.repository.commit()
+
+        claimed = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertFalse(claimed)
+
+        self.repository.rollback()
+
+        loaded = self.repository.get(proposal.id)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded.status, "APPROVED")
+        self.assertTrue(loaded.approved)
+        self.assertFalse(loaded.executed)
 
 if __name__ == "__main__":
     unittest.main()

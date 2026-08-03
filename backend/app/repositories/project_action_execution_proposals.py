@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.project_action_execution_proposal import (
     ProjectActionExecutionProposalRecord,
 )
+from app.models.project import Project
 
 class ProjectActionExecutionProposalRepository:
     """Persist durable Project action execution proposals."""
@@ -68,6 +69,41 @@ class ProjectActionExecutionProposalRepository:
                 status=status,
                 approved=approved,
                 executed=False,
+            )
+        )
+
+        return result.rowcount == 1
+
+    def claim_if_executable(
+        self,
+        proposal_id: str,
+    ) -> bool:
+        matching_project_revision = (
+            select(Project.id)
+            .where(
+                Project.id
+                == ProjectActionExecutionProposalRecord.project_id,
+                Project.current_revision
+                == ProjectActionExecutionProposalRecord.project_revision,
+            )
+            .exists()
+        )
+
+        result = self._session.execute(
+            update(ProjectActionExecutionProposalRecord)
+            .where(
+                ProjectActionExecutionProposalRecord.id
+                == proposal_id,
+                ProjectActionExecutionProposalRecord.status
+                == "APPROVED",
+                ProjectActionExecutionProposalRecord.approved
+                .is_(True),
+                ProjectActionExecutionProposalRecord.executed
+                .is_(False),
+                matching_project_revision,
+            )
+            .values(
+                status="EXECUTING",
             )
         )
 
