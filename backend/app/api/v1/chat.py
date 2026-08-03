@@ -64,6 +64,9 @@ def send_chat_message(
             project_update_proposal=project_update_proposal,
             project_action_analysis=result.project_action_analysis,
             project_action_plan=result.project_action_plan,
+            project_action_execution_proposal=(
+                result.project_action_execution_proposal
+            ),
             memories_used=[
                 MemoryUsageResponse(
                     memory_id=item.memory_id,

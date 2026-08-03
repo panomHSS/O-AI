@@ -533,5 +533,72 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
             "Run acceptance tests",
         )
 
+    def test_chat_surfaces_project_action_execution_proposal(
+        self,
+    ) -> None:
+        project = self.projects.create(
+            CreateProjectRequest(
+                title="Project action execution API",
+                objective=(
+                    "Surface owner-reviewed Project action "
+                    "execution proposals."
+                ),
+            )
+        )
+
+        self.projects.apply_progress_update(
+            project.id,
+            expected_revision=1,
+            current_summary="Project Action Planning is complete.",
+            next_action="Run acceptance tests",
+            change_note=(
+                "Prepare Project Action Execution Proposal API test."
+            ),
+        )
+
+        status_code, _, response = asyncio.run(
+            invoke_app(
+                "/api/v1/chat",
+                method="POST",
+                body={
+                    "message": "How should we proceed?",
+                    "project_id": str(project.id),
+                },
+            )
+        )
+
+        self.assertEqual(status_code, 200)
+
+        proposal = response["data"][
+            "project_action_execution_proposal"
+        ]
+
+        self.assertIsNotNone(proposal)
+        self.assertEqual(
+            proposal["status"],
+            "awaiting_owner_approval",
+        )
+        self.assertEqual(
+            proposal["project_revision"],
+            2,
+        )
+        self.assertEqual(
+            proposal["source_action"],
+            "Run acceptance tests",
+        )
+        self.assertTrue(
+            proposal["owner_approval_required"]
+        )
+        self.assertFalse(
+            proposal["approved"]
+        )
+        self.assertFalse(
+            proposal["executed"]
+        )
+        self.assertGreaterEqual(
+            len(proposal["steps"]),
+            1,
+        )
+
 if __name__ == "__main__":
     unittest.main()

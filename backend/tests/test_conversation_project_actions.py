@@ -1,4 +1,4 @@
-import unittest
+﻿import unittest
 from uuid import uuid4
 
 from app.services.chat import ChatService
@@ -8,6 +8,9 @@ from app.services.project_action_planning import (
     ProjectActionPlanningService,
 )
 from app.services.project_context import ProjectContext
+from app.services.project_action_execution import (
+    ProjectActionExecutionProposalService,
+)
 
 
 class StaticProvider:
@@ -66,6 +69,9 @@ class StubConversationService(ConversationService):
             ),
             project_action_service=ProjectActionService(),
             project_action_planning_service=ProjectActionPlanningService(),
+            project_action_execution_proposal_service=(
+             ProjectActionExecutionProposalService()
+            ),
         )
         self._conversation = conversation
 
@@ -145,6 +151,9 @@ class ConversationProjectActionTests(unittest.TestCase):
 
         self.assertIsNone(result.project_id)
         self.assertIsNone(result.project_action_analysis)
+        self.assertIsNone(
+            result.project_action_execution_proposal
+        )
 
     def test_paused_project_does_not_surface_action_through_conversation(
         self,
@@ -283,6 +292,66 @@ class ConversationProjectActionTests(unittest.TestCase):
         self.assertEqual(
             result.project_action_plan.steps,
             [],
+        )
+        self.assertIsNone(
+            result.project_action_execution_proposal
+        )
+
+    def test_project_action_execution_is_proposed_for_chat_turn(
+        self,
+    ) -> None:
+        project_id = uuid4()
+
+        conversation = FakeConversation(str(project_id))
+
+        context = ProjectContext(
+            title="Execution proposal integration",
+            objective="Require owner approval before Project action execution.",
+            status="ACTIVE",
+            current_summary="Project action planning is complete.",
+            next_action="Run acceptance tests",
+            current_revision=16,
+        )
+
+        service = StubConversationService(
+            conversation,
+            context,
+        )
+
+        result = service.send_message(
+            "How should we proceed?"
+        )
+
+        self.assertIsNotNone(
+            result.project_action_execution_proposal
+        )
+
+        proposal = result.project_action_execution_proposal
+
+        self.assertEqual(
+            proposal.status,
+            "awaiting_owner_approval",
+        )
+        self.assertEqual(
+            proposal.project_revision,
+            16,
+        )
+        self.assertEqual(
+            proposal.source_action,
+            "Run acceptance tests",
+        )
+        self.assertTrue(
+            proposal.owner_approval_required
+        )
+        self.assertFalse(
+            proposal.approved
+        )
+        self.assertFalse(
+            proposal.executed
+        )
+        self.assertGreaterEqual(
+            len(proposal.steps),
+            1,
         )
 
 

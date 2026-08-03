@@ -25,6 +25,13 @@ from app.schemas.project_action_planning import ProjectActionPlan
 from app.services.project_action_planning import (
     ProjectActionPlanningService,
 )
+from app.schemas.project_action_execution import (
+    ProjectActionExecutionProposal,
+)
+from app.services.project_action_execution import (
+    ProjectActionExecutionProposalService,
+)
+
 
 TITLE_MAX_LENGTH = 80
 
@@ -50,7 +57,7 @@ class ChatTurnResult:
     project_context: ProjectContext | None = None
     project_action_analysis: ProjectActionAnalysis | None = None
     project_action_plan: ProjectActionPlan | None = None
-
+    project_action_execution_proposal: ProjectActionExecutionProposal | None = None
 class ConversationService:
     """Coordinates local conversation persistence with provider-neutral chat."""
 
@@ -68,6 +75,9 @@ class ConversationService:
                 project_context_resolver: ProjectContextResolver | None = None,
         project_action_service: ProjectActionService | None = None,
         project_action_planning_service: ProjectActionPlanningService | None = None,
+        project_action_execution_proposal_service: (
+         ProjectActionExecutionProposalService | None
+        ) = None,
     ) -> None:
         self._repository = repository
         self._chat_service = chat_service
@@ -85,6 +95,10 @@ class ConversationService:
         self._project_action_planning_service = (
             project_action_planning_service
             or ProjectActionPlanningService()
+        )
+        self._project_action_execution_proposal_service = (
+            project_action_execution_proposal_service
+            or ProjectActionExecutionProposalService()
         )
 
     def send_message(
@@ -111,6 +125,13 @@ class ConversationService:
                 project_action_analysis
             )
             if project_action_analysis is not None
+            else None
+        )
+        project_action_execution_proposal = (
+            self._project_action_execution_proposal_service.propose(
+                project_action_plan
+            )
+            if project_action_plan is not None
             else None
         )
 
@@ -140,6 +161,7 @@ class ConversationService:
             project_context=project_context,
             project_action_analysis=project_action_analysis,
             project_action_plan=project_action_plan,
+            project_action_execution_proposal=project_action_execution_proposal,
         )
     def begin_turn(self, message: str, conversation_id: UUID | None = None, project_id: UUID | None = None) -> tuple[Conversation, list[ChatContextMessage]]:
         """Persist a final user turn and return bounded history for another orchestrator."""
