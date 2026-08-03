@@ -384,5 +384,206 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.assertTrue(loaded.approved)
         self.assertFalse(loaded.executed)
 
+    def test_complete_if_executing_marks_claimed_proposal_executed_once(
+        self,
+    ) -> None:
+        project = Project(
+            title="Execution completion",
+            objective="Complete a claimed action exactly once.",
+            status="ACTIVE",
+            current_revision=50,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=50,
+            source_action="Run acceptance tests",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run acceptance tests",
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        claimed = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertTrue(claimed)
+        self.repository.commit()
+
+        completed = self.repository.complete_if_executing(
+            proposal.id,
+        )
+
+        self.assertTrue(completed)
+        self.repository.commit()
+
+        loaded = self.repository.get(proposal.id)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(
+            loaded.status,
+            "EXECUTED",
+        )
+        self.assertTrue(loaded.approved)
+        self.assertTrue(loaded.executed)
+
+        completed_again = (
+            self.repository.complete_if_executing(
+                proposal.id,
+            )
+        )
+
+        self.assertFalse(completed_again)
+
+    def test_complete_if_executing_rejects_non_executing_states(
+        self,
+    ) -> None:
+        cases = [
+            ("PENDING", False, False),
+            ("REJECTED", False, False),
+            ("APPROVED", True, False),
+            ("EXECUTING", False, False),
+            ("EXECUTING", True, True),
+            ("EXECUTED", True, True),
+        ]
+
+        for status, approved, executed in cases:
+            with self.subTest(
+                status=status,
+                approved=approved,
+                executed=executed,
+            ):
+                proposal = self.repository.create(
+                    project_id=(
+                        "11111111-1111-1111-1111-111111111111"
+                    ),
+                    conversation_id=(
+                        "22222222-2222-2222-2222-222222222222"
+                    ),
+                    project_revision=51,
+                    source_action="Run acceptance tests",
+                    steps=[
+                        {
+                            "sequence": 1,
+                            "description": "Run acceptance tests",
+                        }
+                    ],
+                )
+
+                proposal.status = status
+                proposal.approved = approved
+                proposal.executed = executed
+
+                self.repository.commit()
+
+                completed = (
+                    self.repository.complete_if_executing(
+                        proposal.id,
+                    )
+                )
+
+                self.assertFalse(completed)
+
+                self.repository.rollback()
+
+                loaded = self.repository.get(proposal.id)
+
+                self.assertIsNotNone(loaded)
+                self.assertEqual(loaded.status, status)
+                self.assertEqual(
+                    loaded.approved,
+                    approved,
+                )
+                self.assertEqual(
+                    loaded.executed,
+                    executed,
+                )
+
+    def test_completion_succeeds_after_project_revision_changes(
+        self,
+    ) -> None:
+        project = Project(
+            title="Execution completion",
+            objective="Record completion after a valid claim.",
+            status="ACTIVE",
+            current_revision=52,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=52,
+            source_action="Run acceptance tests",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run acceptance tests",
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        claimed = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertTrue(claimed)
+        self.repository.commit()
+
+        project.current_revision = 53
+        self.session.commit()
+
+        completed = self.repository.complete_if_executing(
+            proposal.id,
+        )
+
+        self.assertTrue(completed)
+        self.repository.commit()
+
+        loaded = self.repository.get(proposal.id)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(
+            loaded.status,
+            "EXECUTED",
+        )
+        self.assertTrue(loaded.approved)
+        self.assertTrue(loaded.executed)
+
 if __name__ == "__main__":
     unittest.main()
