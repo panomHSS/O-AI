@@ -93,7 +93,10 @@ class ApiStandardizationTests(unittest.TestCase):
         self.assertEqual(status_code, 200)
         self.assertEqual(body["success"], True)
         self.assertEqual(body["data"]["status"], "ok")
-        self.assertEqual(body["data"]["database_revision"], "0006_project_update_proposals")
+        self.assertEqual(
+    body["data"]["database_revision"],
+    "0007_project_action_execution_proposals",
+)
 
     def test_request_id_is_generated(self) -> None:
         _, headers, _ = self.request("/api/v1/health")

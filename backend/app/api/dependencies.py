@@ -28,6 +28,12 @@ from app.repositories.project_update_proposals import ProjectUpdateProposalRepos
 from app.services.project_update_proposals import ProjectUpdateProposalService
 from app.services.project_update_generation import ProjectUpdateProposalGenerator
 from app.services.project_update_orchestrator import ProjectUpdateTurnOrchestrator
+from app.repositories.project_action_execution_proposals import (
+    ProjectActionExecutionProposalRepository,
+)
+from app.services.project_action_execution_persistence import (
+    ProjectActionExecutionPersistenceService,
+)
 
 @lru_cache
 def get_chat_service() -> ChatService:
@@ -37,24 +43,46 @@ def get_chat_service() -> ChatService:
     provider = OpenAIChatProvider(api_key=api_key, model=settings.openai_model)
     return ChatService(provider=provider)
 
-
 def get_conversation_service(
     database_session: Session = Depends(get_db),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ConversationService:
     settings = get_settings()
+
+    execution_proposal_repository = (
+        ProjectActionExecutionProposalRepository(
+            database_session
+        )
+    )
+
+    execution_persistence_service = (
+        ProjectActionExecutionPersistenceService(
+            execution_proposal_repository
+        )
+    )
+
     return ConversationService(
         repository=ConversationRepository(database_session),
         chat_service=chat_service,
         context_message_limit=settings.oai_chat_context_message_limit,
-        citation_repository=MessageCitationRepository(database_session),
-        memory_resolver=MemoryResolver(MemoryRepository(database_session), settings.oai_memory_context_max_items, settings.oai_memory_context_max_chars, settings.oai_memory_context_max_item_chars),
-        reasoning_service=ReasoningService(),
-        planning_service=PlanningService(),
-        decision_service=DecisionService(),
-        project_context_resolver=ProjectContextResolver(ProjectContextReader(database_session)),
+        citation_repository=MessageCitationRepository(
+            database_session
+        ),
+        memory_resolver=MemoryResolver(
+        reader=MemoryRepository(database_session),
+        item_limit=settings.oai_memory_context_max_items,
+        char_budget=settings.oai_memory_context_max_chars,
+        item_char_limit=(
+            settings.oai_memory_context_max_item_chars
+        ),
+    ),        
+        project_context_resolver=ProjectContextResolver(
+            ProjectContextReader(database_session)
+        ),
+        project_action_execution_persistence_service=(
+            execution_persistence_service
+        ),
     )
-
 
 @lru_cache
 def get_document_reader_registry():

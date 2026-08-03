@@ -10,8 +10,22 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0006_project_update_proposals"
-EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions", "projects", "project_revisions", "project_update_proposals"}
+TARGET_REVISION = "0007_project_action_execution_proposals"
+EXPECTED_TABLES = {
+    "alembic_version",
+    "conversations",
+    "messages",
+    "message_citations",
+    "documents",
+    "document_chunks",
+    "document_chunks_fts",
+    "memories",
+    "memory_versions",
+    "projects",
+    "project_revisions",
+    "project_update_proposals",
+    "project_action_execution_proposals",
+}
 EXPECTED_COLUMNS = {
     "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0)],
     "messages": [("id", "VARCHAR(36)", 1), ("conversation_id", "VARCHAR(36)", 0), ("role", "VARCHAR(16)", 0), ("content", "VARCHAR", 0), ("created_at", "DATETIME", 0)],
@@ -35,6 +49,17 @@ EXPECTED_COLUMNS = {
     ("decided_at", "DATETIME", 0),
     ("applied_revision", "INTEGER", 0),
 ],
+"project_action_execution_proposals": [
+    ("id", "VARCHAR(36)", 1),
+    ("project_id", "VARCHAR(36)", 0),
+    ("conversation_id", "VARCHAR(36)", 0),
+    ("project_revision", "INTEGER", 0),
+    ("source_action", "VARCHAR(512)", 0),
+    ("steps", "JSON", 0),
+    ("status", "VARCHAR(32)", 0),
+    ("approved", "BOOLEAN", 0),
+    ("executed", "BOOLEAN", 0),
+],
 }
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False)},
@@ -47,10 +72,29 @@ EXPECTED_INDEXES = {
     "projects": {"ix_projects_status": (["status"], False), "ix_projects_updated_at": (["updated_at"], False)},
     "project_revisions": {"ix_project_revisions_project_id": (["project_id"], False)},
     "project_update_proposals": {
-    "ix_project_update_proposals_project_id": (["project_id"], False),
-    "ix_project_update_proposals_conversation_id": (["conversation_id"], False),
-    "ix_project_update_proposals_status": (["status"], False),
-},
+        "ix_project_update_proposals_project_id": (
+            ["project_id"],
+            False,
+        ),
+        "ix_project_update_proposals_conversation_id": (
+            ["conversation_id"],
+            False,
+        ),
+        "ix_project_update_proposals_status": (
+            ["status"],
+            False,
+        ),
+    },
+    "project_action_execution_proposals": {
+        "ix_project_action_execution_proposals_project_id": (
+            ["project_id"],
+            False,
+        ),
+        "ix_project_action_execution_proposals_conversation_id": (
+            ["conversation_id"],
+            False,
+        ),
+    },
 }
 EXPECTED_FOREIGN_KEYS = {
     "messages": {("conversation_id", "conversations", "id", "CASCADE")},

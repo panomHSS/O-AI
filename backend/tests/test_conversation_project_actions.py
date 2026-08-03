@@ -54,11 +54,31 @@ class StaticProjectContextResolver:
 
         return self.context
 
+class RecordingExecutionPersistenceService:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def persist(
+        self,
+        proposal,
+        *,
+        project_id: str,
+        conversation_id: str,
+    ):
+        self.calls.append(
+            {
+                "proposal": proposal,
+                "project_id": project_id,
+                "conversation_id": conversation_id,
+            }
+        )
+
 class StubConversationService(ConversationService):
     def __init__(
         self,
         conversation: FakeConversation,
         project_context: ProjectContext,
+        project_action_execution_persistence_service=None,
     ) -> None:
         super().__init__(
             repository=FakeConversationRepository(conversation),
@@ -68,9 +88,14 @@ class StubConversationService(ConversationService):
                 project_context
             ),
             project_action_service=ProjectActionService(),
-            project_action_planning_service=ProjectActionPlanningService(),
+            project_action_planning_service=(
+                ProjectActionPlanningService()
+            ),
             project_action_execution_proposal_service=(
-             ProjectActionExecutionProposalService()
+                ProjectActionExecutionProposalService()
+            ),
+            project_action_execution_persistence_service=(
+                project_action_execution_persistence_service
             ),
         )
         self._conversation = conversation
@@ -352,6 +377,64 @@ class ConversationProjectActionTests(unittest.TestCase):
         self.assertGreaterEqual(
             len(proposal.steps),
             1,
+        )
+
+    def test_project_action_execution_proposal_is_sent_to_persistence(
+        self,
+    ) -> None:
+        project_id = uuid4()
+        conversation = FakeConversation(str(project_id))
+
+        context = ProjectContext(
+            title="Durable execution proposal",
+            objective=(
+                "Persist owner-reviewed Project action "
+                "execution proposals."
+            ),
+            status="ACTIVE",
+            current_summary=(
+                "Project action planning is complete."
+            ),
+            next_action="Run acceptance tests",
+            current_revision=17,
+        )
+
+        persistence = RecordingExecutionPersistenceService()
+
+        service = StubConversationService(
+            conversation,
+            context,
+            project_action_execution_persistence_service=(
+                persistence
+            ),
+        )
+
+        result = service.send_message(
+            "How should we proceed?"
+        )
+
+        self.assertIsNotNone(
+            result.project_action_execution_proposal
+        )
+
+        self.assertEqual(
+            len(persistence.calls),
+            1,
+        )
+
+        call = persistence.calls[0]
+
+        self.assertIs(
+            call["proposal"],
+            result.project_action_execution_proposal,
+        )
+        self.assertEqual(
+            call["project_id"],
+            str(project_id),
+        )
+        self.assertEqual(
+            call["conversation_id"],
+            conversation.id,
         )
 
 

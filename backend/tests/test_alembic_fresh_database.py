@@ -20,14 +20,31 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0006_project_update_proposals"
-EXPECTED_TABLES = {"alembic_version", "conversations", "messages", "message_citations", "documents", "document_chunks", "document_chunks_fts", "memories", "memory_versions", "projects", "project_revisions"}
+REVISION = "0007_project_action_execution_proposals"
+
+EXPECTED_TABLES = {
+    "alembic_version",
+    "conversations",
+    "messages",
+    "message_citations",
+    "documents",
+    "document_chunks",
+    "document_chunks_fts",
+    "memories",
+    "memory_versions",
+    "projects",
+    "project_revisions",
+    "project_action_execution_proposals",
+}
+
 EXPECTED_INDEXES = {
-    "conversations": {"ix_conversations_updated_at", "ix_conversations_project_id"},
-    "messages": {"ix_messages_conversation_id", "ix_messages_created_at"},
-    "documents": {"ix_documents_source_path", "ix_documents_content_hash", "ix_documents_status", "ix_documents_updated_at"},
+    "conversations": {
+        "ix_conversations_updated_at",
+        "ix_conversations_project_id",
+    },    "documents": {"ix_documents_source_path", "ix_documents_content_hash", "ix_documents_status", "ix_documents_updated_at"},
     "document_chunks": {"ix_document_chunks_document_id"},
     "message_citations": {"ix_message_citations_message_id"},
+    "project_action_execution_proposals": {"ix_project_action_execution_proposals_project_id", "ix_project_action_execution_proposals_conversation_id"},
     "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at"},
     "memory_versions": {"ix_memory_versions_memory_id"},
     "projects": {"ix_projects_status", "ix_projects_updated_at"},
@@ -68,6 +85,43 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
         inspector = inspect(self.engine)
 
         self.assertTrue(EXPECTED_TABLES.issubset(set(inspector.get_table_names())))
+        execution_columns = {
+            column["name"]
+            for column in inspector.get_columns(
+                "project_action_execution_proposals"
+            )
+        }
+
+        self.assertEqual(
+            execution_columns,
+            {
+                "id",
+                "project_id",
+                "conversation_id",
+                "project_revision",
+                "source_action",
+                "steps",
+                "status",
+                "approved",
+                "executed",
+            },
+        )
+
+        execution_indexes = {
+            index["name"]
+            for index in inspector.get_indexes(
+                "project_action_execution_proposals"
+            )
+        }
+
+        self.assertEqual(
+            execution_indexes,
+            {
+                "ix_project_action_execution_proposals_project_id",
+                "ix_project_action_execution_proposals_conversation_id",
+            },
+        )
+
         with self.engine.connect() as connection:
             self.assertEqual(connection.scalar(text("SELECT version_num FROM alembic_version")), REVISION)
             self.assertEqual(connection.scalar(text("PRAGMA foreign_keys")), 1)

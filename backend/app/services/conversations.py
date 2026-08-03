@@ -31,6 +31,9 @@ from app.schemas.project_action_execution import (
 from app.services.project_action_execution import (
     ProjectActionExecutionProposalService,
 )
+from app.services.project_action_execution_persistence import (
+    ProjectActionExecutionPersistenceService,
+)
 
 
 TITLE_MAX_LENGTH = 80
@@ -78,6 +81,9 @@ class ConversationService:
         project_action_execution_proposal_service: (
          ProjectActionExecutionProposalService | None
         ) = None,
+        project_action_execution_persistence_service: (
+         ProjectActionExecutionPersistenceService | None
+        ) = None,
     ) -> None:
         self._repository = repository
         self._chat_service = chat_service
@@ -100,7 +106,10 @@ class ConversationService:
             project_action_execution_proposal_service
             or ProjectActionExecutionProposalService()
         )
-
+        self._project_action_execution_persistence_service = (
+            project_action_execution_persistence_service
+        )
+        
     def send_message(
         self,
         message: str,
@@ -134,7 +143,17 @@ class ConversationService:
             if project_action_plan is not None
             else None
         )
-
+        if (
+            project_action_execution_proposal is not None
+            and self._project_action_execution_persistence_service
+            is not None
+        ):
+            self._project_action_execution_persistence_service.persist(
+                project_action_execution_proposal,
+                project_id=conversation.project_id,
+                conversation_id=conversation.id,
+            )
+        
         context = [ChatContextMessage(role=item.role, content=item.content) for item in recent_messages]
         memories = self._memory_resolver.resolve(message) if self._memory_resolver else ()
         reasoning_plan = self._reasoning_service.plan(message, memories)
