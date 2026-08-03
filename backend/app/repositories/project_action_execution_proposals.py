@@ -133,6 +133,30 @@ class ProjectActionExecutionProposalRepository:
 
         return result.rowcount == 1
 
+    def fail_if_executing(
+        self,
+        proposal_id: str,
+    ) -> bool:
+        result = self._session.execute(
+            update(ProjectActionExecutionProposalRecord)
+            .where(
+                ProjectActionExecutionProposalRecord.id
+                == proposal_id,
+                ProjectActionExecutionProposalRecord.status
+                == "EXECUTING",
+                ProjectActionExecutionProposalRecord.approved
+                .is_(True),
+                ProjectActionExecutionProposalRecord.executed
+                .is_(False),
+            )
+            .values(
+                status="FAILED",
+                executed=False,
+            )
+        )
+
+        return result.rowcount == 1
+
     def list_for_project(
         self,
         project_id: str,

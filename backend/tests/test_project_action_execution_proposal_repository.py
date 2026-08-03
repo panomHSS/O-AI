@@ -585,5 +585,134 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.assertTrue(loaded.approved)
         self.assertTrue(loaded.executed)
 
+    def test_fail_if_executing_marks_claimed_proposal_failed_once(
+        self,
+    ) -> None:
+        project = Project(
+            title="Execution failure",
+            objective="Record failed execution safely.",
+            status="ACTIVE",
+            current_revision=70,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=70,
+            source_action="Run acceptance tests",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run acceptance tests",
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        claimed = self.repository.claim_if_executable(
+            proposal.id,
+        )
+
+        self.assertTrue(claimed)
+        self.repository.commit()
+
+        failed = self.repository.fail_if_executing(
+            proposal.id,
+        )
+
+        self.assertTrue(failed)
+        self.repository.commit()
+
+        loaded = self.repository.get(proposal.id)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded.status, "FAILED")
+        self.assertTrue(loaded.approved)
+        self.assertFalse(loaded.executed)
+
+        failed_again = self.repository.fail_if_executing(
+            proposal.id,
+        )
+
+        self.assertFalse(failed_again)
+
+    def test_fail_if_executing_rejects_non_executing_states(
+        self,
+    ) -> None:
+        cases = [
+            ("PENDING", False, False),
+            ("REJECTED", False, False),
+            ("APPROVED", True, False),
+            ("EXECUTING", False, False),
+            ("EXECUTING", True, True),
+            ("EXECUTED", True, True),
+            ("FAILED", True, False),
+        ]
+
+        for status, approved, executed in cases:
+            with self.subTest(
+                status=status,
+                approved=approved,
+                executed=executed,
+            ):
+                proposal = self.repository.create(
+                    project_id=(
+                        "11111111-1111-1111-1111-111111111111"
+                    ),
+                    conversation_id=(
+                        "22222222-2222-2222-2222-222222222222"
+                    ),
+                    project_revision=71,
+                    source_action="Run acceptance tests",
+                    steps=[
+                        {
+                            "sequence": 1,
+                            "description": "Run acceptance tests",
+                        }
+                    ],
+                )
+
+                proposal.status = status
+                proposal.approved = approved
+                proposal.executed = executed
+
+                self.repository.commit()
+
+                failed = self.repository.fail_if_executing(
+                    proposal.id,
+                )
+
+                self.assertFalse(failed)
+
+                self.repository.rollback()
+
+                loaded = self.repository.get(proposal.id)
+
+                self.assertIsNotNone(loaded)
+                self.assertEqual(loaded.status, status)
+                self.assertEqual(
+                    loaded.approved,
+                    approved,
+                )
+                self.assertEqual(
+                    loaded.executed,
+                    executed,
+                )
+
 if __name__ == "__main__":
     unittest.main()
