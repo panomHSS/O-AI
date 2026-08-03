@@ -20,6 +20,9 @@ from app.services.project_action_execution_failure import (
 from app.services.project_action_execution_orchestrator import (
     ProjectActionExecutionOrchestrator,
 )
+from app.services.project_action_execution_lookup import (
+    ProjectActionExecutionLookupService,
+)
 
 
 class FakeExecutor:
@@ -63,6 +66,12 @@ class ProjectActionExecutionOrchestratorTests(
             )
         )
 
+        self.lookup_service = (
+            ProjectActionExecutionLookupService(
+                self.repository
+            )
+        )
+
         self.claim_service = (
             ProjectActionExecutionClaimService(
                 self.repository
@@ -89,6 +98,7 @@ class ProjectActionExecutionOrchestratorTests(
                 completion_service=self.completion_service,
                 failure_service=self.failure_service,
                 executor=self.executor,
+                lookup_service=self.lookup_service,
             )
         )
 
@@ -333,3 +343,180 @@ class ProjectActionExecutionOrchestratorTests(
         self.assertEqual(loaded.status, "EXECUTED")
         self.assertTrue(loaded.approved)
         self.assertTrue(loaded.executed)
+
+    def test_unsupported_capability_never_reaches_executor(
+        self,
+    ) -> None:
+        project = Project(
+            title="Execution capability boundary",
+            objective="Reject unsupported execution capabilities.",
+            status="ACTIVE",
+            current_revision=90,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=90,
+            source_action="Run unsupported action",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run unsupported action",
+                    "capability": "UNSUPPORTED",
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        validator = DenyingCapabilityValidator()
+
+        orchestrator = ProjectActionExecutionOrchestrator(
+            claim_service=self.claim_service,
+            completion_service=self.completion_service,
+            failure_service=self.failure_service,
+            executor=self.executor,
+            lookup_service=self.lookup_service,
+            capability_validator=validator,
+        )
+        with self.assertRaises(ValueError):
+            orchestrator.execute(
+                proposal.id,
+            )
+
+        self.assertEqual(
+            validator.calls,
+            [proposal.id],
+        )
+
+        self.assertEqual(
+            self.executor.calls,
+            [],
+        )
+
+        loaded = self.repository.get(
+            proposal.id,
+        )
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(
+            loaded.status,
+            "APPROVED",
+        )
+        self.assertTrue(
+            loaded.approved,
+        )
+        self.assertFalse(
+            loaded.executed,
+        )
+
+    def test_supported_capability_reaches_executor_and_completes(
+        self,
+    ) -> None:
+        project = Project(
+            title="Execution capability boundary",
+            objective="Allow supported execution capabilities.",
+            status="ACTIVE",
+            current_revision=91,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=91,
+            source_action="Run supported action",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run supported action",
+                    "capability": "SUPPORTED",
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        validator = AllowingCapabilityValidator()
+
+        orchestrator = ProjectActionExecutionOrchestrator(
+            claim_service=self.claim_service,
+            completion_service=self.completion_service,
+            failure_service=self.failure_service,
+            executor=self.executor,
+            capability_validator=validator,
+            lookup_service=self.lookup_service,
+        )
+
+        result = orchestrator.execute(
+            proposal.id,
+        )
+
+        self.assertEqual(
+            validator.calls,
+            [proposal.id],
+        )
+
+        self.assertEqual(
+            self.executor.calls,
+            [proposal.id],
+        )
+
+        self.assertEqual(
+            result.status,
+            "EXECUTED",
+        )
+        self.assertTrue(result.approved)
+        self.assertTrue(result.executed)
+
+class DenyingCapabilityValidator:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def validate(
+        self,
+        proposal,
+    ) -> None:
+        self.calls.append(proposal.id)
+
+        raise ValueError(
+            "Unsupported execution capability."
+        )
+    
+class AllowingCapabilityValidator:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def validate(
+        self,
+        proposal,
+    ) -> None:
+        self.calls.append(proposal.id)
