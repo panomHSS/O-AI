@@ -51,6 +51,7 @@ class ProjectActionExecutionOrchestrator:
         executor: ProjectActionExecutor,
         lookup_service: ProjectActionExecutionLookupService | None = None,
         capability_validator: ProjectActionCapabilityValidator | None = None,
+        action_type_validator: ProjectActionActionTypeValidator | None = None,
     ) -> None:
         self._claim_service = claim_service
         self._completion_service = completion_service
@@ -58,6 +59,7 @@ class ProjectActionExecutionOrchestrator:
         self._executor = executor
         self._lookup_service = lookup_service
         self._capability_validator = capability_validator
+        self._action_type_validator = action_type_validator
 
     def execute(
         self,
@@ -74,6 +76,20 @@ class ProjectActionExecutionOrchestrator:
             )
 
             self._capability_validator.validate(
+                proposal,
+            )
+
+        if self._action_type_validator is not None:
+            if self._lookup_service is None:
+                raise ValueError(
+                    "Action type validation requires proposal lookup."
+                )
+
+            proposal = self._lookup_service.get(
+                proposal_id,
+            )
+
+            self._action_type_validator.validate(
                 proposal,
             )
 
@@ -94,3 +110,12 @@ class ProjectActionExecutionOrchestrator:
         return self._completion_service.complete(
             proposal_id,
         )
+    
+class ProjectActionActionTypeValidator(Protocol):
+    """Validate whether a proposal uses supported execution action types."""
+
+    def validate(
+        self,
+        proposal: ProjectActionExecutionProposalRecord,
+    ) -> None:
+        ...
