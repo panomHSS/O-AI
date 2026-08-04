@@ -29,6 +29,24 @@ from app.services.project_action_execution_action_type_validation import (
 from app.services.project_action_execution_payload_validation import (
     ProjectActionExecutionPayloadValidator,
 )
+from app.services.project_action_execution_dispatcher import (
+    ProjectActionExecutionDispatcher,
+)
+from app.services.project_action_execution_dispatching_executor import (
+    ProjectActionExecutionDispatchingExecutor,
+)
+from app.services.project_action_execution_no_op_handler import (
+    ProjectActionExecutionNoOpHandler,
+)
+from app.services.project_action_execution_capability import (
+    ProjectActionExecutionCapabilityValidator,
+)
+from app.services.project_action_execution_action_type_validation import (
+    ProjectActionExecutionActionTypeValidator,
+)
+from app.services.project_action_execution_payload_validation import (
+    ProjectActionExecutionPayloadValidator,
+)
 
 
 class FakeExecutor:
@@ -1115,6 +1133,263 @@ class ProjectActionExecutionOrchestratorTests(
             loaded.executed,
         )
 
+    def test_executes_no_op_through_official_dispatch_chain(
+        self,
+    ) -> None:
+        project = Project(
+            title="Typed dispatch integration",
+            objective="Execute through the official typed dispatch chain.",
+            status="ACTIVE",
+            current_revision=100,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=100,
+            source_action="Perform typed no operation",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Perform no operation",
+                    "capability": "PROJECT_ACTION",
+                    "action_type": "NO_OP",
+                    "payload": {},
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        dispatcher = ProjectActionExecutionDispatcher(
+            handlers={
+                "NO_OP": ProjectActionExecutionNoOpHandler(),
+            }
+        )
+
+        executor = ProjectActionExecutionDispatchingExecutor(
+            dispatcher=dispatcher,
+        )
+
+        orchestrator = ProjectActionExecutionOrchestrator(
+            claim_service=self.claim_service,
+            completion_service=self.completion_service,
+            failure_service=self.failure_service,
+            executor=executor,
+        )
+
+        result = orchestrator.execute(
+            proposal.id,
+        )
+
+        self.assertEqual(
+            result.status,
+            "EXECUTED",
+        )
+        self.assertTrue(
+            result.approved,
+        )
+        self.assertTrue(
+            result.executed,
+        )
+
+    def test_executes_validated_no_op_through_official_dispatch_chain(
+        self,
+    ) -> None:
+        project = Project(
+            title="Validated typed dispatch integration",
+            objective="Execute through the complete validated typed pipeline.",
+            status="ACTIVE",
+            current_revision=101,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=101,
+            source_action="Perform validated typed no operation",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Perform no operation",
+                    "capability": "PROJECT_ACTION",
+                    "action_type": "NO_OP",
+                    "payload": {},
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        dispatcher = ProjectActionExecutionDispatcher(
+            handlers={
+                "NO_OP": ProjectActionExecutionNoOpHandler(),
+            }
+        )
+
+        executor = ProjectActionExecutionDispatchingExecutor(
+            dispatcher=dispatcher,
+        )
+
+        orchestrator = ProjectActionExecutionOrchestrator(
+            claim_service=self.claim_service,
+            completion_service=self.completion_service,
+            failure_service=self.failure_service,
+            executor=executor,
+            lookup_service=self.lookup_service,
+            capability_validator=(
+                ProjectActionExecutionCapabilityValidator()
+            ),
+            action_type_validator=(
+                ProjectActionExecutionActionTypeValidator()
+            ),
+            payload_validator=(
+                ProjectActionExecutionPayloadValidator()
+            ),
+        )
+
+        result = orchestrator.execute(
+            proposal.id,
+        )
+
+        self.assertEqual(
+            result.status,
+            "EXECUTED",
+        )
+        self.assertTrue(
+            result.approved,
+        )
+        self.assertTrue(
+            result.executed,
+        )
+
+    def test_invalid_payload_never_reaches_dispatch_handler(
+        self,
+    ) -> None:
+        project = Project(
+            title="Validated dispatch rejection",
+            objective="Reject invalid payload before typed dispatch.",
+            status="ACTIVE",
+            current_revision=102,
+        )
+
+        self.session.add(project)
+        self.session.flush()
+
+        proposal = self.repository.create(
+            project_id=project.id,
+            conversation_id=(
+                "22222222-2222-2222-2222-222222222222"
+            ),
+            project_revision=102,
+            source_action="Reject invalid typed action",
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Invalid no operation",
+                    "capability": "PROJECT_ACTION",
+                    "action_type": "NO_OP",
+                    "payload": {
+                        "unexpected": "value",
+                    },
+                }
+            ],
+        )
+
+        self.repository.commit()
+
+        decided = self.repository.decide_if_pending(
+            proposal.id,
+            status="APPROVED",
+            approved=True,
+        )
+
+        self.assertTrue(decided)
+        self.repository.commit()
+
+        handler = RecordingActionHandler()
+
+        dispatcher = ProjectActionExecutionDispatcher(
+            handlers={
+                "NO_OP": handler,
+            }
+        )
+
+        executor = ProjectActionExecutionDispatchingExecutor(
+            dispatcher=dispatcher,
+        )
+
+        orchestrator = ProjectActionExecutionOrchestrator(
+            claim_service=self.claim_service,
+            completion_service=self.completion_service,
+            failure_service=self.failure_service,
+            executor=executor,
+            lookup_service=self.lookup_service,
+            capability_validator=(
+                ProjectActionExecutionCapabilityValidator()
+            ),
+            action_type_validator=(
+                ProjectActionExecutionActionTypeValidator()
+            ),
+            payload_validator=(
+                ProjectActionExecutionPayloadValidator()
+            ),
+        )
+
+        with self.assertRaises(ValueError):
+            orchestrator.execute(
+                proposal.id,
+            )
+
+        self.assertEqual(
+            handler.calls,
+            [],
+        )
+
+        loaded = self.repository.get(
+            proposal.id,
+        )
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(
+            loaded.status,
+            "APPROVED",
+        )
+        self.assertTrue(
+            loaded.approved,
+        )
+        self.assertFalse(
+            loaded.executed,
+        )
+
 class DenyingCapabilityValidator:
     def __init__(self) -> None:
         self.calls: list[str] = []
@@ -1186,3 +1461,13 @@ class AllowingPayloadValidator:
         proposal,
     ) -> None:
         self.calls.append(proposal.id)
+
+class RecordingActionHandler:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def execute(
+        self,
+        step: dict,
+    ) -> None:
+        self.calls.append(step)
