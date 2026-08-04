@@ -22,12 +22,7 @@ class ProjectActionExecutionCapabilityValidatorTests(
             ]
         )
 
-        validator = ProjectActionExecutionCapabilityValidator(
-            supported_capabilities={
-                "PROJECT_ACTION",
-            }
-        )
-
+        validator = ProjectActionExecutionCapabilityValidator()
         with self.assertRaises(ValueError):
             validator.validate(
                 proposal,
@@ -47,9 +42,6 @@ class ProjectActionExecutionCapabilityValidatorTests(
         )
 
         validator = ProjectActionExecutionCapabilityValidator(
-            supported_capabilities={
-                "PROJECT_ACTION",
-            }
         )
 
         validator.validate(
@@ -68,12 +60,7 @@ class ProjectActionExecutionCapabilityValidatorTests(
             ]
         )
 
-        validator = ProjectActionExecutionCapabilityValidator(
-            supported_capabilities={
-                "PROJECT_ACTION",
-            }
-        )
-
+        validator = ProjectActionExecutionCapabilityValidator()
         with self.assertRaises(ValueError):
             validator.validate(
                 proposal,
@@ -97,12 +84,7 @@ class ProjectActionExecutionCapabilityValidatorTests(
             ]
         )
 
-        validator = ProjectActionExecutionCapabilityValidator(
-            supported_capabilities={
-                "PROJECT_ACTION",
-            }
-        )
-
+        validator = ProjectActionExecutionCapabilityValidator()
         with self.assertRaises(ValueError):
             validator.validate(
                 proposal,
@@ -115,13 +97,27 @@ class ProjectActionExecutionCapabilityValidatorTests(
             steps=[]
         )
 
-        validator = ProjectActionExecutionCapabilityValidator(
-            supported_capabilities={
-                "PROJECT_ACTION",
-            }
-        )
-
+        validator = ProjectActionExecutionCapabilityValidator()
         with self.assertRaises(ValueError):
             validator.validate(
                 proposal,
             )
+
+    def test_uses_official_capability_vocabulary(
+        self,
+    ) -> None:
+        proposal = SimpleNamespace(
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Run project action",
+                    "capability": "PROJECT_ACTION",
+                }
+            ]
+        )
+
+        validator = ProjectActionExecutionCapabilityValidator()
+
+        validator.validate(
+            proposal,
+        )

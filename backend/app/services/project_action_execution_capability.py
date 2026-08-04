@@ -1,17 +1,21 @@
 """Capability validation for Project action execution proposals."""
 
-from collections.abc import Iterable
+from app.services.project_action_execution_capabilities import (
+    ProjectActionExecutionCapabilities,
+)
 
 
 class ProjectActionExecutionCapabilityValidator:
-    """Allow execution only when every step uses a supported capability."""
+    """Allow execution only for officially supported capabilities."""
 
     def __init__(
         self,
-        supported_capabilities: Iterable[str],
+        capabilities: ProjectActionExecutionCapabilities | None = None,
     ) -> None:
-        self._supported_capabilities = frozenset(
-            supported_capabilities
+        self._capabilities = (
+            capabilities
+            if capabilities is not None
+            else ProjectActionExecutionCapabilities()
         )
 
     def validate(
@@ -28,16 +32,9 @@ class ProjectActionExecutionCapabilityValidator:
                 "capability"
             )
 
-            if capability not in self._supported_capabilities:
-                raise ValueError(
-                    "Unsupported execution capability."
-                )
-        for step in proposal.steps:
-            capability = step.get(
-                "capability"
-            )
-
-            if capability not in self._supported_capabilities:
+            if not self._capabilities.is_supported(
+                capability
+            ):
                 raise ValueError(
                     "Unsupported execution capability."
                 )
