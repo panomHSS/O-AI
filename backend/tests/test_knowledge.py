@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +18,7 @@ from app.repositories.knowledge import KnowledgeRepository
 from app.services.knowledge import KnowledgeScanConflictError, KnowledgeSearchValidationError, KnowledgeService, ScanCounts
 from app.main import app
 from tests.test_api_standardization import invoke_app
+from app.search.sqlite_fts5 import SQLiteFTS5SearchAdapter
 
 
 class KnowledgeTests(unittest.TestCase):
@@ -57,7 +58,20 @@ class KnowledgeTests(unittest.TestCase):
     def _service(self) -> KnowledgeService:
         session = self.Session()
         self.sessions.append(session)
-        return KnowledgeService(KnowledgeRepository(session), create_document_reader_registry(), str(self.root), 1, 40, 10)
+
+        repository = KnowledgeRepository(
+            session=session,
+            search=SQLiteFTS5SearchAdapter(session),
+        )
+
+        return KnowledgeService(
+            repository,
+            create_document_reader_registry(),
+            str(self.root),
+            1,
+            40,
+            10,
+        )
 
     def request(self, *args, **kwargs):
         return asyncio.run(invoke_app(*args, **kwargs))
