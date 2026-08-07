@@ -1,5 +1,12 @@
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Sequence
+
+from app.providers.base import (
+    ChatConfigurationError,
+    ChatProvider,
+    ChatProviderError,
+    ChatServiceError,
+)
 
 from app.services.memory_resolver import MemoryContextBuilder, ResolvedMemory
 from app.schemas.reasoning import ReasoningPlan
@@ -11,25 +18,6 @@ from app.services.decision import DecisionContextBuilder
 from app.schemas.goals import GoalAnalysis
 from app.services.goals import GoalContextBuilder
 from app.services.project_context import ProjectContext, ProjectContextBuilder
-
-
-class ChatProvider(Protocol):
-    """Provider contract that keeps transport code independent of an LLM vendor."""
-
-    def generate_reply(self, message: str) -> str:
-        """Return one reply for a user message."""
-
-
-class ChatServiceError(Exception):
-    """Base exception for safe chat-service failures."""
-
-
-class ChatConfigurationError(ChatServiceError):
-    """Raised when a configured chat provider cannot be used."""
-
-
-class ChatProviderError(ChatServiceError):
-    """Raised when a chat provider cannot complete a request safely."""
 
 
 @dataclass(frozen=True)

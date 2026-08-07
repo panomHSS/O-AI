@@ -2,7 +2,10 @@ import logging
 
 from openai import OpenAI
 
-from app.services.chat import ChatConfigurationError, ChatProviderError
+from app.providers.base import (
+    ChatConfigurationError,
+    ChatProviderError,
+)
 
 logger = logging.getLogger(__name__)
 
