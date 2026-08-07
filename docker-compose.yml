@@ -1,4 +1,25 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-oai}
+      POSTGRES_USER: ${POSTGRES_USER:-oai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oai_local_dev}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - oai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-oai} -d ${POSTGRES_DB:-oai}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   backend:
     build:
       context: ./backend
@@ -7,7 +28,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:3000"]}'
-      OAI_DATABASE_URL: ${OAI_DATABASE_URL:-sqlite:///./data/oai.db}
+      OAI_DATABASE_URL: ${OAI_DATABASE_URL:-postgresql+psycopg://oai:oai_local_dev@postgres:5432/oai}
       OAI_KNOWLEDGE_ROOT: /app/knowledge
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
@@ -16,8 +37,17 @@ services:
     volumes:
       - ./data:/app/data
       - ./knowledge:/app/knowledge:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -33,3 +63,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+volumes:
+  oai_postgres_data:

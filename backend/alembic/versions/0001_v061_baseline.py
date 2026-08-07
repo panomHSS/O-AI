@@ -15,6 +15,11 @@ branch_labels = None
 depends_on = None
 
 
+def _dialect_name() -> str:
+    """Return the active database dialect for dialect-specific migration steps."""
+    return op.get_bind().dialect.name
+
+
 def upgrade() -> None:
     op.create_table(
         "conversations",
@@ -24,7 +29,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_conversations_updated_at", "conversations", ["updated_at"])
+    op.create_index(
+        "ix_conversations_updated_at",
+        "conversations",
+        ["updated_at"],
+    )
 
     op.create_table(
         "documents",
@@ -42,10 +51,27 @@ def upgrade() -> None:
         sa.Column("indexed_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_documents_source_path", "documents", ["source_path"], unique=True)
-    op.create_index("ix_documents_content_hash", "documents", ["content_hash"])
-    op.create_index("ix_documents_status", "documents", ["status"])
-    op.create_index("ix_documents_updated_at", "documents", ["updated_at"])
+    op.create_index(
+        "ix_documents_source_path",
+        "documents",
+        ["source_path"],
+        unique=True,
+    )
+    op.create_index(
+        "ix_documents_content_hash",
+        "documents",
+        ["content_hash"],
+    )
+    op.create_index(
+        "ix_documents_status",
+        "documents",
+        ["status"],
+    )
+    op.create_index(
+        "ix_documents_updated_at",
+        "documents",
+        ["updated_at"],
+    )
 
     op.create_table(
         "messages",
@@ -54,12 +80,27 @@ def upgrade() -> None:
         sa.Column("role", sa.String(length=16), nullable=False),
         sa.Column("content", sa.String(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint("role IN ('user', 'assistant')", name="ck_messages_role"),
-        sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
+        sa.CheckConstraint(
+            "role IN ('user', 'assistant')",
+            name="ck_messages_role",
+        ),
+        sa.ForeignKeyConstraint(
+            ["conversation_id"],
+            ["conversations.id"],
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_messages_conversation_id", "messages", ["conversation_id"])
-    op.create_index("ix_messages_created_at", "messages", ["created_at"])
+    op.create_index(
+        "ix_messages_conversation_id",
+        "messages",
+        ["conversation_id"],
+    )
+    op.create_index(
+        "ix_messages_created_at",
+        "messages",
+        ["created_at"],
+    )
 
     op.create_table(
         "document_chunks",
@@ -69,29 +110,80 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("source_locator", sa.String(length=512), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["document_id"],
+            ["documents.id"],
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("document_id", "chunk_index", name="uq_document_chunk_index"),
+        sa.UniqueConstraint(
+            "document_id",
+            "chunk_index",
+            name="uq_document_chunk_index",
+        ),
     )
-    op.create_index("ix_document_chunks_document_id", "document_chunks", ["document_id"])
+    op.create_index(
+        "ix_document_chunks_document_id",
+        "document_chunks",
+        ["document_id"],
+    )
 
-    op.execute(
-        "CREATE VIRTUAL TABLE document_chunks_fts "
-        "USING fts5(content, document_id UNINDEXED, chunk_id UNINDEXED, source_locator UNINDEXED)"
-    )
+    # SQLite FTS5 is derived search infrastructure.
+    # PostgreSQL intentionally skips this SQLite-specific object.
+    if _dialect_name() == "sqlite":
+        op.execute(
+            "CREATE VIRTUAL TABLE document_chunks_fts "
+            "USING fts5("
+            "content, "
+            "document_id UNINDEXED, "
+            "chunk_id UNINDEXED, "
+            "source_locator UNINDEXED"
+            ")"
+        )
 
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS document_chunks_fts")
-    op.drop_index("ix_document_chunks_document_id", table_name="document_chunks")
+    if _dialect_name() == "sqlite":
+        op.execute(
+            "DROP TABLE IF EXISTS document_chunks_fts"
+        )
+
+    op.drop_index(
+        "ix_document_chunks_document_id",
+        table_name="document_chunks",
+    )
     op.drop_table("document_chunks")
-    op.drop_index("ix_messages_created_at", table_name="messages")
-    op.drop_index("ix_messages_conversation_id", table_name="messages")
+
+    op.drop_index(
+        "ix_messages_created_at",
+        table_name="messages",
+    )
+    op.drop_index(
+        "ix_messages_conversation_id",
+        table_name="messages",
+    )
     op.drop_table("messages")
-    op.drop_index("ix_documents_updated_at", table_name="documents")
-    op.drop_index("ix_documents_status", table_name="documents")
-    op.drop_index("ix_documents_content_hash", table_name="documents")
-    op.drop_index("ix_documents_source_path", table_name="documents")
+
+    op.drop_index(
+        "ix_documents_updated_at",
+        table_name="documents",
+    )
+    op.drop_index(
+        "ix_documents_status",
+        table_name="documents",
+    )
+    op.drop_index(
+        "ix_documents_content_hash",
+        table_name="documents",
+    )
+    op.drop_index(
+        "ix_documents_source_path",
+        table_name="documents",
+    )
     op.drop_table("documents")
-    op.drop_index("ix_conversations_updated_at", table_name="conversations")
+
+    op.drop_index(
+        "ix_conversations_updated_at",
+        table_name="conversations",
+    )
     op.drop_table("conversations")

@@ -21,18 +21,33 @@ def ensure_sqlite_directory(database_url: str) -> None:
 
 def create_database_engine(database_url: str) -> Engine:
     ensure_sqlite_directory(database_url)
-    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-    engine = create_engine(database_url, connect_args=connect_args)
 
-    if database_url.startswith("sqlite"):
+    url = make_url(database_url)
+    is_sqlite = url.drivername.startswith("sqlite")
+
+    connect_args = (
+        {"check_same_thread": False}
+        if is_sqlite
+        else {}
+    )
+
+    engine = create_engine(
+        database_url,
+        connect_args=connect_args,
+    )
+
+    if is_sqlite:
+
         @event.listens_for(engine, "connect")
-        def enable_sqlite_foreign_keys(dbapi_connection, _) -> None:
+        def enable_sqlite_foreign_keys(
+            dbapi_connection,
+            _,
+        ) -> None:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
 
     return engine
-
 
 settings = get_settings()
 engine = create_database_engine(settings.oai_database_url)

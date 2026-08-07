@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import create_engine, event, pool
+from sqlalchemy import create_engine, event, inspect, pool, text
 
 from app.core.config import get_settings
 from app.db.base import Base
@@ -21,6 +21,24 @@ def _database_url() -> str:
     return get_settings().oai_database_url
 
 
+def _ensure_alembic_version_table(connection) -> None:
+    """Create a version table large enough for O-AI revision identifiers."""
+    inspector = inspect(connection)
+
+    if inspector.has_table("alembic_version"):
+        return
+
+    connection.execute(
+        text(
+            "CREATE TABLE alembic_version ("
+            "version_num VARCHAR(128) NOT NULL, "
+            "CONSTRAINT alembic_version_pkc "
+            "PRIMARY KEY (version_num)"
+            ")"
+        )
+    )
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=_database_url(),
@@ -35,19 +53,31 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = create_engine(_database_url(), poolclass=pool.NullPool)
+    connectable = create_engine(
+        _database_url(),
+        poolclass=pool.NullPool,
+    )
 
     if connectable.dialect.name == "sqlite":
+
         @event.listens_for(connectable, "connect")
-        def enable_sqlite_foreign_keys(dbapi_connection, _) -> None:
+        def enable_sqlite_foreign_keys(
+            dbapi_connection,
+            _,
+        ) -> None:
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            render_as_batch=True,
+        )
 
         with context.begin_transaction():
+            _ensure_alembic_version_table(connection)
             context.run_migrations()
 
 
