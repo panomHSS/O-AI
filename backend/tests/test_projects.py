@@ -281,3 +281,108 @@ class ProjectBackboneTests(unittest.TestCase):
         unchanged = service.get(created.id)
         self.assertEqual((unchanged.current_revision, unchanged.current_summary), (1, None))
         self.assertEqual(len(service.history(created.id).items), 1)
+
+    def test_stage_objective_update_preserves_revision_history(
+        self,
+    ) -> None:
+        service, session = self.service()
+
+        created = service.create(
+            CreateProjectRequest(
+                title="Execution",
+                objective="Old objective",
+            )
+        )
+
+        updated = service.stage_objective_update(
+            created.id,
+            expected_revision=1,
+            objective="New objective",
+            change_note="Approved Project action.",
+        )
+
+        self.assertEqual(
+            updated.objective,
+            "New objective",
+        )
+        self.assertEqual(
+            updated.current_revision,
+            2,
+        )
+
+        history = service.history(
+            created.id
+        ).items
+
+        self.assertEqual(
+            [
+                item.revision_number
+                for item in history
+            ],
+            [2, 1],
+        )
+
+        self.assertEqual(
+            history[0].objective,
+            "New objective",
+        )
+        self.assertEqual(
+            history[0].change_note,
+            "Approved Project action.",
+        )
+
+        session.rollback()
+
+    def test_stage_objective_update_rejects_stale_revision(
+        self,
+    ) -> None:
+        service, session = self.service()
+
+        created = service.create(
+            CreateProjectRequest(
+                title="Execution",
+                objective="Original objective",
+            )
+        )
+
+        progressed = service.record_progress(
+            created.id,
+            RecordProjectProgressRequest(
+                expected_revision=1,
+                current_summary="Project changed",
+                change_note="Owner changed Project.",
+            ),
+        )
+
+        self.assertEqual(
+            progressed.current_revision,
+            2,
+        )
+
+        with self.assertRaises(ProjectConflictError):
+            service.stage_objective_update(
+                created.id,
+                expected_revision=1,
+                objective="Stale objective",
+                change_note="Approved Project action.",
+            )
+
+        current = service.get(
+            created.id
+        )
+
+        self.assertEqual(
+            current.objective,
+            "Original objective",
+        )
+        self.assertEqual(
+            current.current_revision,
+            2,
+        )
+
+        self.assertEqual(
+            len(service.history(created.id).items),
+            2,
+        )
+
+        session.rollback()

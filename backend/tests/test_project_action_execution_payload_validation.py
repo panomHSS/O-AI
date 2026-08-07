@@ -119,3 +119,50 @@ class ProjectActionExecutionPayloadValidatorTests(
             validator.validate(
                 proposal,
             )
+
+    def test_accepts_valid_project_set_objective_payload(
+        self,
+    ) -> None:
+        proposal = SimpleNamespace(
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Set project objective",
+                    "capability": "PROJECT_ACTION",
+                    "action_type": "PROJECT_SET_OBJECTIVE",
+                    "payload": {
+                        "objective": "Improve project execution",
+                    },
+                }
+            ]
+        )
+
+        validator = ProjectActionExecutionPayloadValidator()
+
+        validator.validate(
+            proposal,
+        )
+
+    def test_rejects_invalid_project_set_objective_payload(
+        self,
+    ) -> None:
+        proposal = SimpleNamespace(
+            steps=[
+                {
+                    "sequence": 1,
+                    "description": "Set invalid project objective",
+                    "capability": "PROJECT_ACTION",
+                    "action_type": "PROJECT_SET_OBJECTIVE",
+                    "payload": {
+                        "objective": "   ",
+                    },
+                }
+            ]
+        )
+
+        validator = ProjectActionExecutionPayloadValidator()
+
+        with self.assertRaises(ValueError):
+            validator.validate(
+                proposal,
+            )

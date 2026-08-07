@@ -6,6 +6,9 @@ from app.services.project_action_execution_dispatcher import (
 from app.services.project_action_execution_no_op_handler import (
     ProjectActionExecutionNoOpHandler,
 )
+from app.services.project_action_execution_context import (
+    ProjectActionExecutionContext,
+)
 
 
 class ProjectActionExecutionDispatcherTests(
@@ -30,14 +33,17 @@ class ProjectActionExecutionDispatcherTests(
             "payload": {},
         }
 
-        dispatcher.dispatch(
+        context = make_context(
             step,
         )
 
+        dispatcher.dispatch(
+            context,
+        )
         self.assertEqual(
             handler.calls,
-            [step],
-        )
+            [context],
+        )    
 
     def test_rejects_unknown_action_type(
         self,
@@ -58,9 +64,13 @@ class ProjectActionExecutionDispatcherTests(
             "payload": {},
         }
 
+        context = make_context(
+            step,
+        )
+
         with self.assertRaises(ValueError):
             dispatcher.dispatch(
-                step,
+                context,
             )
 
         self.assertEqual(
@@ -86,9 +96,13 @@ class ProjectActionExecutionDispatcherTests(
             "payload": {},
         }
 
+        context = make_context(
+            step,
+        )
+
         with self.assertRaises(ValueError):
             dispatcher.dispatch(
-                step,
+                context,
             )
 
         self.assertEqual(
@@ -117,13 +131,25 @@ class ProjectActionExecutionDispatcherTests(
             "payload": {},
         }
 
-        dispatcher.dispatch(
+        context = make_context(
             step,
+        )
+
+        dispatcher.dispatch(
+            context,
         )
 
         self.assertEqual(
             no_op_handler.calls,
-            [step],
+            [context],
+        )
+        self.assertEqual(
+            other_handler.calls,
+            [],
+        )
+        self.assertEqual(
+            no_op_handler.calls,
+            [context],
         )
         self.assertEqual(
             other_handler.calls,
@@ -147,21 +173,88 @@ class ProjectActionExecutionDispatcherTests(
             "payload": {},
         }
 
-        result = dispatcher.dispatch(
+        context = make_context(
             step,
+        )
+
+        result = dispatcher.dispatch(
+            context,
         )
 
         self.assertIsNone(
             result,
         )
 
+    def test_dispatches_execution_context_to_matching_handler(
+        self,
+    ) -> None:
+        handler = RecordingContextActionHandler()
+
+        dispatcher = ProjectActionExecutionDispatcher(
+            handlers={
+                "PROJECT_SET_OBJECTIVE": handler,
+            }
+        )
+
+        step = {
+            "sequence": 1,
+            "description": "Set project objective",
+            "capability": "PROJECT_ACTION",
+            "action_type": "PROJECT_SET_OBJECTIVE",
+            "payload": {
+                "objective": "Improve project execution",
+            },
+        }
+
+        context = ProjectActionExecutionContext(
+            proposal_id="proposal-123",
+            project_id="project-123",
+            project_revision=97,
+            step=step,
+        )
+        
+        dispatcher.dispatch(
+            context,
+        )
+
+        self.assertEqual(
+            handler.calls,
+            [context],
+        )
+
 
 class RecordingActionHandler:
     def __init__(self) -> None:
-        self.calls: list[dict] = []
+        self.calls: list[
+            ProjectActionExecutionContext
+        ] = []
 
     def execute(
         self,
-        step: dict,
+        context: ProjectActionExecutionContext,
     ) -> None:
-        self.calls.append(step)
+        self.calls.append(
+            context
+        )
+
+class RecordingContextActionHandler:
+    def __init__(self) -> None:
+        self.calls: list[object] = []
+
+    def execute(
+        self,
+        context: object,
+    ) -> None:
+        self.calls.append(
+            context
+        )
+
+def make_context(
+    step: dict,
+) -> ProjectActionExecutionContext:
+    return ProjectActionExecutionContext(
+        proposal_id="proposal-123",
+        project_id="project-123",
+        project_revision=97,
+        step=step,
+    )

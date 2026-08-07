@@ -29,3 +29,14 @@ class ProjectActionExecutionActionTypesTests(
                 "NO_OP"
             )
         )
+
+    def test_accepts_project_set_objective_action_type(
+        self,
+    ) -> None:
+        action_types = ProjectActionExecutionActionTypes()
+
+        self.assertTrue(
+            action_types.is_supported(
+                "PROJECT_SET_OBJECTIVE"
+            )
+        )

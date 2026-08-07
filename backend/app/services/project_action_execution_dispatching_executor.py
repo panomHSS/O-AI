@@ -5,6 +5,9 @@ from typing import Protocol
 from app.models.project_action_execution_proposal import (
     ProjectActionExecutionProposalRecord,
 )
+from app.services.project_action_execution_context import (
+    ProjectActionExecutionContext,
+)
 
 
 class ProjectActionStepDispatcher(Protocol):
@@ -12,10 +15,9 @@ class ProjectActionStepDispatcher(Protocol):
 
     def dispatch(
         self,
-        step: dict,
+        context: ProjectActionExecutionContext,
     ) -> None:
         ...
-
 
 class ProjectActionExecutionDispatchingExecutor:
     """Execute every proposal step through the typed dispatcher."""
@@ -32,6 +34,13 @@ class ProjectActionExecutionDispatchingExecutor:
         proposal: ProjectActionExecutionProposalRecord,
     ) -> None:
         for step in proposal.steps:
+            context = ProjectActionExecutionContext(
+                proposal_id=proposal.id,
+                project_id=proposal.project_id,
+                project_revision=proposal.project_revision,
+                step=step,
+            )
+            
             self._dispatcher.dispatch(
-                step,
+                context,
             )

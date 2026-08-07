@@ -14,3 +14,22 @@ class ProjectActionExecutionActionTypes:
         action_type: object,
     ) -> bool:
         return action_type in self._SUPPORTED
+
+"""Define supported Project action execution action types."""
+
+
+class ProjectActionExecutionActionTypes:
+    """Define the official Project action execution action types."""
+
+    _SUPPORTED = frozenset(
+        {
+            "NO_OP",
+            "PROJECT_SET_OBJECTIVE",
+        }
+    )
+
+    def is_supported(
+        self,
+        action_type: str,
+    ) -> bool:
+        return action_type in self._SUPPORTED

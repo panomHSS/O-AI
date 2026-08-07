@@ -1,20 +1,23 @@
 """Dispatch validated Project action execution steps."""
 
 from typing import Protocol
+from app.services.project_action_execution_context import (
+    ProjectActionExecutionContext,
+)
 
 
 class ProjectActionExecutionHandler(Protocol):
-    """Execute one validated Project action execution step."""
+    """Execute one validated Project action execution context."""
 
     def execute(
         self,
-        step: dict,
+        context: ProjectActionExecutionContext,
     ) -> None:
         ...
 
 
 class ProjectActionExecutionDispatcher:
-    """Dispatch an execution step to its action-type handler."""
+    """Dispatch an execution context to its action-type handler."""
 
     def __init__(
         self,
@@ -30,9 +33,9 @@ class ProjectActionExecutionDispatcher:
 
     def dispatch(
         self,
-        step: dict,
+        context: ProjectActionExecutionContext,
     ) -> None:
-        action_type = step.get(
+        action_type = context.step.get(
             "action_type"
         )
 
@@ -46,5 +49,5 @@ class ProjectActionExecutionDispatcher:
             )
 
         handler.execute(
-            step,
+            context,
         )

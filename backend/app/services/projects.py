@@ -181,6 +181,57 @@ class ProjectService:
             self._repository.rollback()
             raise
 
+    def stage_objective_update(
+        self,
+        project_id: UUID,
+        *,
+        expected_revision: int,
+        objective: str,
+        change_note: str,
+    ) -> ProjectResponse:
+        """Stage an approved objective update without committing the transaction."""
+        project = self._checked(
+            project_id,
+            expected_revision,
+        )
+
+        cleaned_objective = objective.strip()
+
+        if not cleaned_objective:
+            raise ProjectValidationError(
+                "Project objective must not be empty."
+            )
+
+        try:
+            updated = self._repository.mutate_if_current(
+                project,
+                expected_revision,
+                {
+                    "objective": cleaned_objective,
+                },
+            )
+
+            if updated is None:
+                raise ProjectConflictError(
+                    "The project has a newer revision. Refresh and try again."
+                )
+
+            self._repository.snapshot(
+                updated,
+                change_note,
+            )
+
+            return self._response(
+                updated
+            )
+
+        except ProjectConflictError:
+            raise
+        except (IntegrityError, OperationalError) as error:
+            raise ProjectConflictError(
+                "The project could not be updated because a newer revision exists."
+            ) from error
+
     @staticmethod
     def _clean_optional(value: str | None) -> str | None:
         return value.strip() if value and value.strip() else None
