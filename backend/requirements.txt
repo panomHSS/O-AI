@@ -2,6 +2,7 @@ fastapi>=0.115,<1.0
 alembic==1.15.2
 beautifulsoup4>=4.12,<5.0
 openai>=2.0,<3.0
+pgvector>=0.4,<1.0
 openpyxl>=3.1,<4.0
 pydantic-settings>=2.6,<3.0
 pypdf>=6.0,<7.0

@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0007_project_action_execution_proposals"
+TARGET_REVISION = "0008_pgvector_foundation"
 EXPECTED_TABLES = {
     "alembic_version",
     "conversations",

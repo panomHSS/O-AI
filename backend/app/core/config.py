@@ -1,4 +1,4 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     openai_api_key: SecretStr | None = None
     openai_model: str | None = None
+    oai_embedding_model: str | None = None
+    oai_embedding_dimensions: int = Field(
+        default=1536,
+        gt=0,
+        le=4096,
+        )
     oai_database_url: str = "sqlite:///./data/oai.db"
     oai_chat_context_message_limit: int = Field(default=20, ge=1, le=100)
     oai_memory_context_max_items: int = Field(default=8, ge=1, le=25)
@@ -36,6 +42,11 @@ class Settings(BaseSettings):
             raise ValueError("OAI_CHUNK_OVERLAP_CHARS must be smaller than OAI_CHUNK_SIZE_CHARS.")
         if self.oai_memory_context_max_item_chars > self.oai_memory_context_max_chars:
             raise ValueError("OAI_MEMORY_CONTEXT_MAX_ITEM_CHARS must not exceed OAI_MEMORY_CONTEXT_MAX_CHARS.")
+        if self.oai_embedding_dimensions != 1536:
+            raise ValueError(
+                "OAI_EMBEDDING_DIMENSIONS must be 1536 "
+                "for the current pgvector schema."
+            )
         return self
 
 

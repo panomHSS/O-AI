@@ -12,6 +12,8 @@ from app.services.conversations import ChatTurnResult
 from app.schemas.knowledge_answer import KnowledgeAnswerResponse, RetrievalSummaryResponse
 from app.schemas.reasoning import ReasoningPlan
 from app.schemas.planning import PlanningPlan
+from app.db.verification import TARGET_REVISION
+
 
 
 class TestConversationService:
@@ -89,14 +91,17 @@ class ApiStandardizationTests(unittest.TestCase):
         return asyncio.run(invoke_app(*args, **kwargs))
 
     def test_health_uses_success_envelope(self) -> None:
-        status_code, _, body = self.request("/api/v1/health")
+        status_code, _, body = self.request(
+            "/api/v1/health"
+        )
+
         self.assertEqual(status_code, 200)
         self.assertEqual(body["success"], True)
         self.assertEqual(body["data"]["status"], "ok")
         self.assertEqual(
-    body["data"]["database_revision"],
-    "0007_project_action_execution_proposals",
-)
+            body["data"]["database_revision"],
+            TARGET_REVISION,
+        )
 
     def test_request_id_is_generated(self) -> None:
         _, headers, _ = self.request("/api/v1/health")

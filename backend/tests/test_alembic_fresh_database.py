@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0007_project_action_execution_proposals"
+REVISION = "0008_pgvector_foundation"
 
 EXPECTED_TABLES = {
     "alembic_version",

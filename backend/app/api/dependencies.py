@@ -18,7 +18,7 @@ from app.repositories.project_update_proposals import (
     ProjectUpdateProposalRepository,
 )
 from app.repositories.projects import ProjectRepository
-from app.search.sqlite_fts5 import SQLiteFTS5SearchAdapter
+from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
 from app.services.conversations import ConversationService
 from app.services.decision import DecisionService
@@ -55,6 +55,8 @@ from app.services.project_update_proposals import (
 )
 from app.services.projects import ProjectService
 from app.services.reasoning import ReasoningService
+from app.embeddings.base import EmbeddingPort
+from app.embeddings.openai import OpenAIEmbeddingAdapter
 
 
 @lru_cache
@@ -136,20 +138,45 @@ def get_conversation_service(
 def get_document_reader_registry():
     return create_document_reader_registry()
 
+def get_embedding_provider() -> EmbeddingPort:
+    """Compose the configured embedding provider."""
+    settings = get_settings()
+
+    api_key = (
+        settings.openai_api_key.get_secret_value()
+        if settings.openai_api_key
+        else None
+    )
+
+    return OpenAIEmbeddingAdapter(
+        api_key=api_key,
+        model=settings.oai_embedding_model,
+        dimensions=settings.oai_embedding_dimensions,
+    )
 
 def get_knowledge_repository(
     database_session: Session,
 ) -> KnowledgeRepository:
     """Compose authoritative knowledge storage with derived search."""
-    search = SQLiteFTS5SearchAdapter(
-        database_session
+
+    dialect_name = (
+        database_session.get_bind().dialect.name
+    )
+
+    embeddings = None
+
+    if dialect_name == "postgresql":
+        embeddings = get_embedding_provider()
+
+    search = create_knowledge_search(
+        database_session,
+        embeddings=embeddings,
     )
 
     return KnowledgeRepository(
         session=database_session,
         search=search,
     )
-
 
 def get_knowledge_service(
     database_session: Session = Depends(get_db),
