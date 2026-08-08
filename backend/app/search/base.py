@@ -22,7 +22,7 @@ class KnowledgeSearchPort(Protocol):
 
     def search(
         self,
-        match_query: str,
+        query: str,
         limit: int,
     ) -> list[dict[str, object]]:
         """Return ranked knowledge-search results."""

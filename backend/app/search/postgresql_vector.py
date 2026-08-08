@@ -66,11 +66,11 @@ class PostgreSQLVectorSearchAdapter:
 
     def search(
         self,
-        match_query: str,
+        query: str,
         limit: int,
     ) -> list[dict[str, object]]:
         query_vector = self._embeddings.embed_query(
-            match_query
+            query
         )
 
         distance = (

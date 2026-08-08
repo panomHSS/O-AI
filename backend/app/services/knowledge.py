@@ -93,8 +93,16 @@ class KnowledgeService:
                     counts = ScanCounts(**{**counts.__dict__, "indexed": counts.indexed + 1})
                 except Exception as error:
                     self._repository.rollback()
-                    logger.warning("Knowledge extraction failed for %s", source_path, exc_info=error)
-                    self._record_failure(path, source_path, self._safe_error(error), current=current)
+                    logger.warning(
+                        "Knowledge extraction failed for %s",
+                        source_path,
+                        exc_info=error,
+                    )
+                    self._record_failure(
+                        path,
+                        source_path,
+                        self._safe_error(error),
+                    )
                     counts = ScanCounts(**{**counts.__dict__, "failed": counts.failed + 1})
             self._repository.mark_missing(discovered_paths)
             self._repository.commit()
@@ -124,16 +132,40 @@ class KnowledgeService:
             raise
 
     def search(self, query: str, limit: int) -> KnowledgeSearchResponse:
-        terms = re.findall(r"[\w]+", query, flags=re.UNICODE)
+        terms = re.findall(
+            r"[\w]+",
+            query,
+            flags=re.UNICODE,
+        )
+
         if not terms:
-            raise KnowledgeSearchValidationError("Search query must contain letters or numbers.")
-        match_query = " AND ".join(f'"{term}"' for term in terms)
+            raise KnowledgeSearchValidationError(
+                "Search query must contain letters or numbers."
+            )
+
+        normalized_query = " ".join(terms)
+
         try:
-            records = self._repository.search(match_query, limit)
+            records = self._repository.search(
+                normalized_query,
+                limit,
+            )
         except Exception as error:
-            logger.warning("Knowledge search query failed", exc_info=error)
-            raise KnowledgeSearchValidationError("Search query could not be processed.") from None
-        return KnowledgeSearchResponse(query=" ".join(terms), items=[KnowledgeSearchResult(**record) for record in records])
+            logger.warning(
+                "Knowledge search query failed",
+                exc_info=error,
+            )
+            raise KnowledgeSearchValidationError(
+                "Search query could not be processed."
+            ) from None
+
+        return KnowledgeSearchResponse(
+            query=normalized_query,
+            items=[
+                KnowledgeSearchResult(**record)
+                for record in records
+            ],
+        )
 
     def _record_failure(self, path: Path, source_path: str, message: str, current: Document | None = None) -> None:
         current = current or self._repository.get_by_path(source_path)

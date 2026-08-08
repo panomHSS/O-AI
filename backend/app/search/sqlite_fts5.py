@@ -1,9 +1,12 @@
+import re
+
 from collections.abc import Sequence
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.document_chunk import DocumentChunk
+
 
 
 class SQLiteFTS5SearchAdapter:
@@ -55,9 +58,20 @@ class SQLiteFTS5SearchAdapter:
 
     def search(
         self,
-        match_query: str,
+        query: str,
         limit: int,
     ) -> list[dict[str, object]]:
+        terms = re.findall(
+            r"[\w]+",
+            query,
+            flags=re.UNICODE,
+        )
+
+        match_query = " AND ".join(
+            f'"{term}"'
+            for term in terms
+        )
+
         statement = text(
             "SELECT documents.id AS document_id, "
             "documents.file_name, documents.source_path, "
