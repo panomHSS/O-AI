@@ -30,11 +30,18 @@ class KnowledgeAnswerService:
         intent = self._analyzer.analyze(question); queries = self._planner.plan(intent)
         records = []; seen = set()
         for query in queries:
-            terms = re.findall(r"[\w\u0E00-\u0E7F]+", query)
-            if not terms:
+            normalized_query = " ".join(query.split())
+
+            if not normalized_query:
                 continue
-            for item in self._repository.search(" AND ".join(f'"{term}"' for term in terms), self._candidates_per_query):
-                if item["chunk_id"] not in seen: records.append(item); seen.add(item["chunk_id"])
+
+            for item in self._repository.search(
+                normalized_query,
+                self._candidates_per_query,
+            ):
+                if item["chunk_id"] not in seen:
+                    records.append(item)
+                    seen.add(item["chunk_id"])
         selected, duplicates, filtered = self._ranker.rank(intent.question, intent.important_terms, records)
         selected = [Evidence(**{**item.__dict__, "citation_id": f"S{index}"}) for index, item in enumerate(selected[:self._selected_limit], 1)]
         conflicts = self._conflicts.detect(selected, intent.important_terms); context = self._context.build(selected)

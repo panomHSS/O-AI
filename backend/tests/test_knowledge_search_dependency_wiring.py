@@ -10,6 +10,12 @@ from app.search.postgresql_vector import (
 from app.search.sqlite_fts5 import (
     SQLiteFTS5SearchAdapter,
 )
+from app.search.postgresql_hybrid import (
+    PostgreSQLHybridSearchAdapter,
+)
+from app.search.postgresql_lexical import (
+    PostgreSQLLexicalSearch,
+)
 
 
 class KnowledgeSearchDependencyWiringTests(
@@ -69,14 +75,23 @@ class KnowledgeSearchDependencyWiringTests(
 
         self.assertIsInstance(
             repository._search,
+            PostgreSQLHybridSearchAdapter,
+        )
+
+        self.assertIsInstance(
+            repository._search._semantic,
             PostgreSQLVectorSearchAdapter,
         )
 
-        self.assertIs(
-            repository._search._embeddings,
-            embeddings,
+        self.assertIsInstance(
+            repository._search._lexical,
+            PostgreSQLLexicalSearch,
         )
 
+        self.assertIs(
+            repository._search._semantic._embeddings,
+            embeddings,
+        )
 
 if __name__ == "__main__":
     unittest.main()

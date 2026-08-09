@@ -6,6 +6,12 @@ from app.search.postgresql_vector import (
     PostgreSQLVectorSearchAdapter,
 )
 from app.search.sqlite_fts5 import SQLiteFTS5SearchAdapter
+from app.search.postgresql_hybrid import (
+    PostgreSQLHybridSearchAdapter,
+)
+from app.search.postgresql_lexical import (
+    PostgreSQLLexicalSearch,
+)
 
 
 def create_knowledge_search(
@@ -29,9 +35,18 @@ def create_knowledge_search(
                 "an embedding provider."
             )
 
-        return PostgreSQLVectorSearchAdapter(
+        semantic = PostgreSQLVectorSearchAdapter(
             session,
             embeddings,
+        )
+
+        lexical = PostgreSQLLexicalSearch(
+            session,
+        )
+
+        return PostgreSQLHybridSearchAdapter(
+            semantic=semantic,
+            lexical=lexical,
         )
 
     raise ValueError(

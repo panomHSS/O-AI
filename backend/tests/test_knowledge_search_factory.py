@@ -10,6 +10,12 @@ from app.search.postgresql_vector import (
 from app.search.sqlite_fts5 import (
     SQLiteFTS5SearchAdapter,
 )
+from app.search.postgresql_hybrid import (
+    PostgreSQLHybridSearchAdapter,
+)
+from app.search.postgresql_lexical import (
+    PostgreSQLLexicalSearch,
+)
 
 
 class KnowledgeSearchFactoryTests(
@@ -39,7 +45,7 @@ class KnowledgeSearchFactoryTests(
             SQLiteFTS5SearchAdapter,
         )
 
-    def test_creates_postgresql_adapter(
+    def test_creates_postgresql_hybrid_adapter(
         self,
     ) -> None:
         session = self._session_with_dialect(
@@ -54,7 +60,22 @@ class KnowledgeSearchFactoryTests(
 
         self.assertIsInstance(
             search,
+            PostgreSQLHybridSearchAdapter,
+        )
+
+        self.assertIsInstance(
+            search._semantic,
             PostgreSQLVectorSearchAdapter,
+        )
+
+        self.assertIsInstance(
+            search._lexical,
+            PostgreSQLLexicalSearch,
+        )
+
+        self.assertIs(
+            search._semantic._embeddings,
+            embeddings,
         )
 
     def test_postgresql_requires_embeddings(
