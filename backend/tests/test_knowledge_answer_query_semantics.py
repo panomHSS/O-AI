@@ -133,6 +133,47 @@ class KnowledgeAnswerQuerySemanticsTests(
             ],
         )
 
+    def test_answer_without_grounded_citations_returns_insufficient_message(
+        self,
+    ) -> None:
+        repository = RecordingRepository()
+
+        service = KnowledgeAnswerService(
+            repository=repository,
+            conversations=FakeConversations(),
+            chat=SimpleNamespace(),
+            analyzer=FakeAnalyzer(),
+            planner=FakePlanner(),
+            ranker=EmptyRanker(),
+            conflict_detector=EmptyConflicts(),
+            context_builder=EmptyContext(),
+            prompt_builder=SimpleNamespace(),
+            citations=SimpleNamespace(),
+            confidence=FakeConfidence(),
+            candidates_per_query=10,
+            selected_limit=5,
+        )
+
+        response = service.answer(
+            "How do I solve a pump pressure problem?",
+            None,
+        )
+
+        self.assertEqual(
+            response.answer,
+            "Sufficient supporting evidence was not found in local documents.",
+        )
+
+        self.assertEqual(
+            response.evidence_quality,
+            "insufficient",
+        )
+
+        self.assertEqual(
+            response.citations,
+            [],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

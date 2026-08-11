@@ -296,7 +296,10 @@ def get_knowledge_answer_service(
             settings.oai_knowledge_answer_max_retrieval_queries
         ),
         EvidenceRanker(
-            settings.oai_knowledge_answer_max_evidence_per_document
+            settings.oai_knowledge_answer_max_evidence_per_document,
+            minimum_score=(
+                settings.oai_knowledge_answer_minimum_evidence_score
+            ),
         ),
         ConflictDetector(),
         ContextBuilder(

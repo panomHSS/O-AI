@@ -33,3 +33,69 @@ class KnowledgeIntelligenceTests(unittest.TestCase):
         self.assertNotIn("S99", answer); self.assertEqual([item.citation_id for item in citations], ["S1"])
         self.assertTrue(conflicts); self.assertEqual(ConfidenceEvaluator().evaluate(selected, citations, conflicts), "low")
         self.assertEqual(ConfidenceEvaluator().evaluate([], [], []), "insufficient")
+
+    def test_duplicate_citations_are_collapsed(
+        self,
+    ):
+        evidence = [
+            Evidence(
+                document_id="1",
+                chunk_id="c1",
+                file_name="manual.pdf",
+                source_path="manual.pdf",
+                source_locator="page 1",
+                content="restart safely",
+                fts_score=1.0,
+                file_extension=".pdf",
+                score=1.0,
+                citation_id="S1",
+            )
+        ]
+
+        answer, citations = CitationEngine().validate(
+            "See S1. Again S1. Finally S1.",
+            evidence,
+        )
+
+        self.assertEqual(
+            [item.citation_id for item in citations],
+            ["S1"],
+        )
+
+        self.assertEqual(
+            answer.count("S1"),
+            3,
+        )
+
+    def test_unknown_citations_are_removed_from_answer(
+        self,
+    ):
+        evidence = [
+            Evidence(
+                document_id="1",
+                chunk_id="c1",
+                file_name="manual.pdf",
+                source_path="manual.pdf",
+                source_locator="page 1",
+                content="restart safely",
+                fts_score=1.0,
+                file_extension=".pdf",
+                score=1.0,
+                citation_id="S1",
+            )
+        ]
+
+        answer, citations = CitationEngine().validate(
+            "Use S9 immediately.",
+            evidence,
+        )
+
+        self.assertNotIn(
+            "S9",
+            answer,
+        )
+
+        self.assertEqual(
+            citations,
+            [],
+        )

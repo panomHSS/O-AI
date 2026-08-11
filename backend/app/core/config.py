@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     oai_knowledge_answer_candidates_per_query: int = Field(default=12, ge=1, le=50)
     oai_knowledge_answer_selected_evidence_count: int = Field(default=6, ge=1, le=12)
     oai_knowledge_answer_max_evidence_per_document: int = Field(default=2, ge=1, le=5)
+    oai_knowledge_answer_minimum_evidence_score: float = Field(
+        default=0.20,
+        ge=0.0,
+        le=1.0,
+    )
     oai_knowledge_answer_context_char_budget: int = Field(default=8000, ge=500, le=20000)
 
     @model_validator(mode="after")

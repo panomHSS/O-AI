@@ -9,6 +9,16 @@ EvidenceQuality = Literal["high", "medium", "low", "insufficient"]
 WEIGHTS = {"fts": 0.30, "terms": 0.22, "phrase": 0.16, "filename": 0.08, "locator": 0.06, "authority": 0.18}
 AUTHORITY_BY_EXTENSION = {".pdf": 0.70, ".docx": 0.65, ".xlsx": 0.60, ".pptx": 0.55, ".csv": 0.50, ".md": 0.45, ".txt": 0.40, ".html": 0.40, ".htm": 0.40, ".eml": 0.35}
 
+def _evidence_fingerprint(
+    content: str,
+) -> str:
+    tokens = re.findall(
+        r"[\w]+",
+        content.lower(),
+        flags=re.UNICODE,
+    )
+
+    return " ".join(tokens)
 
 @dataclass(frozen=True)
 class IntentAnalysis:
@@ -62,7 +72,13 @@ class RetrievalPlanner:
 
 
 class EvidenceRanker:
-    def __init__(self, max_per_document: int) -> None: self._max_per_document = max_per_document
+    def __init__(
+        self,
+        max_per_document: int,
+        minimum_score: float = 0.0,
+    ) -> None:
+        self._max_per_document = max_per_document
+        self._minimum_score = minimum_score
     def rank(self, question: str, terms: Sequence[str], records: Sequence[dict[str, object]]) -> tuple[list[Evidence], int, int]:
         phrase = question.lower()
         raw = [float(record.get("relevance_score") or 0.0) for record in records]
@@ -74,16 +90,52 @@ class EvidenceRanker:
             score = WEIGHTS["fts"] * (fts / maximum) + WEIGHTS["terms"] * coverage + WEIGHTS["phrase"] * float(phrase in lower) + WEIGHTS["filename"] * float(any(term in name for term in terms)) + WEIGHTS["locator"] * float(bool(record["source_locator"])) + WEIGHTS["authority"] * AUTHORITY_BY_EXTENSION.get(str(record["file_extension"]), 0.5)
             candidates.append(Evidence(str(record["document_id"]), str(record["chunk_id"]), str(record["file_name"]), str(record["source_path"]), str(record["source_locator"]), content, fts, str(record["file_extension"]), score))
         ordered = sorted(candidates, key=lambda item: (-item.score, item.document_id, item.chunk_id))
-        selected: list[Evidence] = []; seen: set[str] = set(); per_document: dict[str, int] = {}; duplicates = 0
-        for item in ordered:
-            fingerprint = " ".join(item.content.lower().split())
-            if fingerprint in seen: duplicates += 1; continue
-            seen.add(fingerprint)
-            if per_document.get(item.document_id, 0) >= self._max_per_document: continue
-            per_document[item.document_id] = per_document.get(item.document_id, 0) + 1
-            selected.append(item)
-        return selected, duplicates, len(ordered) - len(selected) - duplicates
+        selected: list[Evidence] = []
+        seen: set[str] = set()
+        per_document: dict[str, int] = {}
+        duplicates = 0
+        filtered = 0
 
+        for item in ordered:
+            if item.score < self._minimum_score:
+                filtered += 1
+                continue
+
+            fingerprint = _evidence_fingerprint(
+                item.content
+            )
+
+            if fingerprint in seen:
+                duplicates += 1
+                continue
+
+            seen.add(fingerprint)
+
+            if (
+                per_document.get(
+                    item.document_id,
+                    0,
+                )
+                >= self._max_per_document
+            ):
+                filtered += 1
+                continue
+
+            per_document[item.document_id] = (
+                per_document.get(
+                    item.document_id,
+                    0,
+                )
+                + 1
+            )
+
+            selected.append(item)
+
+        return (
+            selected,
+            duplicates,
+            filtered,
+        )
 
 class ConflictDetector:
     def detect(self, evidence: Sequence[Evidence], terms: Sequence[str]) -> list[Conflict]:
