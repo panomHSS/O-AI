@@ -24,6 +24,19 @@ class KnowledgeAnswerService:
         self._planning_service = planning_service or PlanningService()
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
+    def _retrieve_records(
+        self,
+        question: str,
+    ) -> tuple:
+        intent, queries, records = self._retrieve_records(
+            question,
+        )
+
+        return (
+            intent,
+            queries,
+            records,
+        )
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
         conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
         project_context = self._conversations.resolve_project_context(conversation)
