@@ -37,6 +37,46 @@ class KnowledgeAnswerService:
             queries,
             records,
         )
+
+    def _build_evidence(
+        self,
+        intent,
+        records,
+    ):
+        selected, duplicates, filtered = self._ranker.rank(
+            intent.question,
+            intent.important_terms,
+            records,
+        )
+
+        selected = [
+            Evidence(
+                **{
+                    **item.__dict__,
+                    "citation_id": f"S{index}",
+                }
+            )
+            for index, item in enumerate(
+                selected[: self._selected_limit],
+                1,
+            )
+        ]
+
+        conflicts = self._conflicts.detect(
+            selected,
+            intent.important_terms,
+        )
+
+        context = self._context.build(selected)
+
+        return (
+            selected,
+            duplicates,
+            filtered,
+            conflicts,
+            context,
+        )
+    
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
         conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
         project_context = self._conversations.resolve_project_context(conversation)
@@ -55,9 +95,16 @@ class KnowledgeAnswerService:
                 if item["chunk_id"] not in seen:
                     records.append(item)
                     seen.add(item["chunk_id"])
-        selected, duplicates, filtered = self._ranker.rank(intent.question, intent.important_terms, records)
-        selected = [Evidence(**{**item.__dict__, "citation_id": f"S{index}"}) for index, item in enumerate(selected[:self._selected_limit], 1)]
-        conflicts = self._conflicts.detect(selected, intent.important_terms); context = self._context.build(selected)
+        (
+            selected,
+            duplicates,
+            filtered,
+            conflicts,
+            context,
+        ) = self._build_evidence(
+            intent,
+            records,
+        )
         if not context:
             answer = "Sufficient supporting evidence was not found in local documents."
             valid = []
