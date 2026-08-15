@@ -76,7 +76,70 @@ class KnowledgeAnswerService:
             conflicts,
             context,
         )
-    
+
+    def _build_response(
+        self,
+        *,
+        answer,
+        valid,
+        quality,
+        conversation,
+        records,
+        context,
+        duplicates,
+        filtered,
+        conflicts,
+        queries,
+        memories,
+        reasoning_plan,
+        planning_plan,
+        decision_analysis,
+        goal_analysis,
+    ):
+        return KnowledgeAnswerResponse(
+            answer=answer,
+            citations=[
+                CitationResponse(
+                    id=item.citation_id,
+                    document_id=UUID(item.document_id),
+                    file_name=item.file_name,
+                    source_path=item.source_path,
+                    source_locator=item.source_locator,
+                    excerpt=item.content[:500],
+                )
+                for item in valid
+            ],
+            evidence_quality=quality,
+            conversation_id=UUID(conversation.id),
+            retrieval_summary=RetrievalSummaryResponse(
+                candidates_considered=len(records),
+                evidence_selected=len(context),
+                duplicates_removed=duplicates,
+                filtered_out=filtered,
+                conflicting_evidence_count=len(conflicts),
+                queries_used=queries,
+            ),
+            conflicts=[
+                ConflictResponse(
+                    citations=list(item.citation_ids),
+                    reason=item.reason,
+                )
+                for item in conflicts
+            ],
+            memories_used=[
+                {
+                    "memory_id": item.memory_id,
+                    "version": item.version,
+                    "key": item.key,
+                }
+                for item in memories
+            ],
+            reasoning_plan=reasoning_plan,
+            planning_plan=planning_plan,
+            decision_analysis=decision_analysis,
+            goal_analysis=goal_analysis,
+        )
+
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
         conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
         project_context = self._conversations.resolve_project_context(conversation)
@@ -132,4 +195,20 @@ class KnowledgeAnswerService:
             for item in valid[:MAX_CITATIONS_PER_MESSAGE]
         ]
         self._conversations.complete_turn(conversation.id, answer, snapshots)
-        return KnowledgeAnswerResponse(answer=answer, citations=[CitationResponse(id=item.citation_id, document_id=UUID(item.document_id), file_name=item.file_name, source_path=item.source_path, source_locator=item.source_locator, excerpt=item.content[:500]) for item in valid], evidence_quality=quality, conversation_id=UUID(conversation.id), retrieval_summary=RetrievalSummaryResponse(candidates_considered=len(records), evidence_selected=len(context), duplicates_removed=duplicates, filtered_out=filtered, conflicting_evidence_count=len(conflicts), queries_used=queries), conflicts=[ConflictResponse(citations=list(item.citation_ids), reason=item.reason) for item in conflicts], memories_used=[{"memory_id": item.memory_id, "version": item.version, "key": item.key} for item in memories], reasoning_plan=reasoning_plan, planning_plan=planning_plan, decision_analysis=decision_analysis, goal_analysis=goal_analysis)
+        return self._build_response(
+            answer=answer,
+            valid=valid,
+            quality=quality,
+            conversation=conversation,
+            records=records,
+            context=context,
+            duplicates=duplicates,
+            filtered=filtered,
+            conflicts=conflicts,
+            queries=queries,
+            memories=memories,
+            reasoning_plan=reasoning_plan,
+            planning_plan=planning_plan,
+            decision_analysis=decision_analysis,
+            goal_analysis=goal_analysis,
+        )
