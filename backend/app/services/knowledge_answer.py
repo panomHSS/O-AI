@@ -28,16 +28,31 @@ class KnowledgeAnswerService:
         self,
         question: str,
     ) -> tuple:
-        intent, queries, records = self._retrieve_records(
-            question,
-        )
+        intent = self._analyzer.analyze(question)
+        queries = self._planner.plan(intent)
+
+        records = []
+        seen = set()
+
+        for query in queries:
+            normalized_query = " ".join(query.split())
+
+            if not normalized_query:
+                continue
+
+            for item in self._repository.search(
+                normalized_query,
+                self._candidates_per_query,
+            ):
+                if item["chunk_id"] not in seen:
+                    records.append(item)
+                    seen.add(item["chunk_id"])
 
         return (
             intent,
             queries,
             records,
         )
-
     def _build_evidence(
         self,
         intent,
@@ -138,6 +153,90 @@ class KnowledgeAnswerService:
             planning_plan=planning_plan,
             decision_analysis=decision_analysis,
             goal_analysis=goal_analysis,
+        )
+
+    def _prepare_response(
+        self,
+        *,
+        question,
+        history,
+        project_context,
+        intent,
+        context,
+        conflicts,
+    ):
+
+        if not context:
+            (
+                answer,
+                valid,
+                memories,
+                reasoning_plan,
+                planning_plan,
+                decision_analysis,
+                goal_analysis,
+            ) = self._prepare_response(
+                question=question,
+                history=history,
+                project_context=project_context,
+                intent=intent,
+                context=context,
+                conflicts=conflicts,
+            )
+            reasoning_plan = self._reasoning_service.plan(
+                question,
+                memories,
+                context,
+            )
+
+            planning_plan = self._planning_service.plan(
+                reasoning_plan,
+            )
+
+            decision_analysis = self._decision_service.analyze(
+                reasoning_plan,
+                planning_plan,
+            )
+
+            goal_analysis = self._goal_service.analyze(
+                reasoning_plan,
+                planning_plan,
+                decision_analysis,
+            )
+
+            answer = self._chat.send_message(
+                self._prompt.build(
+                    intent.question,
+                    context,
+                    conflicts,
+                ),
+                history,
+                memories,
+                reasoning_plan,
+                planning_plan,
+                decision_analysis,
+                goal_analysis,
+                project_context,
+            )
+
+            answer, valid = self._citations.validate(
+                answer,
+                context,
+            )
+
+            if not valid:
+                answer = (
+                    "Sufficient supporting evidence was not found in local documents."
+                )
+
+        return (
+            answer,
+            valid,
+            memories,
+            reasoning_plan,
+            planning_plan,
+            decision_analysis,
+            goal_analysis,
         )
 
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
