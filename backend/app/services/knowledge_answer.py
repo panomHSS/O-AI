@@ -12,6 +12,7 @@ from app.services.decision import DecisionService
 from app.services.goals import GoalService
 from app.repositories.message_citations import CitationSnapshot, MAX_CITATIONS_PER_MESSAGE
 from app.services.knowledge_intelligence import CitationEngine, ConfidenceEvaluator, ConflictDetector, ContextBuilder, Evidence, EvidenceRanker, GroundedPromptBuilder, IntentAnalyzer, RetrievalPlanner
+from app.intelligence.context.execution import ExecutionContext
 
 class KnowledgeAnswerService:
     def __init__(self, repository: KnowledgeRepository, conversations: ConversationService, chat: ChatService, analyzer: IntentAnalyzer, planner: RetrievalPlanner, ranker: EvidenceRanker, conflict_detector: ConflictDetector, context_builder: ContextBuilder, prompt_builder: GroundedPromptBuilder, citations: CitationEngine, confidence: ConfidenceEvaluator, candidates_per_query: int, selected_limit: int, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None, decision_service: DecisionService | None = None, goal_service: GoalService | None = None) -> None:
@@ -28,9 +29,10 @@ class KnowledgeAnswerService:
         self,
         question: str,
     ) -> tuple:
-        intent = self._analyzer.analyze(question)
+        intent = self._analyzer.analyze(
+            question,
+        )
         queries = self._planner.plan(intent)
-
         records = []
         seen = set()
 
@@ -242,21 +244,13 @@ class KnowledgeAnswerService:
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
         conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
         project_context = self._conversations.resolve_project_context(conversation)
-        intent = self._analyzer.analyze(question); queries = self._planner.plan(intent)
-        records = []; seen = set()
-        for query in queries:
-            normalized_query = " ".join(query.split())
-
-            if not normalized_query:
-                continue
-
-            for item in self._repository.search(
-                normalized_query,
-                self._candidates_per_query,
-            ):
-                if item["chunk_id"] not in seen:
-                    records.append(item)
-                    seen.add(item["chunk_id"])
+        (
+            intent,
+            queries,
+            records,
+        ) = self._retrieve_records(
+            question,
+        )
         (
             selected,
             duplicates,
