@@ -12,3 +12,6 @@ class KnowledgeContext(BaseModel):
     queries: list[str] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     conflicts: list[Conflict] = Field(default_factory=list)
+    records: list[dict[str, object]] = Field(
+    default_factory=list,
+)
