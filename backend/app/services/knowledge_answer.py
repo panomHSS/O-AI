@@ -13,6 +13,24 @@ from app.services.goals import GoalService
 from app.repositories.message_citations import CitationSnapshot, MAX_CITATIONS_PER_MESSAGE
 from app.services.knowledge_intelligence import CitationEngine, ConfidenceEvaluator, ConflictDetector, ContextBuilder, Evidence, EvidenceRanker, GroundedPromptBuilder, IntentAnalyzer, RetrievalPlanner
 from app.intelligence.context.execution import ExecutionContext
+from app.services.knowledge_intelligence import (
+    ConflictDetector,
+    ContextBuilder,
+    EvidenceRanker,
+)
+from app.intelligence.orchestrator.knowledge_orchestrator import (
+    KnowledgeOrchestrator,
+)
+from uuid import uuid4
+
+from app.intelligence.context import (
+    ConversationContext,
+    ExecutionContext,
+    IntelligenceContext,
+    KnowledgeContext,
+    RequestContext,
+    ResponseContext,
+)
 
 class KnowledgeAnswerService:
     def __init__(self, repository: KnowledgeRepository, conversations: ConversationService, chat: ChatService, analyzer: IntentAnalyzer, planner: RetrievalPlanner, ranker: EvidenceRanker, conflict_detector: ConflictDetector, context_builder: ContextBuilder, prompt_builder: GroundedPromptBuilder, citations: CitationEngine, confidence: ConfidenceEvaluator, candidates_per_query: int, selected_limit: int, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None, decision_service: DecisionService | None = None, goal_service: GoalService | None = None) -> None:
@@ -25,6 +43,31 @@ class KnowledgeAnswerService:
         self._planning_service = planning_service or PlanningService()
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
+
+    def _create_execution_context(
+        self,
+        *,
+        question: str,
+        conversation,
+        history,
+        project_context,
+    ) -> ExecutionContext:
+        return ExecutionContext(
+            request=RequestContext(
+                request_id=str(uuid4()),
+                question=question,
+                conversation_id=UUID(conversation.id),
+                project_id=conversation.project_id,
+            ),
+            conversation=ConversationContext(
+                history=history,
+                project_context=project_context,
+            ),
+            knowledge=KnowledgeContext(),
+            intelligence=IntelligenceContext(),
+            response=ResponseContext(),
+        )
+    
     def _retrieve_records(
         self,
         question: str,
@@ -169,22 +212,7 @@ class KnowledgeAnswerService:
     ):
 
         if not context:
-            (
-                answer,
-                valid,
-                memories,
-                reasoning_plan,
-                planning_plan,
-                decision_analysis,
-                goal_analysis,
-            ) = self._prepare_response(
-                question=question,
-                history=history,
-                project_context=project_context,
-                intent=intent,
-                context=context,
-                conflicts=conflicts,
-            )
+            memories = ()
             reasoning_plan = self._reasoning_service.plan(
                 question,
                 memories,
@@ -244,6 +272,12 @@ class KnowledgeAnswerService:
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
         conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
         project_context = self._conversations.resolve_project_context(conversation)
+        execution_context = self._create_execution_context(
+            question=question,
+            conversation=conversation,
+            history=history,
+            project_context=project_context,
+        ) 
         (
             intent,
             queries,

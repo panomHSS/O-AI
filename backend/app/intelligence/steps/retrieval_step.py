@@ -21,7 +21,8 @@ class RetrievalStep(DomainStep):
         intent = self._analyzer.analyze(
             question,
         )
-
+        context.knowledge.intent = intent
+        
         queries = self._planner.plan(
             intent,
         )

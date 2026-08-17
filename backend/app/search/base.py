@@ -26,3 +26,4 @@ class KnowledgeSearchPort(Protocol):
         limit: int,
     ) -> list[dict[str, object]]:
         """Return ranked knowledge-search results."""
+        

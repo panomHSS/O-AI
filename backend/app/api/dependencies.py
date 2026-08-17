@@ -57,7 +57,14 @@ from app.services.projects import ProjectService
 from app.services.reasoning import ReasoningService
 from app.embeddings.base import EmbeddingPort
 from app.embeddings.openai import OpenAIEmbeddingAdapter
-
+from app.intelligence.pipeline.pipeline import Pipeline
+from app.intelligence.orchestrator.knowledge_orchestrator import (
+    KnowledgeOrchestrator,
+)
+from app.intelligence.steps import (
+    RetrievalStep,
+    EvidenceStep,
+)
 
 @lru_cache
 def get_chat_service() -> ChatService:
@@ -131,6 +138,7 @@ def get_conversation_service(
         project_action_execution_persistence_service=(
             execution_persistence_service
         ),
+        
     )
 
 
@@ -285,6 +293,40 @@ def get_knowledge_answer_service(
         settings.oai_memory_context_max_items,
         settings.oai_memory_context_max_chars,
         settings.oai_memory_context_max_item_chars,
+    )
+
+    retrieval_step = RetrievalStep(
+        knowledge_repository,
+        IntentAnalyzer(),
+        RetrievalPlanner(
+            settings.oai_knowledge_answer_max_retrieval_queries,
+        ),
+        settings.oai_knowledge_answer_candidates_per_query,
+    )
+
+    evidence_step = EvidenceStep(
+        EvidenceRanker(
+            settings.oai_knowledge_answer_max_evidence_per_document,
+            minimum_score=(
+                settings.oai_knowledge_answer_minimum_evidence_score
+            ),
+        ),
+        ConflictDetector(),
+        ContextBuilder(
+            settings.oai_knowledge_answer_context_char_budget,
+        ),
+        settings.oai_knowledge_answer_selected_evidence_count,
+    )
+
+    pipeline = Pipeline(
+        (
+            retrieval_step,
+            evidence_step,
+        )
+    )
+
+    orchestrator = KnowledgeOrchestrator(
+        pipeline,
     )
 
     return KnowledgeAnswerService(
