@@ -14,7 +14,7 @@ from app.intelligence.steps.evidence_step import EvidenceStep
 from app.intelligence.steps.reasoning_step import (
     ReasoningStep,
 )
-
+from app.intelligence.steps.planning_step import PlanningStep
 
 class FakePipeline:
     def __init__(self) -> None:
@@ -238,6 +238,14 @@ class FakeMemoryResolver:
         return (
             FakeResolvedMemory(),
         )
+class FakePlanningPlan:
+    pass
+
+
+class FakePlanningService:
+    def plan(self, reasoning):
+        return FakePlanningPlan()
+    
 class ReasoningStepTests(unittest.TestCase):
 
     def test_execute_populates_reasoning_context(self) -> None:
@@ -272,6 +280,43 @@ class ReasoningStepTests(unittest.TestCase):
         self.assertEqual(
             context.conversation.memories[0].key,
             "user.name",
+        )
+        context.intelligence.reasoning = FakeReasoningPlan()
+
+        step = PlanningStep(
+            service=FakePlanningService(),
+        )
+
+        step.execute(context)
+
+        self.assertIsNotNone(
+            context.intelligence.planning,
+        )
+class PlanningStepTests(unittest.TestCase):
+
+    def test_execute_populates_planning_context(self):
+
+        context = ExecutionContext(
+            request=RequestContext(
+                request_id="req-001",
+                question="Hello",
+            ),
+            conversation=ConversationContext(),
+            knowledge=KnowledgeContext(),
+            intelligence=IntelligenceContext(),
+            response=ResponseContext(),
+        )
+
+        context.intelligence.reasoning = FakeReasoningPlan()
+
+        step = PlanningStep(
+            service=FakePlanningService(),
+        )
+
+        step.execute(context)
+
+        self.assertIsNotNone(
+            context.intelligence.planning,
         )
 
 if __name__ == "__main__":
