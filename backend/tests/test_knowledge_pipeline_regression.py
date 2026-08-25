@@ -15,6 +15,7 @@ from app.intelligence.steps.reasoning_step import (
     ReasoningStep,
 )
 from app.intelligence.steps.planning_step import PlanningStep
+from app.intelligence.steps.decision_step import DecisionStep
 
 class FakePipeline:
     def __init__(self) -> None:
@@ -317,6 +318,44 @@ class PlanningStepTests(unittest.TestCase):
 
         self.assertIsNotNone(
             context.intelligence.planning,
+        )
+class FakeDecisionAnalysis:
+    pass
+
+
+class FakeDecisionService:
+    def analyze(
+        self,
+        reasoning,
+        planning,
+    ):
+        return FakeDecisionAnalysis()
+class DecisionStepTests(unittest.TestCase):
+
+    def test_execute_populates_decision_context(self) -> None:
+
+        context = ExecutionContext(
+            request=RequestContext(
+                request_id="req-001",
+                question="Compare pumps",
+            ),
+            conversation=ConversationContext(),
+            knowledge=KnowledgeContext(),
+            intelligence=IntelligenceContext(),
+            response=ResponseContext(),
+        )
+
+        context.intelligence.reasoning = FakeReasoningPlan()
+        context.intelligence.planning = FakePlanningPlan()
+
+        step = DecisionStep(
+            service=FakeDecisionService(),
+        )
+
+        step.execute(context)
+
+        self.assertIsNotNone(
+            context.intelligence.decision,
         )
 
 if __name__ == "__main__":
