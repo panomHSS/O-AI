@@ -9,6 +9,7 @@ from app.intelligence.context import (
     ResponseContext,
 )
 from app.intelligence.orchestrator import KnowledgeOrchestrator
+from app.intelligence.steps.retrieval_step import RetrievalStep
 
 
 class FakePipeline:
@@ -55,7 +56,66 @@ class KnowledgeOrchestratorTests(unittest.TestCase):
             context.response.answer,
             "pipeline",
         )
+class FakeIntent:
+    def __init__(self) -> None:
+        self.question = "boiler"
+        self.important_terms = ["boiler"]
 
 
+class FakeAnalyzer:
+    def analyze(self, question: str):
+        return FakeIntent()
+
+
+class FakePlanner:
+    def plan(self, intent):
+        return ["boiler"]
+
+
+class FakeRepository:
+    def search(self, query: str, limit: int):
+        return [
+            {
+                "chunk_id": "1",
+                "content": "Boiler efficiency",
+            }
+        ]
+class RetrievalStepTests(unittest.TestCase):
+
+    def test_execute_populates_execution_context(self) -> None:
+
+        context = ExecutionContext(
+            request=RequestContext(
+                request_id="req-001",
+                question="How does a boiler work?",
+            ),
+            conversation=ConversationContext(),
+            knowledge=KnowledgeContext(),
+            intelligence=IntelligenceContext(),
+            response=ResponseContext(),
+        )
+
+        step = RetrievalStep(
+            repository=FakeRepository(),
+            analyzer=FakeAnalyzer(),
+            planner=FakePlanner(),
+            candidates_per_query=5,
+        )
+
+        step.execute(context)
+
+        self.assertIsNotNone(
+            context.knowledge.intent,
+        )
+
+        self.assertEqual(
+            context.knowledge.queries,
+            ["boiler"],
+        )
+
+        self.assertEqual(
+            len(context.knowledge.records),
+            1,
+        )
 if __name__ == "__main__":
     unittest.main()
