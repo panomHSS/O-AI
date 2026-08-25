@@ -65,6 +65,7 @@ from app.intelligence.steps import (
     RetrievalStep,
     EvidenceStep,
 )
+from backend.app.services.goals import GoalService
 
 @lru_cache
 def get_chat_service() -> ChatService:
@@ -356,4 +357,7 @@ def get_knowledge_answer_service(
         ReasoningService(),
         PlanningService(),
         DecisionService(),
-    )
+        GoalService(),
+        orchestrator,
+)
+    

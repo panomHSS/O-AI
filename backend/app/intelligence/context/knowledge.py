@@ -17,3 +17,5 @@ class KnowledgeContext(BaseModel):
     records: list[dict[str, object]] = Field(
         default_factory=list,
     )
+    duplicates_removed: int = 0
+    filtered_out: int = 0

@@ -33,12 +33,11 @@ class EvidenceStep(DomainStep):
         if intent is None:
             return
 
-        selected, _, _ = self._ranker.rank(
+        selected, duplicates, filtered = self._ranker.rank(
             intent.question,
             intent.important_terms,
             context.knowledge.records,
         )
-
         selected = [
             Evidence(
                 **{
@@ -53,6 +52,8 @@ class EvidenceStep(DomainStep):
         ]
 
         context.knowledge.evidence = selected
+        context.knowledge.duplicates_removed = duplicates
+        context.knowledge.filtered_out = filtered
 
         conflicts = self._conflicts.detect(
             selected,

@@ -31,9 +31,36 @@ from app.intelligence.context import (
     RequestContext,
     ResponseContext,
 )
+from app.intelligence.orchestrator import (
+    KnowledgeOrchestrator,
+)
+from app.intelligence.orchestrator import (
+    KnowledgeOrchestrator,
+)
 
 class KnowledgeAnswerService:
-    def __init__(self, repository: KnowledgeRepository, conversations: ConversationService, chat: ChatService, analyzer: IntentAnalyzer, planner: RetrievalPlanner, ranker: EvidenceRanker, conflict_detector: ConflictDetector, context_builder: ContextBuilder, prompt_builder: GroundedPromptBuilder, citations: CitationEngine, confidence: ConfidenceEvaluator, candidates_per_query: int, selected_limit: int, memory_resolver: MemoryResolver | None = None, reasoning_service: ReasoningService | None = None, planning_service: PlanningService | None = None, decision_service: DecisionService | None = None, goal_service: GoalService | None = None) -> None:
+    def __init__(
+        self,
+        repository: KnowledgeRepository,
+        conversations: ConversationService,
+        chat: ChatService,
+        analyzer: IntentAnalyzer,
+        planner: RetrievalPlanner,
+        ranker: EvidenceRanker,
+        conflict_detector: ConflictDetector,
+        context_builder: ContextBuilder,
+        prompt_builder: GroundedPromptBuilder,
+        citations: CitationEngine,
+        confidence: ConfidenceEvaluator,
+        candidates_per_query: int,
+        selected_limit: int,
+        memory_resolver: MemoryResolver | None = None,
+        reasoning_service: ReasoningService | None = None,
+        planning_service: PlanningService | None = None,
+        decision_service: DecisionService | None = None,
+        goal_service: GoalService | None = None,
+        orchestrator: KnowledgeOrchestrator | None = None,
+    ) -> None:
         self._repository, self._conversations, self._chat = repository, conversations, chat
         self._analyzer, self._planner, self._ranker, self._conflicts = analyzer, planner, ranker, conflict_detector
         self._context, self._prompt, self._citations, self._confidence = context_builder, prompt_builder, citations, confidence
@@ -43,6 +70,7 @@ class KnowledgeAnswerService:
         self._planning_service = planning_service or PlanningService()
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
+        self._orchestrator = orchestrator
 
     def _create_execution_context(
         self,
@@ -278,6 +306,10 @@ class KnowledgeAnswerService:
             history=history,
             project_context=project_context,
         ) 
+        if self._orchestrator is not None:
+            self._orchestrator.execute(
+                execution_context,
+            )
         (
             intent,
             queries,
