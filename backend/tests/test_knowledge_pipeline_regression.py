@@ -16,6 +16,7 @@ from app.intelligence.steps.reasoning_step import (
 )
 from app.intelligence.steps.planning_step import PlanningStep
 from app.intelligence.steps.decision_step import DecisionStep
+from app.intelligence.steps.goal_step import GoalStep
 
 class FakePipeline:
     def __init__(self) -> None:
@@ -330,6 +331,49 @@ class FakeDecisionService:
         planning,
     ):
         return FakeDecisionAnalysis()
+
+class FakeGoalAnalysis:
+    pass
+
+
+class FakeGoalService:
+    def analyze(
+        self,
+        reasoning,
+        planning,
+        decision,
+    ):
+        return FakeGoalAnalysis()
+
+class GoalStepTests(unittest.TestCase):
+
+    def test_execute_populates_goal_context(self) -> None:
+
+        context = ExecutionContext(
+            request=RequestContext(
+                request_id="req-001",
+                question="goal: improve extraction",
+            ),
+            conversation=ConversationContext(),
+            knowledge=KnowledgeContext(),
+            intelligence=IntelligenceContext(),
+            response=ResponseContext(),
+        )
+
+        context.intelligence.reasoning = FakeReasoningPlan()
+        context.intelligence.planning = FakePlanningPlan()
+        context.intelligence.decision = FakeDecisionAnalysis()
+
+        step = GoalStep(
+            service=FakeGoalService(),
+        )
+
+        step.execute(context)
+
+        self.assertIsNotNone(
+            context.intelligence.goals,
+        )
+    
 class DecisionStepTests(unittest.TestCase):
 
     def test_execute_populates_decision_context(self) -> None:
