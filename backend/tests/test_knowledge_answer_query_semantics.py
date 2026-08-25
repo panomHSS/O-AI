@@ -18,6 +18,7 @@ class RecordingRepository:
 
 
 class FakeConversations:
+
     def begin_turn(
         self,
         question,
@@ -26,11 +27,12 @@ class FakeConversations:
     ):
         return (
             SimpleNamespace(
-                id="11111111-1111-1111-1111-111111111111"
+                id="11111111-1111-1111-1111-111111111111",
+                project_id=None,
             ),
             [],
         )
-
+    
     def resolve_project_context(
         self,
         conversation,

@@ -310,6 +310,8 @@ class KnowledgeAnswerService:
             self._orchestrator.execute(
                 execution_context,
             )
+        knowledge = execution_context.knowledge
+        intelligence = execution_context.intelligence
         (
             intent,
             queries,
@@ -327,6 +329,25 @@ class KnowledgeAnswerService:
             intent,
             records,
         )
+        # Runtime Switch (D11)
+        if knowledge.intent is not None:
+            intent = knowledge.intent
+
+        if knowledge.queries:
+            queries = knowledge.queries
+
+        if knowledge.records:
+            records = knowledge.records
+
+        if knowledge.context:
+            context = knowledge.context
+
+        if knowledge.conflicts:
+            conflicts = knowledge.conflicts
+
+        duplicates = knowledge.duplicates_removed
+        filtered = knowledge.filtered_out
+
         if not context:
             answer = "Sufficient supporting evidence was not found in local documents."
             valid = []
