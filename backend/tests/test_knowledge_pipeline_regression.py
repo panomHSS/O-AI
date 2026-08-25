@@ -11,6 +11,9 @@ from app.intelligence.context import (
 from app.intelligence.orchestrator import KnowledgeOrchestrator
 from app.intelligence.steps.retrieval_step import RetrievalStep
 from app.intelligence.steps.evidence_step import EvidenceStep
+from app.intelligence.steps.reasoning_step import (
+    ReasoningStep,
+)
 
 
 class FakePipeline:
@@ -206,6 +209,70 @@ class EvidenceStepTests(unittest.TestCase):
             len(context.knowledge.evidence),
             1,
         )
-       
+class FakeReasoningPlan:
+    pass
+
+
+class FakeReasoningService:
+    def plan(
+        self,
+        question,
+        memories,
+        evidence,
+    ):
+        return FakeReasoningPlan()
+
+
+class FakeResolvedMemory:
+    def __init__(self) -> None:
+        self.memory_id = "11111111-1111-1111-1111-111111111111"
+        self.version = 1
+        self.key = "user.name"
+
+
+class FakeMemoryResolver:
+    def resolve(
+        self,
+        question,
+    ):
+        return (
+            FakeResolvedMemory(),
+        )
+class ReasoningStepTests(unittest.TestCase):
+
+    def test_execute_populates_reasoning_context(self) -> None:
+
+        context = ExecutionContext(
+            request=RequestContext(
+                request_id="req-001",
+                question="Who am I?",
+            ),
+            conversation=ConversationContext(),
+            knowledge=KnowledgeContext(),
+            intelligence=IntelligenceContext(),
+            response=ResponseContext(),
+        )
+
+        step = ReasoningStep(
+            service=FakeReasoningService(),
+            memory_resolver=FakeMemoryResolver(),
+        )
+
+        step.execute(context)
+
+        self.assertIsNotNone(
+            context.intelligence.reasoning,
+        )
+
+        self.assertEqual(
+            len(context.conversation.memories),
+            1,
+        )
+
+        self.assertEqual(
+            context.conversation.memories[0].key,
+            "user.name",
+        )
+
 if __name__ == "__main__":
     unittest.main()
