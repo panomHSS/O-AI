@@ -307,46 +307,43 @@ class KnowledgeAnswerService:
             project_context=project_context,
         ) 
         if self._orchestrator is not None:
+
             self._orchestrator.execute(
                 execution_context,
             )
-        knowledge = execution_context.knowledge
-        intelligence = execution_context.intelligence
-        (
-            intent,
-            queries,
-            records,
-        ) = self._retrieve_records(
-            question,
-        )
-        (
-            selected,
-            duplicates,
-            filtered,
-            conflicts,
-            context,
-        ) = self._build_evidence(
-            intent,
-            records,
-        )
-        # Runtime Switch (D11)
-        if knowledge.intent is not None:
+
+            knowledge = execution_context.knowledge
+
             intent = knowledge.intent
-
-        if knowledge.queries:
             queries = knowledge.queries
-
-        if knowledge.records:
             records = knowledge.records
 
-        if knowledge.context:
+            selected = knowledge.evidence
+            duplicates = knowledge.duplicates_removed
+            filtered = knowledge.filtered_out
+            conflicts = knowledge.conflicts
             context = knowledge.context
 
-        if knowledge.conflicts:
-            conflicts = knowledge.conflicts
+        else:
 
-        duplicates = knowledge.duplicates_removed
-        filtered = knowledge.filtered_out
+            (
+                intent,
+                queries,
+                records,
+            ) = self._retrieve_records(
+                question,
+            )
+
+            (
+                selected,
+                duplicates,
+                filtered,
+                conflicts,
+                context,
+            ) = self._build_evidence(
+                intent,
+                records,
+            )
 
         if not context:
             answer = "Sufficient supporting evidence was not found in local documents."

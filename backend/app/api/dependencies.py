@@ -64,6 +64,10 @@ from app.intelligence.orchestrator.knowledge_orchestrator import (
 from app.intelligence.steps import (
     RetrievalStep,
     EvidenceStep,
+    ReasoningStep,
+    PlanningStep,
+    DecisionStep,
+    GoalStep,
 )
 from backend.app.services.goals import GoalService
 
@@ -318,11 +322,31 @@ def get_knowledge_answer_service(
         ),
         settings.oai_knowledge_answer_selected_evidence_count,
     )
+    reasoning_step = ReasoningStep(
+        ReasoningService(),
+        memory_resolver,
+    )
+
+    planning_step = PlanningStep(
+        PlanningService(),
+    )
+
+    decision_step = DecisionStep(
+        DecisionService(),
+    )
+
+    goal_step = GoalStep(
+        GoalService(),
+    )
 
     pipeline = Pipeline(
         (
             retrieval_step,
             evidence_step,
+            reasoning_step,
+            planning_step,
+            decision_step,
+            goal_step,
         )
     )
 
