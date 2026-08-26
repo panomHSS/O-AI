@@ -400,14 +400,9 @@ class KnowledgeAnswerService:
                 valid=valid,
                 conflicts=conflicts,
             )
-            snapshots = [
-            CitationSnapshot(
-                citation_id=item.citation_id, document_id=item.document_id, file_name=item.file_name,
-                source_path=item.source_path, source_locator=item.source_locator, excerpt=item.content[:500],
-                excerpt_hash=sha256(item.content[:500].encode("utf-8")).hexdigest(), confidence=max(0.0, min(1.0, item.score)),
-            )
-            for item in valid[:MAX_CITATIONS_PER_MESSAGE]
-        ]
+            snapshots = self._create_citation_snapshots(
+                valid=valid,
+            )            
         self._conversations.complete_turn(conversation.id, answer, snapshots)
         return self._build_response(
             answer=answer,
@@ -524,3 +519,30 @@ class KnowledgeAnswerService:
             valid,
             conflicts,
         )
+
+    def _create_citation_snapshots(
+        self,
+        *,
+        valid,
+    ):
+        return [
+            CitationSnapshot(
+                citation_id=item.citation_id,
+                document_id=item.document_id,
+                file_name=item.file_name,
+                source_path=item.source_path,
+                source_locator=item.source_locator,
+                excerpt=item.content[:500],
+                excerpt_hash=sha256(
+                    item.content[:500].encode("utf-8")
+                ).hexdigest(),
+                confidence=max(
+                    0.0,
+                    min(
+                        1.0,
+                        item.score,
+                    ),
+                ),
+            )
+            for item in valid[:MAX_CITATIONS_PER_MESSAGE]
+        ]
