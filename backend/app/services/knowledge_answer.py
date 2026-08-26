@@ -274,15 +274,13 @@ class KnowledgeAnswerService:
                 project_context,
             )
 
-            answer, valid = self._citations.validate(
+            (
                 answer,
-                context,
+                valid,
+            ) = self._validate_grounding(
+                answer=answer,
+                context=context,
             )
-
-            if not valid:
-                answer = (
-                    "Sufficient supporting evidence was not found in local documents."
-                )
 
         return (
             answer,
@@ -479,4 +477,25 @@ class KnowledgeAnswerService:
             decision_analysis,
             goal_analysis,
             project_context,
+        )
+
+    def _validate_grounding(
+        self,
+        *,
+        answer: str,
+        context,
+    ) -> tuple[str, list]:
+        answer, valid = self._citations.validate(
+            answer,
+            context,
+        )
+
+        if not valid:
+            answer = (
+                "Sufficient supporting evidence was not found in local documents."
+            )
+
+        return (
+            answer,
+            valid,
         )
