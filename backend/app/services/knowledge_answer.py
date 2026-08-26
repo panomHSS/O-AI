@@ -225,73 +225,6 @@ class KnowledgeAnswerService:
             goal_analysis=goal_analysis,
         )
 
-    def _prepare_response(
-        self,
-        *,
-        question,
-        history,
-        project_context,
-        intent,
-        context,
-        conflicts,
-    ):
-
-        if not context:
-            memories = ()
-            reasoning_plan = self._reasoning_service.plan(
-                question,
-                memories,
-                context,
-            )
-
-            planning_plan = self._planning_service.plan(
-                reasoning_plan,
-            )
-
-            decision_analysis = self._decision_service.analyze(
-                reasoning_plan,
-                planning_plan,
-            )
-
-            goal_analysis = self._goal_service.analyze(
-                reasoning_plan,
-                planning_plan,
-                decision_analysis,
-            )
-
-            answer = self._chat.send_message(
-                self._prompt.build(
-                    intent.question,
-                    context,
-                    conflicts,
-                ),
-                history,
-                memories,
-                reasoning_plan,
-                planning_plan,
-                decision_analysis,
-                goal_analysis,
-                project_context,
-            )
-
-            (
-                answer,
-                valid,
-            ) = self._validate_grounding(
-                answer=answer,
-                context=context,
-            )
-
-        return (
-            answer,
-            valid,
-            memories,
-            reasoning_plan,
-            planning_plan,
-            decision_analysis,
-            goal_analysis,
-        )
-
     def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
         conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
         project_context = self._conversations.resolve_project_context(conversation)
@@ -339,6 +272,7 @@ class KnowledgeAnswerService:
                 intent,
                 records,
             )
+            execution_context.knowledge.context = context
 
         if not context:
             memories = ()
@@ -349,11 +283,8 @@ class KnowledgeAnswerService:
                 decision_analysis,
                 goal_analysis,
             ) = self._build_intelligence_analysis(
-                question=question,
-                memories=memories,
-                context=context,
+                execution_context,
             )
-
             answer = "Sufficient supporting evidence was not found in local documents."
             valid = []
 
@@ -370,16 +301,14 @@ class KnowledgeAnswerService:
                 if self._memory_resolver
                 else ()
             )
-
+            execution_context.conversation.memories = list(memories)
             (
                 reasoning_plan,
                 planning_plan,
                 decision_analysis,
                 goal_analysis,
             ) = self._build_intelligence_analysis(
-                question=question,
-                memories=memories,
-                context=context,
+                execution_context,
             )            
             answer = self._generate_chat_response(
                 intent=intent,
@@ -424,11 +353,11 @@ class KnowledgeAnswerService:
 
     def _build_intelligence_analysis(
         self,
-        *,
-        question: str,
-        memories,
-        context,
+        execution_context: ExecutionContext,
     ):
+        question = execution_context.request.question
+        memories = execution_context.conversation.memories
+        context = execution_context.knowledge.context
         reasoning_plan = self._reasoning_service.plan(
             question,
             memories,
@@ -492,16 +421,10 @@ class KnowledgeAnswerService:
         answer: str,
         context,
     ) -> tuple[str, list]:
-        answer, valid = self._citations.validate(
-            answer,
-            context,
+        answer, valid = self._validate_grounding(
+            answer=answer,
+            context=context,
         )
-
-        if not valid:
-            answer = (
-                "Sufficient supporting evidence was not found in local documents."
-            )
-
         return (
             answer,
             valid,

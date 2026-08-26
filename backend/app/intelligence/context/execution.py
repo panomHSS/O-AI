@@ -1,10 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .conversation import ConversationContext
 from .intelligence import IntelligenceContext
 from .knowledge import KnowledgeContext
 from .request import RequestContext
 from .response import ResponseContext
+from .runtime import RuntimeContext
 
 
 class ExecutionContext(BaseModel):
@@ -15,3 +16,6 @@ class ExecutionContext(BaseModel):
     knowledge: KnowledgeContext
     intelligence: IntelligenceContext
     response: ResponseContext
+    runtime: RuntimeContext = Field(
+        default_factory=RuntimeContext,
+    )
