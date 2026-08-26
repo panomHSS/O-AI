@@ -356,6 +356,14 @@ class KnowledgeAnswerService:
 
             answer = "Sufficient supporting evidence was not found in local documents."
             valid = []
+
+            quality = self._evaluate_confidence(
+                context=context,
+                valid=valid,
+                conflicts=conflicts,
+            )
+
+            snapshots = []
         else:
             memories = (
                 self._memory_resolver.resolve(question)
@@ -387,8 +395,12 @@ class KnowledgeAnswerService:
             )
             answer, valid = self._citations.validate(answer, context)
             if not valid: answer = "Sufficient supporting evidence was not found in local documents."
-        quality = self._confidence.evaluate(context, valid, conflicts)
-        snapshots = [
+            quality = self._evaluate_confidence(
+                context=context,
+                valid=valid,
+                conflicts=conflicts,
+            )
+            snapshots = [
             CitationSnapshot(
                 citation_id=item.citation_id, document_id=item.document_id, file_name=item.file_name,
                 source_path=item.source_path, source_locator=item.source_locator, excerpt=item.content[:500],
@@ -498,4 +510,17 @@ class KnowledgeAnswerService:
         return (
             answer,
             valid,
+        )
+
+    def _evaluate_confidence(
+        self,
+        *,
+        context,
+        valid,
+        conflicts,
+    ):
+        return self._confidence.evaluate(
+            context,
+            valid,
+            conflicts,
         )
