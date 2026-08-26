@@ -34,9 +34,6 @@ from app.intelligence.context import (
 from app.intelligence.orchestrator import (
     KnowledgeOrchestrator,
 )
-from app.intelligence.orchestrator import (
-    KnowledgeOrchestrator,
-)
 
 class KnowledgeAnswerService:
     def __init__(
@@ -346,19 +343,38 @@ class KnowledgeAnswerService:
             )
 
         if not context:
+            memories = ()
+
+            (
+                reasoning_plan,
+                planning_plan,
+                decision_analysis,
+                goal_analysis,
+            ) = self._build_intelligence_analysis(
+                question=question,
+                memories=memories,
+                context=context,
+            )
+
             answer = "Sufficient supporting evidence was not found in local documents."
             valid = []
-            memories = ()
-            reasoning_plan = self._reasoning_service.plan(question, memories, context)
-            planning_plan = self._planning_service.plan(reasoning_plan)
-            decision_analysis = self._decision_service.analyze(reasoning_plan, planning_plan)
-            goal_analysis = self._goal_service.analyze(reasoning_plan, planning_plan, decision_analysis)
         else:
-            memories = self._memory_resolver.resolve(question) if self._memory_resolver else ()
-            reasoning_plan = self._reasoning_service.plan(question, memories, context)
-            planning_plan = self._planning_service.plan(reasoning_plan)
-            decision_analysis = self._decision_service.analyze(reasoning_plan, planning_plan)
-            goal_analysis = self._goal_service.analyze(reasoning_plan, planning_plan, decision_analysis)
+            memories = (
+                self._memory_resolver.resolve(question)
+                if self._memory_resolver
+                else ()
+            )
+
+            (
+                reasoning_plan,
+                planning_plan,
+                decision_analysis,
+                goal_analysis,
+            ) = self._build_intelligence_analysis(
+                question=question,
+                memories=memories,
+                context=context,
+            )            
             answer = self._chat.send_message(self._prompt.build(intent.question, context, conflicts), history, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context)
             answer, valid = self._citations.validate(answer, context)
             if not valid: answer = "Sufficient supporting evidence was not found in local documents."
@@ -388,4 +404,39 @@ class KnowledgeAnswerService:
             planning_plan=planning_plan,
             decision_analysis=decision_analysis,
             goal_analysis=goal_analysis,
+        )
+
+    def _build_intelligence_analysis(
+        self,
+        *,
+        question: str,
+        memories,
+        context,
+    ):
+        reasoning_plan = self._reasoning_service.plan(
+            question,
+            memories,
+            context,
+        )
+
+        planning_plan = self._planning_service.plan(
+            reasoning_plan,
+        )
+
+        decision_analysis = self._decision_service.analyze(
+            reasoning_plan,
+            planning_plan,
+        )
+
+        goal_analysis = self._goal_service.analyze(
+            reasoning_plan,
+            planning_plan,
+            decision_analysis,
+        )
+
+        return (
+            reasoning_plan,
+            planning_plan,
+            decision_analysis,
+            goal_analysis,
         )
