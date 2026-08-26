@@ -375,7 +375,18 @@ class KnowledgeAnswerService:
                 memories=memories,
                 context=context,
             )            
-            answer = self._chat.send_message(self._prompt.build(intent.question, context, conflicts), history, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context)
+            answer = self._generate_chat_response(
+                intent=intent,
+                context=context,
+                conflicts=conflicts,
+                history=history,
+                memories=memories,
+                reasoning_plan=reasoning_plan,
+                planning_plan=planning_plan,
+                decision_analysis=decision_analysis,
+                goal_analysis=goal_analysis,
+                project_context=project_context,
+            )
             answer, valid = self._citations.validate(answer, context)
             if not valid: answer = "Sufficient supporting evidence was not found in local documents."
         quality = self._confidence.evaluate(context, valid, conflicts)
@@ -439,4 +450,33 @@ class KnowledgeAnswerService:
             planning_plan,
             decision_analysis,
             goal_analysis,
+        )
+
+    def _generate_chat_response(
+        self,
+        *,
+        intent,
+        context,
+        conflicts,
+        history,
+        memories,
+        reasoning_plan,
+        planning_plan,
+        decision_analysis,
+        goal_analysis,
+        project_context,
+    ) -> str:
+        return self._chat.send_message(
+            self._prompt.build(
+                intent.question,
+                context,
+                conflicts,
+            ),
+            history,
+            memories,
+            reasoning_plan,
+            planning_plan,
+            decision_analysis,
+            goal_analysis,
+            project_context,
         )
