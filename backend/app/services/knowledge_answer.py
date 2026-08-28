@@ -395,6 +395,9 @@ class KnowledgeAnswerService:
         execution_context.intelligence.decision = (
             decision_analysis
         )
+        execution_context.intelligence.goals = (
+            goal_analysis
+        )
 
         return (
             reasoning_plan,
