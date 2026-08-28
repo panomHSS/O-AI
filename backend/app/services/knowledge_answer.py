@@ -273,6 +273,14 @@ class KnowledgeAnswerService:
                 records,
             )
             execution_context.knowledge.context = context
+            execution_context.knowledge.intent = intent
+            execution_context.knowledge.queries = queries
+            execution_context.knowledge.records = records
+            execution_context.knowledge.evidence = selected
+            execution_context.knowledge.duplicates_removed = duplicates
+            execution_context.knowledge.filtered_out = filtered
+            execution_context.knowledge.conflicts = conflicts
+            execution_context.knowledge.context = context
 
         if not context:
             memories = ()
@@ -435,6 +443,7 @@ class KnowledgeAnswerService:
             answer,
             valid,
         )
+    
     def _evaluate_confidence(
         self,
         *,
