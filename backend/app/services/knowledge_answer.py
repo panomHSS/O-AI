@@ -381,13 +381,6 @@ class KnowledgeAnswerService:
             goal_analysis
         )
 
-        return (
-            reasoning_plan,
-            planning_plan,
-            decision_analysis,
-            goal_analysis,
-        )
-
     def _handle_no_context(
         self,
         *,
