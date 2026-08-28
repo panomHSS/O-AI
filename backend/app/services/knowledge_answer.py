@@ -324,12 +324,13 @@ class KnowledgeAnswerService:
                 conflicts=conflicts,
                 history=history,
                 memories=memories,
-                reasoning_plan=reasoning_plan,
-                planning_plan=planning_plan,
-                decision_analysis=decision_analysis,
-                goal_analysis=goal_analysis,
+                reasoning_plan=execution_context.intelligence.reasoning,
+                planning_plan=execution_context.intelligence.planning,
+                decision_analysis=execution_context.intelligence.decision,
+                goal_analysis=execution_context.intelligence.goals,
                 project_context=project_context,
             )
+            
             answer, valid = self._citations.validate(answer, context)
             if not valid: answer = "Sufficient supporting evidence was not found in local documents."
             quality = self._evaluate_confidence(
