@@ -447,6 +447,66 @@ class KnowledgeAnswerService:
             memories,
         )
 
+    def _handle_grounded_response(
+        self,
+        *,
+        execution_context: ExecutionContext,
+        question: str,
+        history,
+        project_context,
+        intent,
+        context,
+        conflicts,
+    ):
+
+        memories = (
+            self._memory_resolver.resolve(question)
+            if self._memory_resolver
+            else ()
+        )
+        execution_context.conversation.memories = list(memories)
+        (
+            reasoning_plan,
+            planning_plan,
+            decision_analysis,
+            goal_analysis,
+        ) = self._build_intelligence_analysis(
+            execution_context,
+        )            
+        answer = self._generate_chat_response(
+            intent=intent,
+            context=context,
+            conflicts=conflicts,
+            history=history,
+            memories=memories,
+            reasoning_plan=execution_context.intelligence.reasoning,
+            planning_plan=execution_context.intelligence.planning,
+            decision_analysis=execution_context.intelligence.decision,
+            goal_analysis=execution_context.intelligence.goals,
+            project_context=project_context,
+        )
+        execution_context.response.answer = answer
+
+        answer, valid = self._citations.validate(answer, context)
+        if not valid: answer = "Sufficient supporting evidence was not found in local documents."
+        execution_context.response.answer = answer
+        quality = self._evaluate_confidence(
+            context=context,
+            valid=valid,
+            conflicts=conflicts,
+        )
+        snapshots = self._create_citation_snapshots(
+            valid=valid,
+        )            
+
+        return (
+            answer,
+            valid,
+            quality,
+            snapshots,
+            memories,
+        )
+
     def _generate_chat_response(
         self,
         *,
