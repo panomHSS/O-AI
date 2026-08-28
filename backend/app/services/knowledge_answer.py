@@ -285,15 +285,15 @@ class KnowledgeAnswerService:
             execution_context.knowledge.context = context
 
         if not context:
-            memories = ()
-
             (
-                reasoning_plan,
-                planning_plan,
-                decision_analysis,
-                goal_analysis,
-            ) = self._build_intelligence_analysis(
-                execution_context,
+                answer,
+                valid,
+                quality,
+                snapshots,
+                memories,
+            ) = self._handle_no_context(
+                execution_context=execution_context,
+                conflicts=conflicts,
             )
 
             answer = "Sufficient supporting evidence was not found in local documents."
@@ -361,10 +361,10 @@ class KnowledgeAnswerService:
             conflicts=conflicts,
             queries=queries,
             memories=memories,
-            reasoning_plan=reasoning_plan,
-            planning_plan=planning_plan,
-            decision_analysis=decision_analysis,
-            goal_analysis=goal_analysis,
+            reasoning_plan=execution_context.intelligence.reasoning,
+            planning_plan=execution_context.intelligence.planning,
+            decision_analysis=execution_context.intelligence.decision,
+            goal_analysis=execution_context.intelligence.goals,
         )
 
     def _build_intelligence_analysis(
@@ -420,26 +420,25 @@ class KnowledgeAnswerService:
         execution_context: ExecutionContext,
         conflicts,
     ):
-        raise NotImplementedError
-    
         memories = ()
-        (
-            reasoning_plan,
-            planning_plan,
-            decision_analysis,
-            goal_analysis,
-        ) = self._build_intelligence_analysis(
+
+        self._build_intelligence_analysis(
             execution_context,
         )
+
         answer = "Sufficient supporting evidence was not found in local documents."
         execution_context.response.answer = answer
+
         valid = []
+
         quality = self._evaluate_confidence(
-            context=context,
+            context=execution_context.knowledge.context,
             valid=valid,
             conflicts=conflicts,
-            )
+        )
+
         snapshots = []
+
         return (
             answer,
             valid,
