@@ -421,15 +421,20 @@ class KnowledgeAnswerService:
         answer: str,
         context,
     ) -> tuple[str, list]:
-        answer, valid = self._validate_grounding(
-            answer=answer,
-            context=context,
+        answer, valid = self._citations.validate(
+            answer,
+            context,
         )
+
+        if not valid:
+            answer = (
+                "Sufficient supporting evidence was not found in local documents."
+            )
+
         return (
             answer,
             valid,
         )
-
     def _evaluate_confidence(
         self,
         *,
