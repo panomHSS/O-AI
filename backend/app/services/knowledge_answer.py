@@ -184,7 +184,7 @@ class KnowledgeAnswerService:
     ):
 
         return KnowledgeAnswerResponse(
-            answer=answer,
+            answer=execution_context.response.answer,
             citations=[
                 CitationResponse(
                     id=item.citation_id,
