@@ -421,6 +421,32 @@ class KnowledgeAnswerService:
         conflicts,
     ):
         raise NotImplementedError
+    
+        memories = ()
+        (
+            reasoning_plan,
+            planning_plan,
+            decision_analysis,
+            goal_analysis,
+        ) = self._build_intelligence_analysis(
+            execution_context,
+        )
+        answer = "Sufficient supporting evidence was not found in local documents."
+        execution_context.response.answer = answer
+        valid = []
+        quality = self._evaluate_confidence(
+            context=context,
+            valid=valid,
+            conflicts=conflicts,
+            )
+        snapshots = []
+        return (
+            answer,
+            valid,
+            quality,
+            snapshots,
+            memories,
+        )
 
     def _generate_chat_response(
         self,
