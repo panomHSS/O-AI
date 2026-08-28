@@ -414,6 +414,14 @@ class KnowledgeAnswerService:
             goal_analysis,
         )
 
+    def _handle_no_context(
+        self,
+        *,
+        execution_context: ExecutionContext,
+        conflicts,
+    ):
+        raise NotImplementedError
+
     def _generate_chat_response(
         self,
         *,
