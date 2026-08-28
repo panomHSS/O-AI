@@ -295,6 +295,7 @@ class KnowledgeAnswerService:
             )
 
             answer = "Sufficient supporting evidence was not found in local documents."
+            execution_context.response.answer = answer
             valid = []
 
             quality = self._evaluate_confidence(
@@ -331,9 +332,11 @@ class KnowledgeAnswerService:
                 goal_analysis=execution_context.intelligence.goals,
                 project_context=project_context,
             )
+            execution_context.response.answer = answer
 
             answer, valid = self._citations.validate(answer, context)
             if not valid: answer = "Sufficient supporting evidence was not found in local documents."
+            execution_context.response.answer = answer
             quality = self._evaluate_confidence(
                 context=context,
                 valid=valid,
