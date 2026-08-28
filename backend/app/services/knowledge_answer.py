@@ -166,7 +166,6 @@ class KnowledgeAnswerService:
         self,
         *,
         execution_context: ExecutionContext,
-        answer,
         valid,
         quality,
         conversation,
@@ -326,7 +325,6 @@ class KnowledgeAnswerService:
         self._conversations.complete_turn(conversation.id, answer, snapshots)
         return self._build_response(
             execution_context=execution_context,
-            answer=answer,
             valid=valid,
             quality=quality,
             conversation=conversation,
