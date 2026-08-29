@@ -27,6 +27,9 @@ class RetrievalPipeline(Pipeline):
         self._retrieve_records(
             execution_context,
         )
+        self._build_evidence(
+            execution_context,
+        )
 
     def _retrieve_records(
         self,
@@ -64,3 +67,45 @@ class RetrievalPipeline(Pipeline):
         execution_context.knowledge.intent = intent
         execution_context.knowledge.queries = queries
         execution_context.knowledge.records = records
+
+    def _build_evidence(
+        self,
+        execution_context: ExecutionContext,
+    ) -> None:
+
+        knowledge = execution_context.knowledge
+
+        intent = knowledge.intent
+        records = knowledge.records
+
+        selected, duplicates, filtered = self._ranker.rank(
+            intent.question,
+            intent.important_terms,
+            records,
+        )
+
+        selected = [
+            Evidence(
+                **{
+                    **item.__dict__,
+                    "citation_id": f"S{index}",
+                }
+            )
+            for index, item in enumerate(
+                selected[: self._selected_limit],
+                1,
+            )
+        ]
+
+        conflicts = self._conflicts.detect(
+            selected,
+            intent.important_terms,
+        )
+
+        context = self._context.build(selected)
+
+        knowledge.evidence = selected
+        knowledge.duplicates_removed = duplicates
+        knowledge.filtered_out = filtered
+        knowledge.conflicts = conflicts
+        knowledge.context = context
