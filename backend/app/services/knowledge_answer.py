@@ -276,8 +276,7 @@ class KnowledgeAnswerService:
                 intent,
                 records,
             )
-            
-            execution_context.knowledge.context = context
+
             execution_context.knowledge.intent = intent
             execution_context.knowledge.queries = queries
             execution_context.knowledge.records = records
