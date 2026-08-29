@@ -1,2 +1,8 @@
 class ResponsePipeline:
-    """Builds the final API response and persists conversation state."""
+    """Builds the final API response."""
+
+    def execute(
+        self,
+        execution_context: ExecutionContext,
+    ) -> None:
+        raise NotImplementedError
