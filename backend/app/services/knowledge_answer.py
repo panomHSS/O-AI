@@ -274,37 +274,56 @@ class KnowledgeAnswerService:
                 execution_context,
             )
         else:
+            if self._retrieval_pipeline is not None:
+                self._retrieval_pipeline.execute(
+                    execution_context,
+                )
 
-            (
-                intent,
-                queries,
-                records,
-            ) = self._retrieve_records(
-                question,
-            )
+                (
+                    intent,
+                    queries,
+                    records,
+                    selected,
+                    duplicates,
+                    filtered,
+                    conflicts,
+                    context,
+                ) = self._read_knowledge(
+                    execution_context,
+                )
 
-            (
-                selected,
-                duplicates,
-                filtered,
-                conflicts,
-                context,
-            ) = self._build_evidence(
-                intent,
-                records,
-            )
+            else:
+                (
+                    intent,
+                    queries,
+                    records,
+                ) = self._retrieve_records(
+                    question,
+                )
 
-            self._write_knowledge(
-                execution_context,
-                intent=intent,
-                queries=queries,
-                records=records,
-                evidence=selected,
-                duplicates_removed=duplicates,
-                filtered_out=filtered,
-                conflicts=conflicts,
-                context=context,
-            )
+                (
+                    selected,
+                    duplicates,
+                    filtered,
+                    conflicts,
+                    context,
+                ) = self._build_evidence(
+                    intent,
+                    records,
+                )
+
+                self._write_knowledge(
+                    execution_context,
+                    intent=intent,
+                    queries=queries,
+                    records=records,
+                    evidence=selected,
+                    duplicates_removed=duplicates,
+                    filtered_out=filtered,
+                    conflicts=conflicts,
+                    context=context,
+                )
+
         if not context:
             (
                 answer,
