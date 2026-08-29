@@ -35,6 +35,7 @@ from app.intelligence.orchestrator import (
     KnowledgeOrchestrator,
 )
 from app.pipeline.retrieval import RetrievalPipeline
+from app.pipeline.components import RetrievalComponents
 
 class KnowledgeAnswerService:
     def __init__(
@@ -60,15 +61,31 @@ class KnowledgeAnswerService:
         orchestrator: KnowledgeOrchestrator | None = None,
         retrieval_pipeline: RetrievalPipeline | None = None,
     ) -> None:
-        self._repository, self._conversations, self._chat = repository, conversations, chat
-        self._analyzer, self._planner, self._ranker, self._conflicts = analyzer, planner, ranker, conflict_detector
-        self._context, self._prompt, self._citations, self._confidence = context_builder, prompt_builder, citations, confidence
-        self._candidates_per_query, self._selected_limit = candidates_per_query, selected_limit
+
+        self._repository = repository
+        self._conversations = conversations
+        self._chat = chat
+
+        self._analyzer = analyzer
+        self._planner = planner
+        self._ranker = ranker
+        self._conflicts = conflict_detector
+        self._context = context_builder
+
+        self._prompt = prompt_builder
+        self._citations = citations
+        self._confidence = confidence
+
+        self._candidates_per_query = candidates_per_query
+        self._selected_limit = selected_limit
+
         self._memory_resolver = memory_resolver
+
         self._reasoning_service = reasoning_service or ReasoningService()
         self._planning_service = planning_service or PlanningService()
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
+
         self._orchestrator = orchestrator
         self._retrieval_pipeline = retrieval_pipeline
 
