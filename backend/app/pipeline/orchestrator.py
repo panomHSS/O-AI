@@ -1,3 +1,5 @@
+from .base import Pipeline
+
 class PipelineOrchestrator:
     """Coordinates the execution of all pipelines."""
 
@@ -9,12 +11,6 @@ class PipelineOrchestrator:
 
     def __init__(
             self,
-            retrieval: RetrievalPipeline,
-            intelligence: IntelligencePipeline,
-            response: ResponsePipeline,
+            pipelines: list[Pipeline],
         ) -> None:
-            self._retrieval = retrieval
-            self._intelligence = intelligence
-            self._response = response
-
-    
+            self._pipelines = pipelines    
