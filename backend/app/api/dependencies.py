@@ -71,6 +71,7 @@ from app.intelligence.steps import (
 )
 from backend.app.services.goals import GoalService
 from app.pipeline.retrieval import RetrievalPipeline
+from app.pipeline.components import RetrievalComponents
 
 @lru_cache
 def get_chat_service() -> ChatService:
@@ -374,13 +375,17 @@ def get_knowledge_answer_service(
         settings.oai_knowledge_answer_context_char_budget,
     )
 
-    retrieval_pipeline = RetrievalPipeline(
+    retrieval_components = RetrievalComponents(
         analyzer=analyzer,
         planner=planner,
-        repository=knowledge_repository,
         ranker=ranker,
         conflict_detector=conflict_detector,
         context_builder=context_builder,
+    )
+
+    retrieval_pipeline = RetrievalPipeline(
+        components=retrieval_components,
+        repository=knowledge_repository,
         candidates_per_query=settings.oai_knowledge_answer_candidates_per_query,
         selected_limit=settings.oai_knowledge_answer_selected_evidence_count,
     )

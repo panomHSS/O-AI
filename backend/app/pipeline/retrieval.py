@@ -2,30 +2,28 @@ from app.intelligence.context import ExecutionContext
 
 from .base import Pipeline
 
+from .components import RetrievalComponents
+
 
 class RetrievalPipeline(Pipeline):
     """Builds KnowledgeContext from the incoming request."""
 
     def __init__(
         self,
-        analyzer,
-        planner,
+        components: RetrievalComponents,
         repository,
-        ranker,
-        conflict_detector,
-        context_builder,
         candidates_per_query,
         selected_limit,
     ) -> None:
-        self._analyzer = analyzer
-        self._planner = planner
+        self._analyzer = components.analyzer
+        self._planner = components.planner
         self._repository = repository
-        self._ranker = ranker
-        self._conflicts = conflict_detector
-        self._context = context_builder
+        self._ranker = components.ranker
+        self._conflicts = components.conflict_detector
+        self._context = components.context_builder
         self._candidates_per_query = candidates_per_query
         self._selected_limit = selected_limit
-        
+                
     def execute(
         self,
         execution_context: ExecutionContext,
