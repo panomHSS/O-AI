@@ -34,6 +34,7 @@ from app.intelligence.context import (
 from app.intelligence.orchestrator import (
     KnowledgeOrchestrator,
 )
+from app.pipeline.retrieval import RetrievalPipeline
 
 class KnowledgeAnswerService:
     def __init__(
@@ -57,6 +58,7 @@ class KnowledgeAnswerService:
         decision_service: DecisionService | None = None,
         goal_service: GoalService | None = None,
         orchestrator: KnowledgeOrchestrator | None = None,
+        retrieval_pipeline: RetrievalPipeline | None = None,
     ) -> None:
         self._repository, self._conversations, self._chat = repository, conversations, chat
         self._analyzer, self._planner, self._ranker, self._conflicts = analyzer, planner, ranker, conflict_detector
@@ -68,6 +70,7 @@ class KnowledgeAnswerService:
         self._decision_service = decision_service or DecisionService()
         self._goal_service = goal_service or GoalService()
         self._orchestrator = orchestrator
+        self._retrieval_pipeline = retrieval_pipeline
 
     def _create_execution_context(
         self,
@@ -273,6 +276,7 @@ class KnowledgeAnswerService:
                 intent,
                 records,
             )
+            
             execution_context.knowledge.context = context
             execution_context.knowledge.intent = intent
             execution_context.knowledge.queries = queries

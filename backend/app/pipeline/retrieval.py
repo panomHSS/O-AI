@@ -11,13 +11,21 @@ class RetrievalPipeline(Pipeline):
         analyzer,
         planner,
         repository,
+        ranker,
+        conflict_detector,
+        context_builder,
         candidates_per_query,
+        selected_limit,
     ) -> None:
         self._analyzer = analyzer
         self._planner = planner
         self._repository = repository
+        self._ranker = ranker
+        self._conflicts = conflict_detector
+        self._context = context_builder
         self._candidates_per_query = candidates_per_query
-
+        self._selected_limit = selected_limit
+        
     def execute(
         self,
         execution_context: ExecutionContext,

@@ -70,6 +70,7 @@ from app.intelligence.steps import (
     GoalStep,
 )
 from backend.app.services.goals import GoalService
+from app.pipeline.retrieval import RetrievalPipeline
 
 @lru_cache
 def get_chat_service() -> ChatService:
@@ -354,24 +355,45 @@ def get_knowledge_answer_service(
         pipeline,
     )
 
+    analyzer = IntentAnalyzer()
+
+    planner = RetrievalPlanner(
+        settings.oai_knowledge_answer_max_retrieval_queries,
+    )
+
+    ranker = EvidenceRanker(
+        settings.oai_knowledge_answer_max_evidence_per_document,
+        minimum_score=(
+            settings.oai_knowledge_answer_minimum_evidence_score
+        ),
+    )
+
+    conflict_detector = ConflictDetector()
+
+    context_builder = ContextBuilder(
+        settings.oai_knowledge_answer_context_char_budget,
+    )
+
+    retrieval_pipeline = RetrievalPipeline(
+        analyzer=analyzer,
+        planner=planner,
+        repository=knowledge_repository,
+        ranker=ranker,
+        conflict_detector=conflict_detector,
+        context_builder=context_builder,
+        candidates_per_query=settings.oai_knowledge_answer_candidates_per_query,
+        selected_limit=settings.oai_knowledge_answer_selected_evidence_count,
+    )
+
     return KnowledgeAnswerService(
         knowledge_repository,
         conversation_service,
         chat_service,
-        IntentAnalyzer(),
-        RetrievalPlanner(
-            settings.oai_knowledge_answer_max_retrieval_queries
-        ),
-        EvidenceRanker(
-            settings.oai_knowledge_answer_max_evidence_per_document,
-            minimum_score=(
-                settings.oai_knowledge_answer_minimum_evidence_score
-            ),
-        ),
-        ConflictDetector(),
-        ContextBuilder(
-            settings.oai_knowledge_answer_context_char_budget
-        ),
+        analyzer,
+        planner,
+        ranker,
+        conflict_detector,
+        context_builder,
         GroundedPromptBuilder(),
         CitationEngine(),
         ConfidenceEvaluator(),
@@ -383,5 +405,5 @@ def get_knowledge_answer_service(
         DecisionService(),
         GoalService(),
         orchestrator,
-)
-    
+        retrieval_pipeline,
+    )
