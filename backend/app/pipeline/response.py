@@ -1,3 +1,5 @@
+from .base import Pipeline
+
 class ResponsePipeline:
     """Builds the final API response."""
 

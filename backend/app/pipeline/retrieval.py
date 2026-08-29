@@ -1,3 +1,5 @@
+from .base import Pipeline
+
 class RetrievalPipeline:
     """Builds KnowledgeContext from the incoming request."""
 
