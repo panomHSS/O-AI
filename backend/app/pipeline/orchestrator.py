@@ -7,7 +7,10 @@ class PipelineOrchestrator:
         self,
         execution_context: ExecutionContext,
     ) -> None:
-        raise NotImplementedError
+        for pipeline in self._pipelines:
+            pipeline.execute(
+                execution_context,
+            )
 
     def __init__(
             self,
