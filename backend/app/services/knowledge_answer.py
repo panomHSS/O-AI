@@ -261,18 +261,18 @@ class KnowledgeAnswerService:
                 execution_context,
             )
 
-            knowledge = execution_context.knowledge
-
-            intent = knowledge.intent
-            queries = knowledge.queries
-            records = knowledge.records
-
-            selected = knowledge.evidence
-            duplicates = knowledge.duplicates_removed
-            filtered = knowledge.filtered_out
-            conflicts = knowledge.conflicts
-            context = knowledge.context
-
+            (
+                intent,
+                queries,
+                records,
+                selected,
+                duplicates,
+                filtered,
+                conflicts,
+                context,
+            ) = self._read_knowledge(
+                execution_context,
+            )
         else:
 
             (
@@ -294,15 +294,17 @@ class KnowledgeAnswerService:
                 records,
             )
 
-            execution_context.knowledge.intent = intent
-            execution_context.knowledge.queries = queries
-            execution_context.knowledge.records = records
-            execution_context.knowledge.evidence = selected
-            execution_context.knowledge.duplicates_removed = duplicates
-            execution_context.knowledge.filtered_out = filtered
-            execution_context.knowledge.conflicts = conflicts
-            execution_context.knowledge.context = context
-
+            self._write_knowledge(
+                execution_context,
+                intent=intent,
+                queries=queries,
+                records=records,
+                evidence=selected,
+                duplicates_removed=duplicates,
+                filtered_out=filtered,
+                conflicts=conflicts,
+                context=context,
+            )
         if not context:
             (
                 answer,
@@ -582,3 +584,46 @@ class KnowledgeAnswerService:
             )
             for item in valid[:MAX_CITATIONS_PER_MESSAGE]
         ]
+
+    def _read_knowledge(
+        self,
+        execution_context: ExecutionContext,
+    ):
+        knowledge = execution_context.knowledge
+
+        return (
+            knowledge.intent,
+            knowledge.queries,
+            knowledge.records,
+            knowledge.evidence,
+            knowledge.duplicates_removed,
+            knowledge.filtered_out,
+            knowledge.conflicts,
+            knowledge.context,
+        )
+
+    def _write_knowledge(
+        self,
+        execution_context: ExecutionContext,
+        *,
+        intent,
+        queries,
+        records,
+        evidence,
+        duplicates_removed,
+        filtered_out,
+        conflicts,
+        context,
+    ) -> None:
+        """Populate the knowledge context."""
+
+        knowledge = execution_context.knowledge
+
+        knowledge.intent = intent
+        knowledge.queries = queries
+        knowledge.records = records
+        knowledge.evidence = evidence
+        knowledge.duplicates_removed = duplicates_removed
+        knowledge.filtered_out = filtered_out
+        knowledge.conflicts = conflicts
+        knowledge.context = context

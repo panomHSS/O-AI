@@ -1,7 +1,14 @@
-from .base import Pipeline
+from __future__ import annotations
+from app.intelligence.context import ExecutionContext
 
 class PipelineOrchestrator:
     """Coordinates the execution of all pipelines."""
+
+    def __init__(
+        self,
+        pipelines: list[Pipeline],
+    ) -> None:
+        self._pipelines = pipelines
 
     def execute(
         self,
@@ -11,9 +18,3 @@ class PipelineOrchestrator:
             pipeline.execute(
                 execution_context,
             )
-
-    def __init__(
-            self,
-            pipelines: list[Pipeline],
-        ) -> None:
-            self._pipelines = pipelines    
