@@ -14,5 +14,13 @@ class RetrievalPipeline:
     ) -> None:
         """Execute retrieval pipeline."""
 
-        # D14 Bridge
-        return
+    def _retrieve_records(
+        self,
+        execution_context: ExecutionContext,
+    ) -> None:
+            """Populate retrieval records into the execution context."""
+            return
+
+            self._retrieve_records(
+                execution_context,
+            )
