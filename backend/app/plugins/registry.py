@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from typing import Protocol
+
 from .base import Plugin
+from .lifecycle import PluginState
 
 
-class PluginRegistry:
+class PluginRegistry(Protocol):
+    """Plugin registry contract."""
 
     def register(
         self,
@@ -21,4 +25,11 @@ class PluginRegistry:
         self,
         plugin_id: str,
     ) -> Plugin:
+        ...
+
+    def transition(
+        self,
+        plugin_id: str,
+        state: PluginState,
+    ) -> None:
         ...
