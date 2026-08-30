@@ -7,6 +7,7 @@ from .registry import PluginRegistry
 from .request import PluginRequest
 from .response import PluginResult
 from .runtime import PluginRuntime
+from .lifecycle import PluginState
 
 
 class DefaultPluginRuntime(PluginRuntime):
@@ -27,6 +28,16 @@ class DefaultPluginRuntime(PluginRuntime):
     ) -> PluginResult:
         plugin = self._registry.resolve(
             plugin_id,
+        )
+
+        self._registry.transition(
+            plugin_id,
+            PluginState.INITIALIZED,
+        )
+
+        self._registry.transition(
+            plugin_id,
+            PluginState.READY,
         )
 
         return plugin.execute(
