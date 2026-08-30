@@ -25,6 +25,14 @@ class PluginManager:
     ) -> PluginResult:
         """Dispatch a request to a plugin."""
 
-        plugin = self._registry.resolve(plugin_id)
+        plugin = self._registry.resolve(
+            plugin_id,
+        )
 
-        raise NotImplementedError
+        # TODO:
+        # Route execution through PluginRuntime.
+
+        return plugin.execute(
+            context,
+            request,
+        )
