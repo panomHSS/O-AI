@@ -208,6 +208,37 @@ class PluginRuntimeTests(unittest.TestCase):
             ],
         )
 
+    def test_execute_with_empty_hook_collection(self) -> None:
+        # Arrange
+        registry = InMemoryPluginRegistry()
+
+        plugin = EchoPlugin()
+        registry.register(plugin)
+
+        runtime = DefaultPluginRuntime(
+            registry,
+            hooks=[],
+        )
+
+        request = PluginRequest(
+            content="hello",
+        )
+
+        context = PluginExecutionContext()
+
+        # Act
+        result = runtime.execute(
+            plugin_id=plugin.id,
+            context=context,
+            request=request,
+        )
+
+        # Assert
+        self.assertEqual(
+            result.content,
+            "hello",
+        )
+
 class RecordingHook:
     """Test hook that records hook invocations."""
 
