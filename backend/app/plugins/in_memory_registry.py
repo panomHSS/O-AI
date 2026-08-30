@@ -42,3 +42,6 @@ class InMemoryPluginRegistry(PluginRegistry):
             raise PluginNotFoundError(plugin_id)
 
         registration.state = state
+        registry.register(
+            EchoPlugin(),
+        )
