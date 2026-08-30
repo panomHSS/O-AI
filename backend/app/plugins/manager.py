@@ -25,4 +25,6 @@ class PluginManager:
     ) -> PluginResult:
         """Dispatch a request to a plugin."""
 
+        plugin = self._registry.resolve(plugin_id)
+
         raise NotImplementedError

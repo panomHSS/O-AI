@@ -1,9 +1,24 @@
+from __future__ import annotations
+
+from .base import Plugin
+
+
 class PluginRegistry:
 
-    def register(...)
+    def register(
+        self,
+        plugin: Plugin,
+    ) -> None:
+        ...
 
-    def unregister(...)
+    def unregister(
+        self,
+        plugin_id: str,
+    ) -> None:
+        ...
 
-    def get(...)
-
-    def list(...)
+    def resolve(
+        self,
+        plugin_id: str,
+    ) -> Plugin:
+        ...
