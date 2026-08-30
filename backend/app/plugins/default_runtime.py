@@ -32,7 +32,7 @@ class DefaultPluginRuntime(PluginRuntime):
         plugin = self._registry.resolve(
             plugin_id,
         )
-        
+
         for hook in self._hooks:
             hook.before_execute(
                 plugin_id,
@@ -51,13 +51,33 @@ class DefaultPluginRuntime(PluginRuntime):
         )
 
         try:
-            return plugin.execute(
+            result = plugin.execute(
                 context,
                 request,
             )
-        except Exception:
+
+            for hook in self._hooks:
+                hook.after_execute(
+                    plugin_id,
+                    context,
+                    request,
+                    result,
+                )
+
+            return result
+
+        except Exception as error:
+            for hook in self._hooks:
+                hook.on_error(
+                    plugin_id,
+                    context,
+                    request,
+                    error,
+                )
+
             self._registry.transition(
                 plugin_id,
                 PluginState.FAILED,
             )
+
             raise
