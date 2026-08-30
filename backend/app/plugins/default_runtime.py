@@ -34,11 +34,16 @@ class DefaultPluginRuntime(PluginRuntime):
         )
 
         for hook in self._hooks:
-            hook.before_execute(
-                plugin_id,
-                context,
-                request,
-            )
+            try:
+                hook.before_execute(
+                    plugin_id,
+                    context,
+                    request,
+                )
+            except Exception:
+                # Hook isolation:
+                # hook ที่เสียต้องไม่หยุด Runtime
+                pass
 
         self._registry.transition(
             plugin_id,
@@ -57,23 +62,30 @@ class DefaultPluginRuntime(PluginRuntime):
             )
 
             for hook in self._hooks:
-                hook.after_execute(
-                    plugin_id,
-                    context,
-                    request,
-                    result,
-                )
+                try:
+                    hook.after_execute(
+                        plugin_id,
+                        context,
+                        request,
+                        result,
+                    )
+                except Exception:
+                    pass
 
             return result
 
         except Exception as error:
+
             for hook in self._hooks:
-                hook.on_error(
-                    plugin_id,
-                    context,
-                    request,
-                    error,
-                )
+                try:
+                    hook.on_error(
+                        plugin_id,
+                        context,
+                        request,
+                        error,
+                    )
+                except Exception:
+                    pass
 
             self._registry.transition(
                 plugin_id,
