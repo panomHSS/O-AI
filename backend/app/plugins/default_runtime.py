@@ -8,6 +8,7 @@ from .request import PluginRequest
 from .response import PluginResult
 from .runtime import PluginRuntime
 from .lifecycle import PluginState
+from .hooks import PluginRuntimeHook
 
 
 class DefaultPluginRuntime(PluginRuntime):
@@ -16,8 +17,10 @@ class DefaultPluginRuntime(PluginRuntime):
     def __init__(
         self,
         registry: PluginRegistry,
+        hooks: list[PluginRuntimeHook] | None = None,
     ) -> None:
         self._registry = registry
+        self._hooks = hooks or []
 
     @override
     def execute(
@@ -40,7 +43,14 @@ class DefaultPluginRuntime(PluginRuntime):
             PluginState.READY,
         )
 
-        return plugin.execute(
-            context,
-            request,
-        )
+        try:
+            return plugin.execute(
+                context,
+                request,
+            )
+        except Exception:
+            self._registry.transition(
+                plugin_id,
+                PluginState.FAILED,
+            )
+            raise
