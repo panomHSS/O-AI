@@ -1,5 +1,8 @@
 from __future__ import annotations
 from .registry import PluginRegistry
+from .context import PluginExecutionContext
+from .request import PluginRequest
+from .response import PluginResult
 
 
 class PluginManager:
@@ -13,3 +16,13 @@ class PluginManager:
         registry: PluginRegistry,
     ) -> None:
         self._registry = registry
+
+    def dispatch(
+        self,
+        plugin_id: str,
+        context: PluginExecutionContext,
+        request: PluginRequest,
+    ) -> PluginResult:
+        """Dispatch a request to a plugin."""
+
+        raise NotImplementedError
