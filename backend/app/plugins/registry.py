@@ -6,6 +6,7 @@ from .base import Plugin
 from .lifecycle import PluginState
 
 
+
 class PluginRegistry(Protocol):
     """Plugin registry contract."""
 
@@ -32,4 +33,10 @@ class PluginRegistry(Protocol):
         plugin_id: str,
         state: PluginState,
     ) -> None:
+        ...
+
+    def state_of(
+        self,
+        plugin_id: str,
+    ) -> PluginState:
         ...
