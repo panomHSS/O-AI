@@ -7,13 +7,12 @@ from .response import PluginResult
 
 
 class PluginManager:
-    """Dispatches plugin execution requests."""
 
     def __init__(
         self,
-        registry: PluginRegistry,
+        runtime: PluginRuntime,
     ) -> None:
-        self._registry = registry
+        self._runtime = runtime
 
     def dispatch(
         self,
@@ -21,16 +20,8 @@ class PluginManager:
         context: PluginExecutionContext,
         request: PluginRequest,
     ) -> PluginResult:
-        """Dispatch a request to a plugin."""
-
-        plugin = self._registry.resolve(
-            plugin_id,
-        )
-
-        # TODO(D17.7):
-        # Route execution through PluginRuntime.
-        
-        return plugin.execute(
-            context,
-            request,
+        return self._runtime.execute(
+            plugin_id=plugin_id,
+            context=context,
+            request=request,
         )

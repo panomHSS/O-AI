@@ -6,6 +6,8 @@ from app.plugins.in_memory_registry import InMemoryPluginRegistry
 from app.plugins.manager import PluginManager
 from app.plugins.request import PluginRequest
 from app.plugins.exceptions import PluginNotFoundError
+from app.plugins.default_runtime import DefaultPluginRuntime
+
 
 class PluginManagerTests(unittest.TestCase):
     """Tests for plugin manager dispatch."""
@@ -13,11 +15,17 @@ class PluginManagerTests(unittest.TestCase):
     def test_dispatch_executes_plugin(self) -> None:
         # Arrange
         registry = InMemoryPluginRegistry()
+
         plugin = EchoPlugin()
         registry.register(plugin)
 
-        manager = PluginManager(registry)
+        runtime = DefaultPluginRuntime(
+            registry,
+        )
 
+        manager = PluginManager(
+            runtime,
+        )
         request = PluginRequest(
             content="hello",
         )
@@ -40,8 +48,12 @@ class PluginManagerTests(unittest.TestCase):
     def test_dispatch_unknown_plugin_raises_error(self) -> None:
         registry = InMemoryPluginRegistry()
 
-        manager = PluginManager(
+        runtime = DefaultPluginRuntime(
             registry,
+        )
+
+        manager = PluginManager(
+            runtime,
         )
 
         request = PluginRequest(
