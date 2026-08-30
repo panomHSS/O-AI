@@ -1,12 +1,10 @@
 from __future__ import annotations
-from .registry import PluginRegistry
+
 from .context import PluginExecutionContext
+from .registry import PluginRegistry
 from .request import PluginRequest
 from .response import PluginResult
 
-
-class PluginManager:
-    """Dispatches plugin execution requests."""
 
 class PluginManager:
     """Dispatches plugin execution requests."""
@@ -29,9 +27,9 @@ class PluginManager:
             plugin_id,
         )
 
-        # TODO:
+        # TODO(D17.7):
         # Route execution through PluginRuntime.
-
+        
         return plugin.execute(
             context,
             request,
