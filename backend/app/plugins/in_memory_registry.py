@@ -4,10 +4,11 @@ from typing import override
 
 from .base import Plugin
 from .descriptor import PluginDescriptor
-from .exceptions import PluginNotFoundError
 from .lifecycle import PluginState
 from .registration import PluginRegistration
 from .registry import PluginRegistry
+from .exceptions import PluginLifecycleError
+from .exceptions import PluginNotFoundError
 
 
 class InMemoryPluginRegistry(PluginRegistry):
@@ -56,21 +57,6 @@ class InMemoryPluginRegistry(PluginRegistry):
         return registration.descriptor.plugin
 
     @override
-    def transition(
-        self,
-        plugin_id: str,
-        state: PluginState,
-    ) -> None:
-        """Transition a plugin to a new lifecycle state."""
-
-        registration = self._registrations.get(plugin_id)
-
-        if registration is None:
-            raise PluginNotFoundError(plugin_id)
-
-        registration.state = state
-
-    @override
     def state_of(
         self,
         plugin_id: str,
@@ -81,3 +67,40 @@ class InMemoryPluginRegistry(PluginRegistry):
             raise PluginNotFoundError(plugin_id)
 
         return registration.state
+
+    @override
+    def transition(
+        self,
+        plugin_id: str,
+        state: PluginState,
+    ) -> None:
+        registration = self._registrations.get(plugin_id)
+
+        if registration is None:
+            raise PluginNotFoundError(plugin_id)
+
+        current = registration.state
+
+        allowed_transitions = {
+            PluginState.REGISTERED: {
+                PluginState.INITIALIZED,
+            },
+            PluginState.INITIALIZED: {
+                PluginState.READY,
+            },
+            PluginState.READY: {
+                PluginState.DISABLED,
+                PluginState.FAILED,
+            },
+            PluginState.DISABLED: set(),
+            PluginState.FAILED: set(),
+        }
+
+        if state not in allowed_transitions[current]:
+            raise PluginLifecycleError(
+                plugin_id=plugin_id,
+                current_state=current,
+                target_state=state,
+            )
+
+        registration.state = state
