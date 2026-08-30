@@ -32,6 +32,13 @@ class DefaultPluginRuntime(PluginRuntime):
         plugin = self._registry.resolve(
             plugin_id,
         )
+        
+        for hook in self._hooks:
+            hook.before_execute(
+                plugin_id,
+                context,
+                request,
+            )
 
         self._registry.transition(
             plugin_id,
