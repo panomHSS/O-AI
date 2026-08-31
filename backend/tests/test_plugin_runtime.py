@@ -239,6 +239,55 @@ class PluginRuntimeTests(unittest.TestCase):
             "hello",
         )
 
+    def test_runtime_continues_when_hook_fails(
+        self,
+    ) -> None:
+        # Arrange
+        registry = InMemoryPluginRegistry()
+
+        plugin = EchoPlugin()
+        registry.register(plugin)
+
+        events: list[str] = []
+
+        runtime = DefaultPluginRuntime(
+            registry,
+            hooks=[
+                BrokenHook(),
+                OrderedRecordingHook(
+                    "hook2",
+                    events,
+                ),
+            ],
+        )
+
+        request = PluginRequest(
+            content="hello",
+        )
+
+        context = PluginExecutionContext()
+
+        # Act
+        result = runtime.execute(
+            plugin_id=plugin.id,
+            context=context,
+            request=request,
+        )
+
+        # Assert
+        self.assertEqual(
+            result.content,
+            "hello",
+        )
+
+        self.assertEqual(
+            events,
+            [
+                "hook2:before",
+                "hook2:after",
+            ],
+        )
+
 class RecordingHook:
     """Test hook that records hook invocations."""
 
@@ -317,3 +366,32 @@ class OrderedRecordingHook:
         self._events.append(
             f"{self._name}:error",
         )
+
+class BrokenHook:
+    """Hook that always fails."""
+
+    def before_execute(
+        self,
+        plugin_id,
+        context,
+        request,
+    ) -> None:
+        raise RuntimeError("Broken hook")
+
+    def after_execute(
+        self,
+        plugin_id,
+        context,
+        request,
+        result,
+    ) -> None:
+        pass
+
+    def on_error(
+        self,
+        plugin_id,
+        context,
+        request,
+        error,
+    ) -> None:
+        pass
