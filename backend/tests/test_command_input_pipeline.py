@@ -3,8 +3,11 @@ from unittest.mock import Mock
 from uuid import UUID
 
 from app.contracts.command import CommandRequest
+from app.contracts.command_decision import CommandDecision
+from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import (
     CHAT_MESSAGE_COMMAND,
+    CommandDecisionRejectedError,
     CommandInputPipeline,
     InvalidCommandArgumentsError,
     UnsupportedCommandError,
@@ -63,6 +66,11 @@ class CommandInputPipelineTests(unittest.TestCase):
     def test_process_chat_rejects_unsupported_command_without_delegating(
         self,
     ) -> None:
+        decision_engine = Mock(spec=CommandDecisionEngine)
+        pipeline = CommandInputPipeline(
+            self.conversation_service,
+            decision_engine,
+        )
         command = CommandRequest(
             request_id="request-1",
             command="knowledge.answer",
@@ -70,9 +78,10 @@ class CommandInputPipelineTests(unittest.TestCase):
         )
 
         with self.assertRaises(UnsupportedCommandError):
-            self.pipeline.process_chat(command)
+            pipeline.process_chat(command)
 
         self.conversation_service.send_message.assert_not_called()
+        decision_engine.decide.assert_not_called()
 
     def test_process_chat_rejects_invalid_argument_shapes_without_delegating(
         self,
@@ -117,6 +126,32 @@ class CommandInputPipelineTests(unittest.TestCase):
                 with self.assertRaises(InvalidCommandArgumentsError):
                     self.pipeline.process_chat(command)
 
+        self.conversation_service.send_message.assert_not_called()
+
+    def test_process_chat_rejects_d23_decision_without_delegating(self) -> None:
+        decision_engine = Mock(spec=CommandDecisionEngine)
+        decision_engine.decide.return_value = CommandDecision(
+            request_id="request-1",
+            intent="chat_message",
+            disposition="reject",
+            provider_preference_hint="unspecified",
+            reason_code="test_rejection",
+        )
+        pipeline = CommandInputPipeline(
+            self.conversation_service,
+            decision_engine,
+        )
+        command = pipeline.normalize_chat(
+            request_id="request-1",
+            message="Hello",
+            conversation_id=None,
+            project_id=None,
+        )
+
+        with self.assertRaises(CommandDecisionRejectedError):
+            pipeline.process_chat(command)
+
+        decision_engine.decide.assert_called_once_with(command)
         self.conversation_service.send_message.assert_not_called()
 
     def test_process_chat_rejects_empty_request_id_without_delegating(

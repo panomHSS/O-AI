@@ -5,10 +5,14 @@ from __future__ import annotations
 from uuid import UUID
 
 from app.contracts.command import CommandRequest
+from app.contracts.command_decision import CommandDecision
+from app.services.command_decision_engine import (
+    CHAT_MESSAGE_COMMAND,
+    CommandDecisionEngine,
+)
 from app.services.conversations import ChatTurnResult, ConversationService
 
 
-CHAT_MESSAGE_COMMAND = "chat.message"
 _CHAT_ARGUMENT_NAMES = frozenset(
     {"message", "conversation_id", "project_id"}
 )
@@ -26,11 +30,20 @@ class InvalidCommandArgumentsError(CommandInputError):
     """Raised when a supported command has an invalid argument shape."""
 
 
+class CommandDecisionRejectedError(CommandInputError):
+    """Raised when a validated command is not safe to delegate."""
+
+
 class CommandInputPipeline:
     """Normalizes and validates chat input before the existing chat path."""
 
-    def __init__(self, conversation_service: ConversationService) -> None:
+    def __init__(
+        self,
+        conversation_service: ConversationService,
+        decision_engine: CommandDecisionEngine | None = None,
+    ) -> None:
         self._conversation_service = conversation_service
+        self._decision_engine = decision_engine or CommandDecisionEngine()
 
     @staticmethod
     def normalize_chat(
@@ -61,12 +74,22 @@ class CommandInputPipeline:
         message, conversation_id, project_id = self._validated_chat_arguments(
             command
         )
+        decision = self._decision_engine.decide(command)
+
+        self._require_chat_delegation(decision)
 
         return self._conversation_service.send_message(
             message,
             conversation_id,
             project_id,
         )
+
+    @staticmethod
+    def _require_chat_delegation(decision: CommandDecision) -> None:
+        if decision.disposition != "defer_to_existing_chat":
+            raise CommandDecisionRejectedError(
+                "D23 rejected delegation of the command."
+            )
 
     @staticmethod
     def _validated_chat_arguments(
