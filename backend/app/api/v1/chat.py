@@ -1,14 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.api.dependencies import (
-    get_conversation_service,
+    get_command_input_pipeline,
     get_project_update_turn_orchestrator,
 )
 from app.schemas.api import ApiSuccess
 from app.schemas.chat import ChatRequest, ChatResponse, MemoryUsageResponse
-from app.services.conversations import ConversationService
+from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.project_update_orchestrator import (
     ProjectUpdateTurnInput,
     ProjectUpdateTurnOrchestrator,
@@ -23,22 +23,25 @@ router = APIRouter(prefix="/chat", tags=["chat"])
     status_code=status.HTTP_200_OK,
 )
 def send_chat_message(
+    request: Request,
     payload: ChatRequest,
-    conversation_service: Annotated[
-        ConversationService,
-        Depends(get_conversation_service),
+    command_input_pipeline: Annotated[
+        CommandInputPipeline,
+        Depends(get_command_input_pipeline),
     ],
     project_update_orchestrator: Annotated[
         ProjectUpdateTurnOrchestrator,
         Depends(get_project_update_turn_orchestrator),
     ],
 ) -> ApiSuccess[ChatResponse]:
-    """Handle a single chat turn through the configured chat service."""
-    result = conversation_service.send_message(
-        payload.message,
-        payload.conversation_id,
-        payload.project_id,
+    """Handle a chat turn through the narrow D22 input boundary."""
+    command = command_input_pipeline.normalize_chat(
+        request_id=request.state.request_id,
+        message=payload.message,
+        conversation_id=payload.conversation_id,
+        project_id=payload.project_id,
     )
+    result = command_input_pipeline.process_chat(command)
 
     project_update_proposal = None
 

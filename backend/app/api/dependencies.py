@@ -20,6 +20,7 @@ from app.repositories.project_update_proposals import (
 from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
+from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ConversationService
 from app.services.decision import DecisionService
 from app.services.knowledge import KnowledgeService
@@ -147,6 +148,15 @@ def get_conversation_service(
         ),
         
     )
+
+
+def get_command_input_pipeline(
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+) -> CommandInputPipeline:
+    """Compose the narrow D22 chat input boundary."""
+    return CommandInputPipeline(conversation_service)
 
 
 @lru_cache
