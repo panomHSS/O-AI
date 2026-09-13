@@ -326,3 +326,11 @@ Add `ToolModuleRouter`, which accepts only structured `CommandRequest` and `Exec
 
 **Consequences**
 Unknown adapters are unavailable, request/plan mismatches are rejected, and plans requiring owner approval are blocked. Router construction rejects duplicate IDs and unsupported contract versions. The router returns only selection metadata; no chat path, generic executor, autonomous behavior, tool invocation, file/network/process/database action, or D28 capability is introduced. `StandardToolAdapter` can only return a structured echo `Result` for its exact supported plan shape and otherwise fails safely.
+
+## ADR-020: Safe orchestration response composition
+
+**Decision**
+Add a pure internal D28 `OrchestrationErrorNormalizer` and `ResponseComposer`. The normalizer classifies terminal D24/D27 route outcomes, known ChatGPT and Local AI exceptions, Tool/Module results, and unexpected exceptions into a fixed safe error taxonomy. The composer independently converts successful AI/Tool results or normalized errors into the existing D21 `Response` and `Result` contracts.
+
+**Consequences**
+`blocked` stays distinct from `failed`: owner-approval outcomes retain `Result.status = "blocked"`. Normalized error results retain only a stable error code, never raw exception text or arbitrary adapter error detail. Explicit Local AI failures remain local-only and cannot cause cloud fallback. Both services are deterministic, ephemeral, side-effect free, and exposed through dependency injection only; they do not alter FastAPI exception handlers, public envelopes, D24/D27 routing, adapter invocation, tool execution, or the chat pipeline. Rollback removes these internal services, contracts, tests, and documentation without data or public API migration.

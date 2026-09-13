@@ -30,6 +30,8 @@ from app.telemetry.system_metrics import SystemMetricsProvider
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.tool_module_router import ToolModuleRouter
+from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
+from app.services.response_composer import ResponseComposer
 from app.services.conversations import ConversationService
 from app.services.decision import DecisionService
 from app.services.knowledge import KnowledgeService
@@ -201,6 +203,20 @@ def get_tool_module_router(
 ) -> ToolModuleRouter:
     """Register D27 adapters for selection only; no execution is wired here."""
     return ToolModuleRouter((standard_tool_adapter,))
+
+
+def get_orchestration_error_normalizer() -> OrchestrationErrorNormalizer:
+    """Compose the pure D28 safe-error classification boundary."""
+    return OrchestrationErrorNormalizer()
+
+
+def get_response_composer(
+    normalizer: OrchestrationErrorNormalizer = Depends(
+        get_orchestration_error_normalizer
+    ),
+) -> ResponseComposer:
+    """Compose D28 presentation without wiring orchestration into chat."""
+    return ResponseComposer(normalizer)
 
 
 def get_command_input_pipeline(

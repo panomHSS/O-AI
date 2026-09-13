@@ -20,6 +20,7 @@ from app.contracts.tool_module import (
     ToolAdapter,
 )
 from app.contracts.tool_module_route import ToolModuleRouteDecision, ToolModuleRouteStatus
+from app.contracts.response_composition import NormalizedError, SafeErrorCode
 
 __all__ = [
     "AI_ADAPTER_CONTRACT_VERSION",
@@ -37,4 +38,6 @@ __all__ = [
     "ToolAdapter",
     "ToolModuleRouteDecision",
     "ToolModuleRouteStatus",
+    "NormalizedError",
+    "SafeErrorCode",
 ]
