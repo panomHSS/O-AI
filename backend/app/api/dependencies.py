@@ -20,6 +20,7 @@ from app.repositories.project_update_proposals import (
 from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
+from app.services.ai_router import AIRouter
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ConversationService
@@ -156,6 +157,11 @@ def get_command_decision_engine() -> CommandDecisionEngine:
     return CommandDecisionEngine()
 
 
+def get_ai_router() -> AIRouter:
+    """Compose D24 route selection with no Local AI runtime installed."""
+    return AIRouter(local_ai_available=False)
+
+
 def get_command_input_pipeline(
     conversation_service: ConversationService = Depends(
         get_conversation_service
@@ -163,9 +169,14 @@ def get_command_input_pipeline(
     decision_engine: CommandDecisionEngine = Depends(
         get_command_decision_engine
     ),
+    ai_router: AIRouter = Depends(get_ai_router),
 ) -> CommandInputPipeline:
     """Compose the narrow D22 chat input boundary."""
-    return CommandInputPipeline(conversation_service, decision_engine)
+    return CommandInputPipeline(
+        conversation_service,
+        decision_engine,
+        ai_router,
+    )
 
 
 @lru_cache

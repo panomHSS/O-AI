@@ -4,8 +4,11 @@ from uuid import UUID
 
 from app.contracts.command import CommandRequest
 from app.contracts.command_decision import CommandDecision
+from app.services.ai_router import AIRouter
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import (
+    AIRouteNotExecutableError,
+    AIRouteUnavailableError,
     CHAT_MESSAGE_COMMAND,
     CommandDecisionRejectedError,
     CommandInputPipeline,
@@ -152,6 +155,58 @@ class CommandInputPipelineTests(unittest.TestCase):
             pipeline.process_chat(command)
 
         decision_engine.decide.assert_called_once_with(command)
+        self.conversation_service.send_message.assert_not_called()
+
+    def test_explicit_unavailable_local_route_never_delegates(self) -> None:
+        decision_engine = Mock(spec=CommandDecisionEngine)
+        decision_engine.decide.return_value = CommandDecision(
+            request_id="request-1",
+            intent="chat_message",
+            disposition="defer_to_existing_chat",
+            provider_preference_hint="local_ai_explicit",
+            reason_code="chat_message",
+        )
+        pipeline = CommandInputPipeline(
+            self.conversation_service,
+            decision_engine,
+            AIRouter(local_ai_available=False),
+        )
+        command = pipeline.normalize_chat(
+            request_id="request-1",
+            message="Route this command to local AI.",
+            conversation_id=None,
+            project_id=None,
+        )
+
+        with self.assertRaises(AIRouteUnavailableError):
+            pipeline.process_chat(command)
+
+        self.conversation_service.send_message.assert_not_called()
+
+    def test_selected_local_route_is_not_invoked_in_d24(self) -> None:
+        decision_engine = Mock(spec=CommandDecisionEngine)
+        decision_engine.decide.return_value = CommandDecision(
+            request_id="request-1",
+            intent="chat_message",
+            disposition="defer_to_existing_chat",
+            provider_preference_hint="local_ai_explicit",
+            reason_code="chat_message",
+        )
+        pipeline = CommandInputPipeline(
+            self.conversation_service,
+            decision_engine,
+            AIRouter(local_ai_available=True),
+        )
+        command = pipeline.normalize_chat(
+            request_id="request-1",
+            message="Route this command to local AI.",
+            conversation_id=None,
+            project_id=None,
+        )
+
+        with self.assertRaises(AIRouteNotExecutableError):
+            pipeline.process_chat(command)
+
         self.conversation_service.send_message.assert_not_called()
 
     def test_process_chat_rejects_empty_request_id_without_delegating(

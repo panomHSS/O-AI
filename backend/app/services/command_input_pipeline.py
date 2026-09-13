@@ -6,6 +6,8 @@ from uuid import UUID
 
 from app.contracts.command import CommandRequest
 from app.contracts.command_decision import CommandDecision
+from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
+from app.services.ai_router import AIRouter
 from app.services.command_decision_engine import (
     CHAT_MESSAGE_COMMAND,
     CommandDecisionEngine,
@@ -34,6 +36,14 @@ class CommandDecisionRejectedError(CommandInputError):
     """Raised when a validated command is not safe to delegate."""
 
 
+class AIRouteUnavailableError(CommandInputError):
+    """Raised when an explicitly requested AI route is unavailable."""
+
+
+class AIRouteNotExecutableError(CommandInputError):
+    """Raised when D24 selects a route with no D25 invocation path."""
+
+
 class CommandInputPipeline:
     """Normalizes and validates chat input before the existing chat path."""
 
@@ -41,9 +51,11 @@ class CommandInputPipeline:
         self,
         conversation_service: ConversationService,
         decision_engine: CommandDecisionEngine | None = None,
+        ai_router: AIRouter | None = None,
     ) -> None:
         self._conversation_service = conversation_service
         self._decision_engine = decision_engine or CommandDecisionEngine()
+        self._ai_router = ai_router or AIRouter()
 
     @staticmethod
     def normalize_chat(
@@ -77,6 +89,8 @@ class CommandInputPipeline:
         decision = self._decision_engine.decide(command)
 
         self._require_chat_delegation(decision)
+        route = self._ai_router.route(decision)
+        self._require_executable_chat_route(route.status, route.adapter_id)
 
         return self._conversation_service.send_message(
             message,
@@ -89,6 +103,20 @@ class CommandInputPipeline:
         if decision.disposition != "defer_to_existing_chat":
             raise CommandDecisionRejectedError(
                 "D23 rejected delegation of the command."
+            )
+
+    @staticmethod
+    def _require_executable_chat_route(
+        status: str,
+        adapter_id: str | None,
+    ) -> None:
+        if status == "unavailable":
+            raise AIRouteUnavailableError(
+                "The explicitly requested AI route is unavailable."
+            )
+        if status != "selected" or adapter_id != CHATGPT_DEFAULT_ADAPTER_ID:
+            raise AIRouteNotExecutableError(
+                "The selected AI route has no D24 invocation path."
             )
 
     @staticmethod

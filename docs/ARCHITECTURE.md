@@ -213,6 +213,14 @@ Preference hints use only narrow, explicit provider-routing phrases. Generic wor
 
 The existing `ReasoningService` and explanatory `DecisionService` remain independent: their answer-oriented intent and comparison metadata semantics are unchanged and are not reused for command decisions. D23 preserves D22's guard order: unknown command identifiers are rejected by D22 before D23, and invalid `chat.message` arguments fail before D23 or `ConversationService` invocation. D23 does not implement D24 routing, Local AI, tool execution, or autonomous behavior.
 
+## AI route selection (D24)
+
+D24 adds `AIRouter`, a pure route-selection layer that accepts only a `CommandDecision`; it never re-reads user input. It returns an internal `AIRouteDecision` with one of `selected`, `unavailable`, or `rejected` and a stable logical adapter ID where applicable.
+
+`unspecified` and `automatic` select `chatgpt.default`, preserving the existing `ConversationService` chat compatibility path. `local_ai_explicit` selects only `local_ai.default`. Since D24 deliberately installs no Local AI runtime or invocation adapter, an unavailable Local AI route stops before conversation/provider work; an available Local AI route is selected but likewise stops before invocation until D25. It never silently falls back to ChatGPT.
+
+D23 `reject` decisions and malformed decisions produce a fail-closed D24 `rejected` route. The router has no provider, adapter, database, HTTP, logging, persistence, tool/module, execution, or external dependency. It creates no execution plan and does not start D25/D26.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.
