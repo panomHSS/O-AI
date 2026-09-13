@@ -318,3 +318,11 @@ Add a provider-neutral Local AI runtime client contract, an Ollama HTTP implemen
 
 **Consequences**
 The adapter fails closed when Local AI is disabled, offline, missing its configured model, times out, or returns malformed/empty output. It never falls back to cloud AI. Each isolated daemon inference session resets and then retains its own latest and peak CPU/RAM/GPU/VRAM values for a future monitor; its session identity prevents a stopped sampler from writing into a newer inference. ACTIVE is bounded by the generation call; model LOADED remains a separate runtime state. Telemetry failures are swallowed and never affect inference. D24 continues to select only; no registry, generic executor, or chat-path invocation is introduced. Moving Ollama to O-SERVER later changes only deployment configuration.
+
+## ADR-019: Fail-closed Tool/Module route selection
+
+**Decision**
+Add `ToolModuleRouter`, which accepts only structured `CommandRequest` and `ExecutionPlan` contracts and returns an ephemeral route decision. It validates request/plan identity, registered adapter identity, supported Tool/Module Adapter Contract v1, and owner-approval state without parsing raw user text or executing an adapter. Add the deterministic, read-only `StandardToolAdapter` with the sole `standard.echo` operation.
+
+**Consequences**
+Unknown adapters are unavailable, request/plan mismatches are rejected, and plans requiring owner approval are blocked. Router construction rejects duplicate IDs and unsupported contract versions. The router returns only selection metadata; no chat path, generic executor, autonomous behavior, tool invocation, file/network/process/database action, or D28 capability is introduced. `StandardToolAdapter` can only return a structured echo `Result` for its exact supported plan shape and otherwise fails safely.

@@ -19,6 +19,7 @@ from app.contracts.tool_module import (
     ModuleAdapter,
     ToolAdapter,
 )
+from app.contracts.tool_module_route import ToolModuleRouteDecision, ToolModuleRouteStatus
 
 __all__ = [
     "AI_ADAPTER_CONTRACT_VERSION",
@@ -34,4 +35,6 @@ __all__ = [
     "Result",
     "ResultStatus",
     "ToolAdapter",
+    "ToolModuleRouteDecision",
+    "ToolModuleRouteStatus",
 ]

@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
 from app.adapters.local_ai import LocalAIAdapter
 from app.adapters.ollama_runtime import OllamaRuntimeClient
+from app.adapters.standard_tool import StandardToolAdapter
 from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.readers import create_document_reader_registry
@@ -28,6 +29,7 @@ from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
 from app.telemetry.system_metrics import SystemMetricsProvider
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
+from app.services.tool_module_router import ToolModuleRouter
 from app.services.conversations import ConversationService
 from app.services.decision import DecisionService
 from app.services.knowledge import KnowledgeService
@@ -185,6 +187,20 @@ def get_local_ai_adapter() -> LocalAIAdapter:
             model=settings.oai_local_ai_model,
         ),
     )
+
+
+def get_standard_tool_adapter() -> StandardToolAdapter:
+    """Compose the D27 deterministic, read-only standard tool adapter."""
+    return StandardToolAdapter()
+
+
+def get_tool_module_router(
+    standard_tool_adapter: StandardToolAdapter = Depends(
+        get_standard_tool_adapter
+    ),
+) -> ToolModuleRouter:
+    """Register D27 adapters for selection only; no execution is wired here."""
+    return ToolModuleRouter((standard_tool_adapter,))
 
 
 def get_command_input_pipeline(
