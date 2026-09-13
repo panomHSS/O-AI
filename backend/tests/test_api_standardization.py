@@ -17,20 +17,20 @@ from app.db.verification import TARGET_REVISION
 
 
 class TestConversationService:
-    def send_message(self, message: str, conversation_id=None, project_id=None) -> ChatTurnResult:
-        _ = project_id
+    def send_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
+        _ = (project_id, ai_adapter)
         return ChatTurnResult(reply=f"Test reply: {message}", conversation_id=UUID("11111111-1111-1111-1111-111111111111"))
 
 
 class ConfigurationErrorConversationService:
-    def send_message(self, message: str, conversation_id=None, project_id=None) -> ChatTurnResult:
-        _ = (message, conversation_id, project_id)
+    def send_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
+        _ = (message, conversation_id, project_id, ai_adapter)
         raise ChatConfigurationError("Chat is not configured.")
 
 
 class ExplodingConversationService:
-    def send_message(self, message: str, conversation_id=None, project_id=None) -> ChatTurnResult:
-        _ = (message, conversation_id, project_id)
+    def send_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
+        _ = (message, conversation_id, project_id, ai_adapter)
         raise RuntimeError("provider internals must not reach the response")
 
 
@@ -147,7 +147,7 @@ class ApiStandardizationTests(unittest.TestCase):
         app.dependency_overrides[get_conversation_service] = lambda: ConfigurationErrorConversationService()
         status_code, headers, body = self.request("/api/v1/chat", method="POST", body={"message": "Hello"})
         self.assertEqual(status_code, 503)
-        self.assertEqual(body["error"]["code"], "CHAT_NOT_CONFIGURED")
+        self.assertEqual(body["error"]["code"], "CHATGPT_NOT_CONFIGURED")
         self.assertIn("x-request-id", headers)
 
     def test_validation_error_uses_standard_error(self) -> None:

@@ -8,6 +8,7 @@ from app.repositories.conversations import ConversationRepository
 from app.repositories.message_citations import CitationSnapshot, MessageCitationRepository
 from app.schemas.conversations import ConversationDetailResponse, ConversationSummaryResponse, StoredCitationResponse, StoredMessageResponse
 from app.services.chat import ChatContextMessage, ChatService
+from app.contracts.ai import AIAdapter
 from app.services.memory_resolver import MemoryResolver, ResolvedMemory
 from app.schemas.reasoning import ReasoningPlan
 from app.services.reasoning import ReasoningService
@@ -109,12 +110,17 @@ class ConversationService:
         self._project_action_execution_persistence_service = (
             project_action_execution_persistence_service
         )
+
+    def default_ai_adapter(self) -> AIAdapter:
+        """Return the adapter that wraps this service's configured chat provider."""
+        return self._chat_service.default_ai_adapter()
         
     def send_message(
         self,
         message: str,
         conversation_id: UUID | None = None,
         project_id: UUID | None = None,
+        ai_adapter: AIAdapter | None = None,
     ) -> ChatTurnResult:
         conversation, recent_messages = self.begin_turn(
             message,
@@ -160,7 +166,7 @@ class ConversationService:
         planning_plan = self._planning_service.plan(reasoning_plan)
         decision_analysis = self._decision_service.analyze(reasoning_plan, planning_plan)
         goal_analysis = self._goal_service.analyze(reasoning_plan, planning_plan, decision_analysis)
-        reply = self._chat_service.send_message(message, context, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context)
+        reply = self._chat_service.send_message(message, context, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context, ai_adapter)
 
         self.complete_turn(conversation.id, reply)
 

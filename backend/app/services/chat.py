@@ -7,6 +7,7 @@ from app.providers.base import (
     ChatProviderError,
     ChatServiceError,
 )
+from app.contracts.ai import AIAdapter, AIRequest
 
 from app.services.memory_resolver import MemoryContextBuilder, ResolvedMemory
 from app.schemas.reasoning import ReasoningPlan
@@ -32,8 +33,19 @@ class ChatService:
     def __init__(self, provider: ChatProvider) -> None:
         self._provider = provider
 
-    def send_message(self, message: str, recent_messages: Sequence[ChatContextMessage] = (), memories: Sequence[ResolvedMemory] = (), reasoning_plan: ReasoningPlan | None = None, planning_plan: PlanningPlan | None = None, decision_analysis: DecisionAnalysis | None = None, goal_analysis: GoalAnalysis | None = None, project_context: ProjectContext | None = None) -> str:
-        return self._provider.generate_reply(self._format_provider_input(message, recent_messages, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context))
+    def default_ai_adapter(self) -> AIAdapter:
+        """Expose the configured legacy provider through AI Adapter v1."""
+        if isinstance(self._provider, AIAdapter):
+            return self._provider
+        from app.adapters.chatgpt import ChatGPTAdapter
+
+        return ChatGPTAdapter(self._provider)
+
+    def send_message(self, message: str, recent_messages: Sequence[ChatContextMessage] = (), memories: Sequence[ResolvedMemory] = (), reasoning_plan: ReasoningPlan | None = None, planning_plan: PlanningPlan | None = None, decision_analysis: DecisionAnalysis | None = None, goal_analysis: GoalAnalysis | None = None, project_context: ProjectContext | None = None, ai_adapter: AIAdapter | None = None) -> str:
+        formatted = self._format_provider_input(message, recent_messages, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context)
+        if ai_adapter is not None:
+            return ai_adapter.generate(AIRequest(content=formatted)).content
+        return self._provider.generate_reply(formatted)
 
     @staticmethod
     def _format_provider_input(message: str, recent_messages: Sequence[ChatContextMessage], memories: Sequence[ResolvedMemory], reasoning_plan: ReasoningPlan | None = None, planning_plan: PlanningPlan | None = None, decision_analysis: DecisionAnalysis | None = None, goal_analysis: GoalAnalysis | None = None, project_context: ProjectContext | None = None) -> str:

@@ -32,6 +32,9 @@ from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.tool_module_router import ToolModuleRouter
 from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
 from app.services.response_composer import ResponseComposer
+from app.services.ai_adapter_registry import AIAdapterRegistry
+from app.services.command_orchestrator import CommandOrchestrator
+from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
 from app.services.conversations import ConversationService
 from app.services.decision import DecisionService
 from app.services.knowledge import KnowledgeService
@@ -86,8 +89,8 @@ from app.pipeline.retrieval import RetrievalPipeline
 from app.pipeline.components import RetrievalComponents
 
 @lru_cache
-def get_chat_service() -> ChatService:
-    """Compose the configured provider behind the provider-neutral service."""
+def get_chatgpt_adapter() -> ChatGPTAdapter:
+    """Compose the configured ChatGPT adapter around the legacy provider."""
     settings = get_settings()
 
     api_key = (
@@ -101,9 +104,13 @@ def get_chat_service() -> ChatService:
         model=settings.openai_model,
     )
 
-    return ChatService(
-        provider=ChatGPTAdapter(provider),
-    )
+    return ChatGPTAdapter(provider)
+
+
+@lru_cache
+def get_chat_service() -> ChatService:
+    """Compose the legacy chat service behind its ChatGPT compatibility adapter."""
+    return ChatService(provider=get_chatgpt_adapter())
 
 
 def get_conversation_service(
@@ -167,10 +174,14 @@ def get_command_decision_engine() -> CommandDecisionEngine:
 
 
 def get_ai_router() -> AIRouter:
-    """Compose D24 routing with only the current ChatGPT route available."""
+    """Expose Local AI to D24 only when deployment enables it."""
+    settings = get_settings()
+    available = [CHATGPT_DEFAULT_ADAPTER_ID]
+    if settings.oai_local_ai_enabled:
+        available.append(LOCAL_AI_ADAPTER_ID)
     return AIRouter(
         default_adapter_id=CHATGPT_DEFAULT_ADAPTER_ID,
-        available_adapter_ids=(CHATGPT_DEFAULT_ADAPTER_ID,),
+        available_adapter_ids=available,
     )
 
 
@@ -217,6 +228,43 @@ def get_response_composer(
 ) -> ResponseComposer:
     """Compose D28 presentation without wiring orchestration into chat."""
     return ResponseComposer(normalizer)
+
+
+def get_ai_adapter_registry(
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    chat_service: ChatService = Depends(get_chat_service),
+    local_ai_adapter: LocalAIAdapter = Depends(get_local_ai_adapter),
+) -> AIAdapterRegistry:
+    """Register D25/D26 adapters once per dependency graph without invocation."""
+    default_adapter_factory = getattr(
+        conversation_service,
+        "default_ai_adapter",
+        chat_service.default_ai_adapter,
+    )
+    return AIAdapterRegistry((default_adapter_factory(), local_ai_adapter))
+
+
+def get_command_orchestrator(
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    decision_engine: CommandDecisionEngine = Depends(get_command_decision_engine),
+    ai_router: AIRouter = Depends(get_ai_router),
+    ai_adapters: AIAdapterRegistry = Depends(get_ai_adapter_registry),
+    error_normalizer: OrchestrationErrorNormalizer = Depends(
+        get_orchestration_error_normalizer
+    ),
+    response_composer: ResponseComposer = Depends(get_response_composer),
+    tool_module_router: ToolModuleRouter = Depends(get_tool_module_router),
+) -> CommandOrchestrator:
+    """Compose D29 only at the existing chat input boundary."""
+    return CommandOrchestrator(
+        conversation_service=conversation_service,
+        decision_engine=decision_engine,
+        ai_router=ai_router,
+        ai_adapters=ai_adapters,
+        error_normalizer=error_normalizer,
+        response_composer=response_composer,
+        tool_module_router=tool_module_router,
+    )
 
 
 def get_command_input_pipeline(

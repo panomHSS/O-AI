@@ -166,7 +166,7 @@ class ConversationMemoryTests(unittest.TestCase):
         self.provider.should_fail = True
         status_code, _, body = self.send_message("audit this user message")
         self.assertEqual(status_code, 502)
-        self.assertEqual(body["error"]["code"], "CHAT_PROVIDER_UNAVAILABLE")
+        self.assertEqual(body["error"]["code"], "CHATGPT_UNAVAILABLE")
         _, _, listing = self.request("/api/v1/conversations")
         conversation_id = listing["data"][0]["id"]
         _, _, detail = self.get_detail(conversation_id)

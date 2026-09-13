@@ -334,3 +334,13 @@ Add a pure internal D28 `OrchestrationErrorNormalizer` and `ResponseComposer`. T
 
 **Consequences**
 `blocked` stays distinct from `failed`: owner-approval outcomes retain `Result.status = "blocked"`. Normalized error results retain only a stable error code, never raw exception text or arbitrary adapter error detail. Explicit Local AI failures remain local-only and cannot cause cloud fallback. Both services are deterministic, ephemeral, side-effect free, and exposed through dependency injection only; they do not alter FastAPI exception handlers, public envelopes, D24/D27 routing, adapter invocation, tool execution, or the chat pipeline. Rollback removes these internal services, contracts, tests, and documentation without data or public API migration.
+
+## ADR-021: End-to-end orchestration with selected AI and guarded Tool execution
+
+**Decision**
+Add `CommandOrchestrator` as the D29 coordinator for validated chat commands. It obtains a D23 decision, D24 route, and a selected adapter from a DI-composed AI Adapter v1 registry before delegating exactly one turn to `ConversationService`. The selected adapter is passed explicitly per turn, so `ConversationService` retains its existing persistence, context, analysis, and project behavior without shared mutable provider state. Add a separate structured Tool/Module execution lane that invokes only a D27-selected registered adapter.
+
+**Consequences**
+The registry rejects duplicate IDs and unsupported contract versions; missing selected adapters fail closed. Local AI becomes route-available only when deployment configuration enables it, while runtime/model checks remain inside `LocalAIAdapter`. Explicit Local AI failure never falls back to ChatGPT. D28 normalizes terminal outcomes before safe API error presentation, preserving the request ID and excluding raw error details.
+
+The existing `/api/v1/chat` endpoint and success response stay intact. No `ExecutionPlan` is created from chat input and normal chat does not execute tools. The guarded tool lane permits only separately supplied structured plans and preserves blocked/unavailable/rejected non-execution. This introduces no autonomous behavior, side-effect tool, data migration, public API schema change, or new deployment dependency.

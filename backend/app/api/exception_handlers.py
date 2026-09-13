@@ -19,6 +19,7 @@ from app.services.project_update_proposals import (
     ProjectUpdateProposalValidationError,
 )
 from app.services.project_context import ProjectContextUnavailableError
+from app.services.command_orchestrator import CommandOrchestrationFailure
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,30 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ChatProviderError)
     async def handle_chat_provider_error(_: Request, error: ChatProviderError) -> JSONResponse:
         return error_response(status.HTTP_502_BAD_GATEWAY, "CHAT_PROVIDER_UNAVAILABLE", str(error))
+
+    @app.exception_handler(CommandOrchestrationFailure)
+    async def handle_command_orchestration_failure(
+        _: Request, error: CommandOrchestrationFailure
+    ) -> JSONResponse:
+        result = error.response.result
+        status_code = (
+            status.HTTP_409_CONFLICT
+            if result.status == "blocked"
+            else (
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+                if result.error == "INTERNAL_ERROR"
+                else (
+                    status.HTTP_502_BAD_GATEWAY
+                    if result.error == "CHATGPT_UNAVAILABLE"
+                    else status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            )
+        )
+        return error_response(
+            status_code,
+            result.error or "INTERNAL_ERROR",
+            error.response.message,
+        )
 
     @app.exception_handler(ConversationNotFoundError)
     async def handle_conversation_not_found(_: Request, error: ConversationNotFoundError) -> JSONResponse:

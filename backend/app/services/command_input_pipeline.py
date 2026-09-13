@@ -83,7 +83,7 @@ class CommandInputPipeline:
                 "D22 only accepts the chat.message command."
             )
 
-        message, conversation_id, project_id = self._validated_chat_arguments(
+        message, conversation_id, project_id = self.validated_chat_arguments(
             command
         )
         decision = self._decision_engine.decide(command)
@@ -120,7 +120,7 @@ class CommandInputPipeline:
             )
 
     @staticmethod
-    def _validated_chat_arguments(
+    def validated_chat_arguments(
         command: CommandRequest,
     ) -> tuple[str, UUID | None, UUID | None]:
         if not command.request_id:

@@ -3,7 +3,10 @@ import unittest
 from uuid import UUID
 
 from app.api.dependencies import get_command_input_pipeline
+from app.api.dependencies import get_command_orchestrator
+from app.contracts.command import Response, Result
 from app.services.command_input_pipeline import CommandInputPipeline
+from app.services.command_orchestrator import CommandOrchestrationOutcome
 from app.services.conversations import ChatTurnResult
 from app.main import app
 from tests.test_api_standardization import invoke_app
@@ -37,6 +40,26 @@ class CapturingCommandInputPipeline(CommandInputPipeline):
         return command
 
 
+class RecordingCommandOrchestrator:
+    def __init__(self, conversation_service: RecordingConversationService) -> None:
+        self._conversation_service = conversation_service
+
+    def process_chat(self, command):
+        result = self._conversation_service.send_message(
+            command.arguments["message"],
+            command.arguments["conversation_id"],
+            command.arguments["project_id"],
+        )
+        return CommandOrchestrationOutcome(
+            Response(
+                request_id=command.request_id,
+                message=result.reply,
+                result=Result(command.request_id, "succeeded"),
+            ),
+            result,
+        )
+
+
 class ChatCommandInputIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         app.dependency_overrides.clear()
@@ -44,6 +67,9 @@ class ChatCommandInputIntegrationTests(unittest.TestCase):
         self.pipeline = CapturingCommandInputPipeline(self.conversation_service)
         app.dependency_overrides[get_command_input_pipeline] = (
             lambda: self.pipeline
+        )
+        app.dependency_overrides[get_command_orchestrator] = (
+            lambda: RecordingCommandOrchestrator(self.conversation_service)
         )
 
     def tearDown(self) -> None:

@@ -63,3 +63,7 @@ class ToolModuleRouter:
             adapter_id=plan.adapter_id,
             reason_code="adapter_selected",
         )
+
+    def get_adapter(self, adapter_id: str) -> ToolAdapter | ModuleAdapter | None:
+        """Resolve a registered adapter for separately approved orchestration."""
+        return self._adapters.get(adapter_id)

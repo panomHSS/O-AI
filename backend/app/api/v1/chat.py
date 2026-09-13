@@ -4,11 +4,16 @@ from fastapi import APIRouter, Depends, Request, status
 
 from app.api.dependencies import (
     get_command_input_pipeline,
+    get_command_orchestrator,
     get_project_update_turn_orchestrator,
 )
 from app.schemas.api import ApiSuccess
 from app.schemas.chat import ChatRequest, ChatResponse, MemoryUsageResponse
 from app.services.command_input_pipeline import CommandInputPipeline
+from app.services.command_orchestrator import (
+    CommandOrchestrator,
+    CommandOrchestrationFailure,
+)
 from app.services.project_update_orchestrator import (
     ProjectUpdateTurnInput,
     ProjectUpdateTurnOrchestrator,
@@ -29,6 +34,10 @@ def send_chat_message(
         CommandInputPipeline,
         Depends(get_command_input_pipeline),
     ],
+    command_orchestrator: Annotated[
+        CommandOrchestrator,
+        Depends(get_command_orchestrator),
+    ],
     project_update_orchestrator: Annotated[
         ProjectUpdateTurnOrchestrator,
         Depends(get_project_update_turn_orchestrator),
@@ -41,7 +50,10 @@ def send_chat_message(
         conversation_id=payload.conversation_id,
         project_id=payload.project_id,
     )
-    result = command_input_pipeline.process_chat(command)
+    outcome = command_orchestrator.process_chat(command)
+    if outcome.chat_turn is None:
+        raise CommandOrchestrationFailure(outcome.response)
+    result = outcome.chat_turn
 
     project_update_proposal = None
 
