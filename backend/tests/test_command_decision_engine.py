@@ -78,6 +78,31 @@ class CommandDecisionEngineTests(unittest.TestCase):
 
         self.assertEqual(decision.provider_preference_hint, "unspecified")
 
+    def test_negated_routing_phrases_are_unspecified(self) -> None:
+        for message in (
+            "Don't use local AI for this command.",
+            "Do not route this command automatically.",
+        ):
+            with self.subTest(message=message):
+                decision = self.engine.decide(self._chat_command(message))
+                self.assertEqual(
+                    decision.provider_preference_hint,
+                    "unspecified",
+                )
+
+    def test_quoted_or_example_routing_phrases_are_unspecified(self) -> None:
+        for message in (
+            'The phrase "route this command to local AI" is an example.',
+            "For example: use automatic provider routing for this command.",
+            "`route this command automatically` is documentation text.",
+        ):
+            with self.subTest(message=message):
+                decision = self.engine.decide(self._chat_command(message))
+                self.assertEqual(
+                    decision.provider_preference_hint,
+                    "unspecified",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,7 @@
 """Deterministic, side-effect-free D23 command decision engine."""
 
+import re
+
 from app.contracts.command import CommandRequest
 from app.contracts.command_decision import (
     CommandDecision,
@@ -21,6 +23,19 @@ _AUTOMATIC_ROUTING_PHRASES = (
     "route this chat message automatically",
     "use automatic provider routing for this command",
     "use automatic provider routing for this chat message",
+)
+_NEGATION_PREFIXES = (
+    "don't ",
+    "do not ",
+    "never ",
+)
+_EXAMPLE_PREFIXES = (
+    "example: ",
+    "for example: ",
+    "for example, ",
+)
+_QUOTED_SEGMENTS = re.compile(
+    r'"[^"]*"|“[^”]*”|`[^`]*`|(?<!\w)\'[^\']*\'(?!\w)'
 )
 
 
@@ -56,14 +71,32 @@ class CommandDecisionEngine:
             return "unspecified"
 
         normalized = " ".join(message.casefold().split())
+        if CommandDecisionEngine._contains_negated_or_example_phrase(
+            normalized
+        ):
+            return "unspecified"
+
+        unquoted = _QUOTED_SEGMENTS.sub(" ", normalized)
         local_requested = any(
-            phrase in normalized for phrase in _LOCAL_AI_ROUTING_PHRASES
+            phrase in unquoted for phrase in _LOCAL_AI_ROUTING_PHRASES
         )
         automatic_requested = any(
-            phrase in normalized for phrase in _AUTOMATIC_ROUTING_PHRASES
+            phrase in unquoted for phrase in _AUTOMATIC_ROUTING_PHRASES
         )
 
         if local_requested == automatic_requested:
             return "unspecified"
 
         return "local_ai_explicit" if local_requested else "automatic"
+
+    @staticmethod
+    def _contains_negated_or_example_phrase(message: str) -> bool:
+        routing_phrases = (
+            *_LOCAL_AI_ROUTING_PHRASES,
+            *_AUTOMATIC_ROUTING_PHRASES,
+        )
+        return any(
+            f"{prefix}{phrase}" in message
+            for prefix in (*_NEGATION_PREFIXES, *_EXAMPLE_PREFIXES)
+            for phrase in routing_phrases
+        )
