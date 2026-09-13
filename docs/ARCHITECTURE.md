@@ -68,6 +68,7 @@ The backend is a Python/FastAPI service under `backend/app`.
 | `models/` | Persistence-facing domain entities when storage is introduced. |
 | `schemas/` | Pydantic request and response contracts. |
 | `services/` | Business use cases and provider-neutral orchestration. |
+| `contracts/` | Internal versioned protocols and immutable values for future AI, tool/module, and command boundaries. |
 | `main.py` | FastAPI application assembly and middleware registration. |
 
 Endpoints live below a versioned API prefix. Schemas form the public contract; services keep endpoint handlers thin. Health checks remain independent from future AI or integration services so operational status can be observed without invoking product features.
@@ -153,6 +154,26 @@ Goals and projects are owner-controlled concepts, not commands. GoalAnalysis is 
 For normal chat, selected provider input may include recent conversation history, the current user message, runtime Reasoning/Planning/Decision/Goal metadata, selected CONFIRMED Personal Memory values, and selected Knowledge evidence for grounded answers. This repository does not establish an external provider's retention or training policy. API memory-usage metadata exposes only memory ID, version, and key; it does not expose selected values.
 
 O-AI supports a trusted local, single-owner deployment model. The default Docker deployment binds the frontend and backend published ports to the Windows host loopback interface, so the supported browser is on that same host. LAN/mobile and public/Internet access are intentionally unsupported until a separately designed security boundary exists. Knowledge scans require the fixed `X-OAI-Local-Request: 1` marker: it is not a credential, but makes browser scan requests preflighted so an unapproved origin cannot authorize the scan request through CORS. It does not protect against local software or processes. There is currently no authentication or authorization layer; localhost binding does not limit access by local processes or OS users. SQLite plus FTS5 is intentional for the supported workload. PostgreSQL, Redis, vector databases, distributed workers, microservices, Kubernetes, an async rewrite, and local-LLM infrastructure are deliberately deferred until evidence requires them.
+
+## Adapter and command contracts v1
+
+D21 adds internal, provider-neutral contracts under `backend/app/contracts` without changing the active chat path:
+
+```mermaid
+flowchart LR
+    CR["CommandRequest"] --> EP["ExecutionPlan"]
+    EP --> Adapter["ToolAdapter or ModuleAdapter"]
+    Adapter --> Result["Result"]
+    Result --> Response["Response"]
+```
+
+AI Adapter Contract v1 consists of immutable `AIRequest` and `AIResult` values plus the structural `AIAdapter.generate(request)` protocol. It is a future adapter boundary only. Normal chat continues to use `ChatProvider.generate_reply(message: str) -> str`, and `OpenAIChatProvider` remains composed exactly as before. No adapter bridge or chat migration is present in D21.
+
+Tool/Module Adapter Contract v1 defines separate structural `ToolAdapter` and `ModuleAdapter` protocols. Both accept the shared `CommandRequest` and `ExecutionPlan` contracts and return `Result`; `Response` is the presentation-neutral final command envelope. These contracts contain no provider SDK, HTTP, database, model, repository, or frontend type.
+
+The command flow is declarative, not an execution engine. Constructing a request or plan has no side effect, `ExecutionPlan.owner_approval_required` defaults to `True`, and the repository contains no D21 dispatcher, scheduler, autonomous loop, adapter registration, or runtime wiring. A future caller must enforce owner approval and capability policy before explicitly invoking an adapter. Local AI installation and integration are deferred.
+
+The boundaries are additive and internal: there is no public API or data migration. Rollback removes the contract modules, their tests, and this documentation without affecting persisted data or HTTP clients. Any future adapter implementation, command orchestrator, chat migration, external integration, or side effect requires a separately approved architecture change.
 
 ## Architecture Review 1.0
 
