@@ -310,3 +310,11 @@ Add `ChatGPTAdapter` as the concrete `AIAdapter Contract v1` implementation for 
 
 **Consequences**
 Composition now gives `ChatService` the adapter rather than the provider directly. The adapter also exposes the unchanged `generate_reply(str) -> str` compatibility shim, so `ChatService`, `ConversationService`, and the public chat API retain their current behavior. Provider and configuration errors are deliberately not caught or remapped by the adapter, preserving their established handling. This adds no Local AI, registry, generic execution, D26 invocation, provider SDK work, persistence, or public API change.
+
+## ADR-018: Local AI runtime adapter and isolated telemetry
+
+**Decision**
+Add a provider-neutral Local AI runtime client contract, an Ollama HTTP implementation, and `LocalAIAdapter` for the stable `local_ai.default` AI Adapter v1 identity. Runtime URL, model, timeout, context, and enablement are deployment configuration; no model-storage path is encoded in O-AI. Add `SystemMetricsProvider` as an isolated, best-effort telemetry boundary using `psutil` and NVIDIA tooling where available.
+
+**Consequences**
+The adapter fails closed when Local AI is disabled, offline, missing its configured model, times out, or returns malformed/empty output. It never falls back to cloud AI. Metrics record CPU/RAM/GPU/VRAM plus runtime/model activity when available, but telemetry failures are swallowed and never affect inference. D24 continues to select only; no registry, generic executor, or chat-path invocation is introduced. Moving Ollama to O-SERVER later changes only deployment configuration.

@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
+from app.adapters.local_ai import LocalAIAdapter
+from app.adapters.ollama_runtime import OllamaRuntimeClient
 from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.readers import create_document_reader_registry
@@ -23,6 +25,7 @@ from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
 from app.services.ai_router import AIRouter
 from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
+from app.telemetry.system_metrics import SystemMetricsProvider
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ConversationService
@@ -164,6 +167,23 @@ def get_ai_router() -> AIRouter:
     return AIRouter(
         default_adapter_id=CHATGPT_DEFAULT_ADAPTER_ID,
         available_adapter_ids=(CHATGPT_DEFAULT_ADAPTER_ID,),
+    )
+
+
+def get_local_ai_adapter() -> LocalAIAdapter:
+    """Compose D26 Local AI without changing D24 route execution behavior."""
+    settings = get_settings()
+    runtime_client = OllamaRuntimeClient(base_url=settings.oai_local_ai_base_url)
+    return LocalAIAdapter(
+        runtime_client=runtime_client,
+        enabled=settings.oai_local_ai_enabled,
+        model=settings.oai_local_ai_model,
+        timeout_seconds=settings.oai_local_ai_timeout_seconds,
+        context_length=settings.oai_local_ai_context_length,
+        metrics_collector=SystemMetricsProvider(
+            runtime_client=runtime_client,
+            model=settings.oai_local_ai_model,
+        ),
     )
 
 
