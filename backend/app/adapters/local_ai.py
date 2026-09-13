@@ -26,11 +26,19 @@ class LocalAIResponseError(LocalAIAdapterError):
     """Raised when Local AI cannot return a valid response."""
 
 
-class MetricsCollector(Protocol):
+class InferenceTelemetrySession(Protocol):
+    """Best-effort session boundary used around one local inference."""
+
+    def stop(self) -> None:
+        """Stop sampling and mark the inference session idle."""
+        ...
+
+
+class InferenceTelemetryProvider(Protocol):
     """Optional telemetry boundary kept separate from inference behavior."""
 
-    def collect(self) -> object:
-        """Collect best-effort host metrics."""
+    def start_inference_session(self) -> InferenceTelemetrySession:
+        """Start best-effort telemetry without blocking inference."""
         ...
 
 
@@ -48,19 +56,20 @@ class LocalAIAdapter:
         model: str,
         timeout_seconds: float,
         context_length: int,
-        metrics_collector: MetricsCollector | None = None,
+        telemetry_provider: InferenceTelemetryProvider | None = None,
     ) -> None:
         self._runtime_client = runtime_client
         self._enabled = enabled
         self._model = model
         self._timeout_seconds = timeout_seconds
         self._context_length = context_length
-        self._metrics_collector = metrics_collector
+        self._telemetry_provider = telemetry_provider
 
     def generate(self, request: AIRequest) -> AIResult:
         """Generate locally after fail-closed runtime and model checks."""
+        self._require_available()
+        telemetry_session = self._start_telemetry_session()
         try:
-            self._require_available()
             try:
                 content = self._runtime_client.generate(
                     model=self._model,
@@ -79,7 +88,11 @@ class LocalAIAdapter:
                 raise LocalAIResponseError("Local AI returned an invalid response.")
             return AIResult(content=content.strip())
         finally:
-            self._collect_metrics_safely()
+            if telemetry_session is not None:
+                try:
+                    telemetry_session.stop()
+                except Exception:
+                    pass
 
     def _require_available(self) -> None:
         if not self._enabled:
@@ -99,10 +112,10 @@ class LocalAIAdapter:
         if not model_available:
             raise LocalAIUnavailableError("Local AI model is unavailable.")
 
-    def _collect_metrics_safely(self) -> None:
-        if self._metrics_collector is None:
-            return
+    def _start_telemetry_session(self) -> InferenceTelemetrySession | None:
+        if self._telemetry_provider is None:
+            return None
         try:
-            self._metrics_collector.collect()
+            return self._telemetry_provider.start_inference_session()
         except Exception:
-            return
+            return None

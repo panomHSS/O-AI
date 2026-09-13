@@ -1,8 +1,9 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+import time
 
-from app.telemetry.system_metrics import SystemMetricsProvider
+from app.telemetry.system_metrics import SystemMetrics, SystemMetricsProvider
 
 
 class StatusRuntime:
@@ -42,7 +43,7 @@ class SystemMetricsProviderTests(unittest.TestCase):
         self.assertEqual(metrics.vram_used_mib, 6144)
         self.assertEqual(metrics.vram_total_mib, 12288)
         self.assertEqual(metrics.vram_percent, 50.0)
-        self.assertEqual(metrics.activity_status, "ACTIVE")
+        self.assertEqual(metrics.activity_status, "IDLE")
         self.assertEqual(metrics.runtime_status, "ONLINE")
         self.assertEqual(metrics.model_status, "LOADED")
 
@@ -61,6 +62,37 @@ class SystemMetricsProviderTests(unittest.TestCase):
         self.assertIsNone(metrics.vram_percent)
         self.assertEqual(metrics.runtime_status, "OFFLINE")
         self.assertEqual(metrics.model_status, "IDLE")
+
+    def test_session_samples_during_activity_and_retains_latest_peaks(self) -> None:
+        provider = SystemMetricsProvider(sample_interval_seconds=0.01)
+        samples = iter(
+            (
+                SystemMetrics(10.0, 20.0, 30.0, 100, 1000, 10.0, "ACTIVE", "ONLINE", "LOADED"),
+                SystemMetrics(40.0, 50.0, 60.0, 700, 1000, 70.0, "ACTIVE", "ONLINE", "LOADED"),
+            )
+        )
+        provider.collect = Mock(side_effect=lambda **_: next(samples))  # type: ignore[method-assign]
+
+        session = provider.start_inference_session()
+        for _ in range(50):
+            if provider.latest_summary.sample_count >= 2:
+                break
+            time.sleep(0.01)
+
+        active_summary = provider.latest_summary
+        self.assertEqual(active_summary.activity_status, "ACTIVE")
+        self.assertGreaterEqual(active_summary.sample_count, 2)
+        self.assertEqual(active_summary.peak_cpu_percent, 40.0)
+        self.assertEqual(active_summary.peak_ram_percent, 50.0)
+        self.assertEqual(active_summary.peak_gpu_percent, 60.0)
+        self.assertEqual(active_summary.peak_vram_used_mib, 700)
+        self.assertEqual(active_summary.peak_vram_percent, 70.0)
+
+        session.stop()
+
+        idle_summary = provider.latest_summary
+        self.assertEqual(idle_summary.activity_status, "IDLE")
+        self.assertEqual(idle_summary.latest.activity_status, "IDLE")  # type: ignore[union-attr]
 
 
 if __name__ == "__main__":

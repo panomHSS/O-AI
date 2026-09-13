@@ -1,4 +1,6 @@
 import unittest
+import time
+from unittest.mock import Mock
 
 from app.adapters.local_ai import (
     LocalAIAdapter,
@@ -11,6 +13,7 @@ from app.contracts.local_ai_runtime import (
     LocalAIRuntimeTimeoutError,
     LocalAIRuntimeUnavailableError,
 )
+from app.telemetry.system_metrics import SystemMetrics, SystemMetricsProvider
 
 
 class StubRuntimeClient:
@@ -44,9 +47,30 @@ class StubRuntimeClient:
         return self.result  # type: ignore[return-value]
 
 
-class FailingMetricsCollector:
-    def collect(self) -> object:
+class FailingTelemetryProvider:
+    def start_inference_session(self) -> object:
         raise RuntimeError("metrics failure")
+
+
+class RecordingTelemetrySession:
+    def __init__(self, provider: "RecordingTelemetryProvider") -> None:
+        self._provider = provider
+
+    def stop(self) -> None:
+        self._provider.active = False
+        self._provider.stopped = True
+
+
+class RecordingTelemetryProvider:
+    def __init__(self) -> None:
+        self.active = False
+        self.stopped = False
+        self.samples = 0
+
+    def start_inference_session(self) -> RecordingTelemetrySession:
+        self.active = True
+        self.samples += 1
+        return RecordingTelemetrySession(self)
 
 
 class LocalAIAdapterTests(unittest.TestCase):
@@ -115,10 +139,65 @@ class LocalAIAdapterTests(unittest.TestCase):
     def test_telemetry_failure_never_fails_successful_inference(self) -> None:
         result = self.make_adapter(
             StubRuntimeClient(),
-            metrics_collector=FailingMetricsCollector(),
+            telemetry_provider=FailingTelemetryProvider(),
         ).generate(AIRequest(content="hello"))
 
         self.assertEqual(result.content, "local reply")
+
+    def test_telemetry_is_active_during_generation_and_idle_afterward(self) -> None:
+        telemetry = RecordingTelemetryProvider()
+
+        class RuntimeCheckingTelemetry(StubRuntimeClient):
+            def generate(self, **kwargs: object) -> str:
+                self.assertTrue(telemetry.active)  # type: ignore[attr-defined]
+                self.assertGreater(telemetry.samples, 0)  # type: ignore[attr-defined]
+                return super().generate(**kwargs)
+
+        runtime = RuntimeCheckingTelemetry()
+        runtime.assertTrue = self.assertTrue  # type: ignore[attr-defined]
+        runtime.assertGreater = self.assertGreater  # type: ignore[attr-defined]
+
+        self.make_adapter(runtime, telemetry_provider=telemetry).generate(
+            AIRequest(content="hello")
+        )
+
+        self.assertTrue(telemetry.stopped)
+        self.assertFalse(telemetry.active)
+
+    def test_system_sampler_records_a_sample_while_runtime_generate_runs(self) -> None:
+        telemetry = SystemMetricsProvider(sample_interval_seconds=0.01)
+        telemetry.collect = Mock(  # type: ignore[method-assign]
+            return_value=SystemMetrics(
+                10.0,
+                20.0,
+                30.0,
+                100,
+                1000,
+                10.0,
+                "ACTIVE",
+                "ONLINE",
+                "LOADED",
+            )
+        )
+        observed_activity: list[str] = []
+
+        class RuntimeWaitingForSample(StubRuntimeClient):
+            def generate(self, **kwargs: object) -> str:
+                for _ in range(50):
+                    summary = telemetry.latest_summary
+                    if summary.sample_count:
+                        observed_activity.append(summary.activity_status)
+                        break
+                    time.sleep(0.01)
+                return super().generate(**kwargs)
+
+        self.make_adapter(
+            RuntimeWaitingForSample(),
+            telemetry_provider=telemetry,
+        ).generate(AIRequest(content="hello"))
+
+        self.assertEqual(observed_activity, ["ACTIVE"])
+        self.assertEqual(telemetry.latest_summary.activity_status, "IDLE")
 
 
 if __name__ == "__main__":

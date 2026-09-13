@@ -180,7 +180,7 @@ def get_local_ai_adapter() -> LocalAIAdapter:
         model=settings.oai_local_ai_model,
         timeout_seconds=settings.oai_local_ai_timeout_seconds,
         context_length=settings.oai_local_ai_context_length,
-        metrics_collector=SystemMetricsProvider(
+        telemetry_provider=SystemMetricsProvider(
             runtime_client=runtime_client,
             model=settings.oai_local_ai_model,
         ),
