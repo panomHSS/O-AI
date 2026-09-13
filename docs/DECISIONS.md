@@ -302,3 +302,11 @@ Add the internal, provider-neutral D24 `AIRouter`, which receives only `CommandD
 D22 retains its exact command and argument validation, then calls D23 and D24 before delegating. Only the selected `chatgpt.default` logical route continues through the existing `ConversationService` compatibility path. An unavailable Local AI route, or a selected Local AI route without the future D26 invocation implementation, stops before `ConversationService` and provider calls.
 
 D24 adds no Local AI runtime, provider SDK, selection implementation, adapter invocation, public API change, persistence, execution plan, tool execution, or autonomous behavior. Route decisions are internal and ephemeral. D25/D26 are separately approved future work.
+
+## ADR-017: ChatGPT adapter bridge
+
+**Decision**
+Add `ChatGPTAdapter` as the concrete `AIAdapter Contract v1` implementation for the stable `chatgpt.default` ID and contract version `1`. It wraps the existing `OpenAIChatProvider`, translating only `AIRequest.content` to the provider's existing `generate_reply()` call and returning its text as `AIResult.content`.
+
+**Consequences**
+Composition now gives `ChatService` the adapter rather than the provider directly. The adapter also exposes the unchanged `generate_reply(str) -> str` compatibility shim, so `ChatService`, `ConversationService`, and the public chat API retain their current behavior. Provider and configuration errors are deliberately not caught or remapped by the adapter, preserving their established handling. This adds no Local AI, registry, generic execution, D26 invocation, provider SDK work, persistence, or public API change.

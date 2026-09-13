@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.adapters.chatgpt import ChatGPTAdapter
 from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.readers import create_document_reader_registry
@@ -94,7 +95,7 @@ def get_chat_service() -> ChatService:
     )
 
     return ChatService(
-        provider=provider,
+        provider=ChatGPTAdapter(provider),
     )
 
 
