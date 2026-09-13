@@ -57,10 +57,11 @@ class InferenceTelemetrySession:
         self._interval_seconds = interval_seconds
         self._stop_event = Event()
         self._thread: Thread | None = None
+        self._session_id: int | None = None
 
     def start(self) -> None:
         """Mark inference active and start non-blocking periodic sampling."""
-        self._provider._mark_active()
+        self._session_id = self._provider._begin_session()
         self._thread = Thread(target=self._sample_until_stopped, daemon=True)
         self._thread.start()
 
@@ -69,12 +70,14 @@ class InferenceTelemetrySession:
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=0.1)
-        self._provider._mark_idle()
+        if self._session_id is not None:
+            self._provider._mark_idle(self._session_id)
 
     def _sample_until_stopped(self) -> None:
         while not self._stop_event.is_set():
             try:
-                self._provider._record_active_sample()
+                if self._session_id is not None:
+                    self._provider._record_active_sample(self._session_id)
             except Exception:
                 pass
             self._stop_event.wait(self._interval_seconds)
@@ -94,6 +97,7 @@ class SystemMetricsProvider:
         self._model = model
         self._sample_interval_seconds = sample_interval_seconds
         self._lock = Lock()
+        self._active_session_id = 0
         self._summary = InferenceTelemetrySummary(
             activity_status="IDLE",
             sample_count=0,
@@ -143,12 +147,25 @@ class SystemMetricsProvider:
             model_status=model_status,
         )
 
-    def _mark_active(self) -> None:
+    def _begin_session(self) -> int:
         with self._lock:
-            self._summary = replace(self._summary, activity_status="ACTIVE")
+            self._active_session_id += 1
+            self._summary = InferenceTelemetrySummary(
+                activity_status="ACTIVE",
+                sample_count=0,
+                latest=None,
+                peak_cpu_percent=None,
+                peak_ram_percent=None,
+                peak_gpu_percent=None,
+                peak_vram_used_mib=None,
+                peak_vram_percent=None,
+            )
+            return self._active_session_id
 
-    def _mark_idle(self) -> None:
+    def _mark_idle(self, session_id: int) -> None:
         with self._lock:
+            if self._active_session_id != session_id:
+                return
             latest = self._summary.latest
             if latest is not None:
                 latest = replace(latest, activity_status="IDLE")
@@ -158,11 +175,14 @@ class SystemMetricsProvider:
                 latest=latest,
             )
 
-    def _record_active_sample(self) -> None:
+    def _record_active_sample(self, session_id: int) -> None:
         sample = self.collect(activity_status="ACTIVE")
         with self._lock:
             current = self._summary
-            if current.activity_status != "ACTIVE":
+            if (
+                self._active_session_id != session_id
+                or current.activity_status != "ACTIVE"
+            ):
                 return
             self._summary = InferenceTelemetrySummary(
                 activity_status="ACTIVE",
