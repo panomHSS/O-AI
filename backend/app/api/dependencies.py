@@ -21,6 +21,7 @@ from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
 from app.services.ai_router import AIRouter
+from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ConversationService
@@ -158,8 +159,11 @@ def get_command_decision_engine() -> CommandDecisionEngine:
 
 
 def get_ai_router() -> AIRouter:
-    """Compose D24 route selection with no Local AI runtime installed."""
-    return AIRouter(local_ai_available=False)
+    """Compose D24 routing with only the current ChatGPT route available."""
+    return AIRouter(
+        default_adapter_id=CHATGPT_DEFAULT_ADAPTER_ID,
+        available_adapter_ids=(CHATGPT_DEFAULT_ADAPTER_ID,),
+    )
 
 
 def get_command_input_pipeline(

@@ -217,9 +217,9 @@ The existing `ReasoningService` and explanatory `DecisionService` remain indepen
 
 D24 adds `AIRouter`, a pure route-selection layer that accepts only a `CommandDecision`; it never re-reads user input. It returns an internal `AIRouteDecision` with one of `selected`, `unavailable`, or `rejected` and a stable logical adapter ID where applicable.
 
-`unspecified` and `automatic` select `chatgpt.default`, preserving the existing `ConversationService` chat compatibility path. `local_ai_explicit` selects only `local_ai.default`. Since D24 deliberately installs no Local AI runtime or invocation adapter, an unavailable Local AI route stops before conversation/provider work; an available Local AI route is selected but likewise stops before invocation until D25. It never silently falls back to ChatGPT.
+`unspecified` selects the configured default with selection source `default`; `automatic` selects that same default with source `automatic`. The current composition makes `chatgpt.default` available and `local_ai.default` unavailable. `local_ai_explicit` selects only the configured Local AI ID with source `explicit`. An unavailable Local AI route stops before conversation/provider work; an available Local AI route is selected but likewise stops before invocation until D26. It never silently falls back to ChatGPT.
 
-D23 `reject` decisions and malformed decisions produce a fail-closed D24 `rejected` route. The router has no provider, adapter, database, HTTP, logging, persistence, tool/module, execution, or external dependency. It creates no execution plan and does not start D25/D26.
+D23 `reject` decisions and malformed decisions produce a fail-closed D24 `rejected` route. Rejected and unavailable decisions have no selection source. The router has no provider, adapter, database, HTTP, logging, persistence, tool/module, execution, or external dependency. It creates no execution plan and does not start D25/D26.
 
 ## Architecture Review 1.0
 

@@ -7,6 +7,7 @@ from typing import Literal, TypeAlias
 
 
 AIRouteStatus: TypeAlias = Literal["selected", "unavailable", "rejected"]
+AIRouteSelectionSource: TypeAlias = Literal["default", "automatic", "explicit"]
 
 CHATGPT_DEFAULT_ADAPTER_ID = "chatgpt.default"
 LOCAL_AI_ADAPTER_ID = "local_ai.default"
@@ -19,4 +20,5 @@ class AIRouteDecision:
     request_id: str
     status: AIRouteStatus
     adapter_id: str | None
+    selection_source: AIRouteSelectionSource | None
     reason_code: str

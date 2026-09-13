@@ -41,7 +41,7 @@ class AIRouteUnavailableError(CommandInputError):
 
 
 class AIRouteNotExecutableError(CommandInputError):
-    """Raised when D24 selects a route with no D25 invocation path."""
+    """Raised when D24 selects a route with no D26 invocation path."""
 
 
 class CommandInputPipeline:

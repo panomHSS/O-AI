@@ -169,7 +169,7 @@ class CommandInputPipelineTests(unittest.TestCase):
         pipeline = CommandInputPipeline(
             self.conversation_service,
             decision_engine,
-            AIRouter(local_ai_available=False),
+            AIRouter(),
         )
         command = pipeline.normalize_chat(
             request_id="request-1",
@@ -195,7 +195,9 @@ class CommandInputPipelineTests(unittest.TestCase):
         pipeline = CommandInputPipeline(
             self.conversation_service,
             decision_engine,
-            AIRouter(local_ai_available=True),
+            AIRouter(
+                available_adapter_ids=("chatgpt.default", "local_ai.default")
+            ),
         )
         command = pipeline.normalize_chat(
             request_id="request-1",
