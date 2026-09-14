@@ -436,3 +436,39 @@ Wrapping the entire payload in an additional doubled-quote pair can cause
 `cmd.exe` to exit before invoking `npm.cmd`, producing no listener and no
 stdout/stderr files. The backend launch form remains unchanged because its
 Python executable path itself is quoted.
+
+## Bounded read-only Tool Catalog v1 (D42)
+
+D42 expands the frozen Tool lane with five explicitly registered, read-only
+ToolAdapter capabilities: `system.info`, `system.health`, `filesystem.list`,
+`filesystem.stat`, and `filesystem.read_text`. The existing
+`tool.standard.echo` adapter remains for compatibility. D42 does not add a new
+execution path: every catalog adapter remains behind ExecutionPlanner,
+ExecutionGuard, ExecutionAuthorization, and ToolRuntime.
+
+Filesystem tools are rooted at the O-AI repository workspace and accept only
+relative paths. Requested paths are normalized, resolved, and verified to remain
+inside that root before access. Absolute paths, parent traversal, resolved
+escapes, and sensitive runtime/private areas (`.git`, `.venv`, `data`, `.env`,
+`frontend/.env.local`, and `frontend/node_modules`) are rejected. Directory
+listing and text reads are bounded (`200` visible entries and `256 KiB`
+respectively); oversized operations fail with stable safe reason codes rather
+than silently truncating. Text reading is UTF-8-only and does not perform OCR,
+archive extraction, format parsing, or encoding guessing.
+
+System tools expose only allowlisted structural facts and local runtime/project
+health. They do not return environment variables, usernames, home directories,
+secrets, raw configuration, or full executable paths, and they do not probe
+network providers, databases, OpenAI, or Local AI backends.
+
+D42 adds no public Tool API, approval UI, write operation, subprocess/shell
+execution, network request, dynamic adapter discovery, plugin bridge, database
+change, migration, frontend change, Docker change, or dependency. The frozen
+ownership remains: registry registers; planner plans; guard authorizes; runtime
+invokes exactly once; adapters perform only their focused approved operation.
+
+D42 adds two operational invariants:
+
+`TOOL REGISTERED != TOOL AUTHORIZED != TOOL EXECUTED`
+
+`PATH PROVIDED != PATH ALLOWED`

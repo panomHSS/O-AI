@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import Depends
 
@@ -9,6 +10,14 @@ from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
 from app.adapters.local_ai import LocalAIAdapter
 from app.adapters.standard_tool import StandardToolAdapter
+from app.adapters.filesystem_tools import (
+    FilesystemListToolAdapter,
+    FilesystemReadTextToolAdapter,
+    FilesystemStatToolAdapter,
+)
+from app.adapters.system_health_tool import SystemHealthToolAdapter
+from app.adapters.system_info_tool import SystemInfoToolAdapter
+from app.services.tool_filesystem_boundary import ToolFilesystemBoundary
 from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.readers import create_document_reader_registry
@@ -267,11 +276,25 @@ def get_standard_tool_adapter() -> StandardToolAdapter:
     return StandardToolAdapter()
 
 
+@lru_cache
+def get_tool_catalog_adapters() -> tuple[object, ...]:
+    """Compose the bounded D42 read-only Tool Catalog."""
+    workspace_root = Path(__file__).resolve().parents[3]
+    boundary = ToolFilesystemBoundary(workspace_root)
+    return (
+        SystemInfoToolAdapter(),
+        SystemHealthToolAdapter(workspace_root),
+        FilesystemListToolAdapter(boundary),
+        FilesystemStatToolAdapter(boundary),
+        FilesystemReadTextToolAdapter(boundary),
+    )
+
 def get_adapter_registry(
     conversation_service: ConversationService = Depends(get_conversation_service),
     chat_service: ChatService = Depends(get_chat_service),
     local_ai_adapter: LocalAIAdapter = Depends(get_local_ai_adapter),
     standard_tool_adapter: StandardToolAdapter = Depends(get_standard_tool_adapter),
+    tool_catalog_adapters: tuple[object, ...] = Depends(get_tool_catalog_adapters),
 ) -> AdapterRegistry:
     """Compose D31 while preserving the D29 default AI adapter seam."""
     default_adapter_factory = getattr(
@@ -284,6 +307,7 @@ def get_adapter_registry(
             default_adapter_factory(),
             local_ai_adapter,
             standard_tool_adapter,
+            *tool_catalog_adapters,
         )
     )
 

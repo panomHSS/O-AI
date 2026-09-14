@@ -600,3 +600,43 @@ payload begins directly with `npm.cmd`; only redirected log paths are quoted.
 An outer doubled-quote wrapper is not used because it can prevent Windows
 `cmd.exe` from invoking `npm.cmd`. This is a launch-mechanics fix only and does
 not change PID ownership, listener validation, or termination policy.
+
+## ADR-034: Bounded read-only Tool Catalog v1
+
+**Decision**
+
+Introduce five focused ToolAdapter implementations for system information,
+system health, filesystem listing, filesystem metadata, and bounded UTF-8 text
+reading. Register them explicitly through the existing AdapterRegistry
+composition boundary. Preserve owner approval and ExecutionGuard authorization
+for every D42 Tool even though the catalog is read-only.
+
+Filesystem adapters share one workspace boundary rooted at the O-AI repository.
+Only relative paths are accepted. Resolution must prove the target remains
+inside the root and outside sensitive runtime/private areas before any read.
+Directory listing is capped at 200 visible entries and text reads at 256 KiB.
+Oversized, escaped, sensitive, missing, unsupported, or undecodable targets
+return stable safe error codes without raw exception text.
+
+**Context**
+
+D27 provided only a deterministic echo adapter, while D35-D40 established a
+planner/approval/authorization/runtime lane capable of safely invoking focused
+ToolAdapters. D42 is the first capability milestone that uses this frozen lane
+for useful local inspection without introducing side effects.
+
+**Rationale**
+
+Small read-only tools provide practical value while preserving the principle
+`READ BEFORE WRITE BEFORE EXECUTE`. One focused adapter per capability keeps
+future D44 permission/risk policy attachable to stable adapter IDs. Centralized
+filesystem containment prevents individual adapters from inventing inconsistent
+path rules.
+
+**Consequences**
+
+O-AI can inspect safe system metadata and approved workspace files through the
+existing guarded Tool runtime. Registration still does not imply authorization
+or execution. D42 intentionally does not add writes, shell/process execution,
+network operations, dynamic tool loading, public Tool APIs, UI, durable audit,
+or risk scoring; those remain later milestones.
