@@ -14,7 +14,7 @@ from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ChatTurnResult, ConversationService
 from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
 from app.services.response_composer import ResponseComposer
-from app.services.tool_module_router import ToolModuleRouter
+from app.services.tool_runtime import ToolRuntime
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +45,7 @@ class CommandOrchestrator:
         ai_adapters: AIAdapterRegistry,
         error_normalizer: OrchestrationErrorNormalizer,
         response_composer: ResponseComposer,
-        tool_module_router: ToolModuleRouter,
+        tool_runtime: ToolRuntime,
     ) -> None:
         self._conversation_service = conversation_service
         self._decision_engine = decision_engine
@@ -53,7 +53,7 @@ class CommandOrchestrator:
         self._ai_adapters = ai_adapters
         self._error_normalizer = error_normalizer
         self._response_composer = response_composer
-        self._tool_module_router = tool_module_router
+        self._tool_runtime = tool_runtime
 
     def process_chat(self, command: CommandRequest) -> CommandOrchestrationOutcome:
         """Run one validated chat command through its selected AI adapter once."""
@@ -96,7 +96,7 @@ class CommandOrchestrator:
         request: CommandRequest,
         authorization: ExecutionAuthorization,
     ) -> Response:
-        'Execute one Tool adapter only from a D36 authorized plan.'
+        """Execute one Tool only through the D38 runtime boundary."""
         authorization_error = (
             self._error_normalizer.normalize_execution_authorization(
                 authorization
@@ -104,37 +104,12 @@ class CommandOrchestrator:
         )
         if authorization_error is not None:
             return self._normalized(authorization_error).response
-        if (
-            authorization.target_kind != "tool"
-            or authorization.execution_plan is None
-        ):
-            return self._error(
-                "EXECUTION_AUTHORIZATION_REJECTED",
-                request.request_id,
-            ).response
 
-        plan = authorization.execution_plan
-        route = self._tool_module_router.route(request, plan)
-        route_error = self._error_normalizer.normalize_tool_route(route)
-        if route_error is not None:
-            return self._normalized(route_error).response
-        adapter = self._tool_module_router.get_adapter(route.adapter_id or "")
-        if adapter is None:
-            return self._error(
-                "TOOL_ROUTE_UNAVAILABLE",
-                request.request_id,
-            ).response
-        try:
-            return self._response_composer.compose_tool_result(
-                adapter.execute(request, plan)
-            )
-        except Exception as error:
-            return self._normalized(
-                self._error_normalizer.normalize_exception(
-                    request.request_id,
-                    error,
-                )
-            ).response
+        result = self._tool_runtime.execute(
+            request,
+            authorization,
+        )
+        return self._response_composer.compose_tool_result(result)
     def _normalized(self, error: NormalizedError) -> CommandOrchestrationOutcome:
         return CommandOrchestrationOutcome(self._response_composer.compose_error(error))
 

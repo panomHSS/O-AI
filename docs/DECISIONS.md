@@ -485,3 +485,20 @@ Keeping authorization separate from invocation preserves the D35/D36 security bo
 
 **Consequences**
 Raw `ExecutionPlan` values cannot invoke ModuleRuntime. Non-authorized, wrong-kind, mismatched, approval-gated, malformed, or unavailable Module executions fail closed without adapter invocation. Valid adapters run exactly once with no retry/fallback. Invalid adapter results and exceptions become safe failed `Result` values. Dynamic module discovery/loading, Plugin bridging, public APIs, UI, DB changes, migrations, observability, and multi-step execution remain out of scope.
+
+## ADR-030: Authorization-gated Tool Runtime
+
+**Decision**
+Route authorized Tool execution through a dedicated `ToolRuntime` that accepts D36 `ExecutionAuthorization`, resolves only registered Tool adapters from the D31 `AdapterRegistry`, revalidates execution-ready Tool plan boundaries, invokes the selected adapter exactly once, and returns validated provider-neutral D21 `Result` values. `CommandOrchestrator.execute_tool` delegates authorized execution to this runtime and remains responsible for normalization/response composition.
+
+**Context**
+D36 established plan-bound authorization and hardened the Tool boundary against raw plan execution. D37 established an authorization-gated Module runtime. Tool execution still lived inside `CommandOrchestrator` through the older D27 routing mechanism, leaving execution ownership asymmetric.
+
+**Alternatives**
+Keep Tool invocation inside the orchestrator, make D27 `ToolModuleRouter` the permanent execution owner, accept raw plans, introduce a second Tool registry, retry failed tools automatically, add Tool discovery/install mechanisms now, or combine Tool and Module runtime into one generic executable runtime.
+
+**Rationale**
+A dedicated Tool runtime creates the same security and lifecycle boundary as D37 while preserving Tool-specific adapter typing. D31 remains registration authority, D36 remains authorization authority, and D38 becomes Tool invocation authority. Keeping D27 for compatibility avoids an unnecessary removal/refactor during this milestone.
+
+**Consequences**
+Raw `ExecutionPlan` values cannot invoke ToolRuntime. Wrong-kind, non-authorized, mismatched, approval-gated, malformed, or unavailable Tool executions fail closed without adapter invocation. Valid adapters run exactly once with no retry/fallback. `CommandOrchestrator` no longer resolves or invokes Tool adapters directly. Public APIs, UI, databases, migrations, dynamic Tool loading, observability, and multi-step execution remain out of scope.

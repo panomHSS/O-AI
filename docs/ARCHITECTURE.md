@@ -321,6 +321,14 @@ Module loading in D37 v1 means resolving an already registered `ModuleAdapter` f
 
 The existing Plugin subsystem remains separate. `PluginRuntime`/`PluginRegistry` use their own Plugin contracts and lifecycle and are not modified or treated as ModuleAdapter runtime infrastructure. A future bridge may wrap Plugin functionality behind a `ModuleAdapter`, but D37 v1 does not add that bridge.
 
+## Authorization-gated Tool Runtime (D38)
+
+D38 introduces a dedicated `ToolRuntime` that mirrors the D37 Module runtime boundary. It accepts `CommandRequest` plus D36 `ExecutionAuthorization`, rejects raw execution plans, revalidates authorized Tool target kind, request/authorization/plan identity, the `tool.execute` command, execution-ready approval state, the D35 v1 one-step shape, and Tool adapter registration through the D31 `AdapterRegistry`.
+
+`ToolRuntime` resolves only `ToolAdapter` implementations using `resolve_tool`, invokes the selected adapter exactly once, performs no retry or fallback, and validates the returned provider-neutral D21 `Result`. Adapter exceptions and malformed results fail closed with safe internal runtime errors. Operation- and parameter-specific semantics remain owned by each Tool adapter.
+
+D38 moves Tool execution ownership out of `CommandOrchestrator`. The orchestrator retains D36 authorization normalization and response composition, but delegates authorized invocation to `ToolRuntime`. D27 `ToolModuleRouter` remains available as a compatibility routing mechanism and continues to be regression-tested, but it is no longer the owner of the D38 Tool execution path. Live chat behavior remains unchanged.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

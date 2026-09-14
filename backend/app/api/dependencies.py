@@ -38,6 +38,7 @@ from app.services.command_orchestrator import CommandOrchestrator
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
 from app.services.module_runtime import ModuleRuntime
+from app.services.tool_runtime import ToolRuntime
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -354,6 +355,13 @@ def get_ai_adapter_registry(
     return AIAdapterRegistry(registry=adapter_registry)
 
 
+def get_tool_runtime(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+) -> ToolRuntime:
+    """Compose D38 Tool runtime from the D31 registry."""
+    return ToolRuntime(registry=adapter_registry)
+
+
 def get_module_runtime(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
 ) -> ModuleRuntime:
@@ -393,7 +401,7 @@ def get_command_orchestrator(
         get_orchestration_error_normalizer
     ),
     response_composer: ResponseComposer = Depends(get_response_composer),
-    tool_module_router: ToolModuleRouter = Depends(get_tool_module_router),
+    tool_runtime: ToolRuntime = Depends(get_tool_runtime),
 ) -> CommandOrchestrator:
     """Compose D29 only at the existing chat input boundary."""
     return CommandOrchestrator(
@@ -403,7 +411,7 @@ def get_command_orchestrator(
         ai_adapters=ai_adapters,
         error_normalizer=error_normalizer,
         response_composer=response_composer,
-        tool_module_router=tool_module_router,
+        tool_runtime=tool_runtime,
     )
 
 

@@ -10,12 +10,13 @@ from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.command_decision import CommandDecision
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.ai_router import AIRouter
+from app.services.adapter_registry import AdapterRegistry
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_orchestrator import CommandOrchestrator
 from app.services.conversations import ChatTurnResult
 from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
 from app.services.response_composer import ResponseComposer
-from app.services.tool_module_router import ToolModuleRouter
+from app.services.tool_runtime import ToolRuntime
 
 
 class RecordingAdapter:
@@ -57,7 +58,9 @@ class CommandOrchestratorTests(unittest.TestCase):
         self.chatgpt = RecordingAdapter("chatgpt.default")
         self.local = RecordingAdapter("local_ai.default")
         self.conversations = RecordingConversationService()
-        self.tools = ToolModuleRouter((StandardToolAdapter(),))
+        self.tool_runtime = ToolRuntime(
+            registry=AdapterRegistry((StandardToolAdapter(),))
+        )
         self.normalizer = OrchestrationErrorNormalizer()
         self.composer = ResponseComposer(self.normalizer)
 
@@ -70,7 +73,7 @@ class CommandOrchestratorTests(unittest.TestCase):
             ai_adapters=AIAdapterRegistry((self.chatgpt, self.local)),
             error_normalizer=self.normalizer,
             response_composer=self.composer,
-            tool_module_router=self.tools,
+            tool_runtime=self.tool_runtime,
         )
 
     @staticmethod
@@ -121,7 +124,7 @@ class CommandOrchestratorTests(unittest.TestCase):
             ai_adapters=AIAdapterRegistry((self.local,)),
             error_normalizer=self.normalizer,
             response_composer=self.composer,
-            tool_module_router=self.tools,
+            tool_runtime=self.tool_runtime,
         )
         outcome = orchestrator.process_chat(self.command())
         self.assertEqual(outcome.response.result.error, "AI_ROUTE_UNAVAILABLE")
@@ -137,7 +140,9 @@ class CommandOrchestratorTests(unittest.TestCase):
         adapter = StandardToolAdapter()
         adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
         orchestrator = self.orchestrator()
-        orchestrator._tool_module_router = ToolModuleRouter((adapter,))  # type: ignore[attr-defined]
+        orchestrator._tool_runtime = ToolRuntime(
+            registry=AdapterRegistry((adapter,))
+        )  # type: ignore[attr-defined]
         request = CommandRequest("request-1", "tool.echo")
         raw_plan = ExecutionPlan(
             "request-1",
@@ -158,8 +163,10 @@ class CommandOrchestratorTests(unittest.TestCase):
         adapter = StandardToolAdapter()
         adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
         orchestrator = self.orchestrator()
-        orchestrator._tool_module_router = ToolModuleRouter((adapter,))  # type: ignore[attr-defined]
-        request = CommandRequest("request-1", "tool.echo")
+        orchestrator._tool_runtime = ToolRuntime(
+            registry=AdapterRegistry((adapter,))
+        )  # type: ignore[attr-defined]
+        request = CommandRequest("request-1", "tool.execute")
         execution_plan = ExecutionPlan(
             "request-1",
             adapter.adapter_id,
@@ -185,7 +192,9 @@ class CommandOrchestratorTests(unittest.TestCase):
         adapter = StandardToolAdapter()
         adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
         orchestrator = self.orchestrator()
-        orchestrator._tool_module_router = ToolModuleRouter((adapter,))  # type: ignore[attr-defined]
+        orchestrator._tool_runtime = ToolRuntime(
+            registry=AdapterRegistry((adapter,))
+        )  # type: ignore[attr-defined]
         request = CommandRequest("request-1", "tool.echo")
         authorizations = (
             ExecutionAuthorization(
