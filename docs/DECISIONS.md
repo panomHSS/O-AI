@@ -640,3 +640,49 @@ existing guarded Tool runtime. Registration still does not imply authorization
 or execution. D42 intentionally does not add writes, shell/process execution,
 network operations, dynamic tool loading, public Tool APIs, UI, durable audit,
 or risk scoring; those remain later milestones.
+
+## ADR-035: Explicit bounded Module Catalog v1
+
+**Decision**
+
+Introduce two explicitly registered, read-only `ModuleAdapter`
+implementations: `module.workspace.overview` and `module.project.snapshot`.
+Keep all Module execution behind the existing
+`ExecutionPlanner -> ExecutionGuard -> ModuleRuntime` lane and preserve owner
+approval for both modules.
+
+A Module is defined as a reviewed, bounded O-AI domain/workflow capability,
+distinct from a focused Tool primitive. Module adapters may use narrow
+read-only O-AI ports/services approved by their design, but D43 adapters must
+not invoke Tool, Module, AI, or coordinator runtimes internally.
+
+`workspace.overview` inspects only fixed O-AI workspace paths, returns structural
+presence markers, and accepts no arbitrary path. Every resolved fixed path must
+remain within the workspace root. `project.snapshot` accepts one canonical
+Project UUID and uses the existing read-only Project context projection, not the
+write-capable `ProjectService`.
+
+**Context**
+
+D37 established an authorization-gated Module runtime but production
+composition had no real ModuleAdapter. D42 added focused read-only Tool
+primitives. D43 needs to give the Module boundary concrete semantics without
+turning Modules into aliases for Tools or introducing a hidden workflow engine.
+
+**Rationale**
+
+Starting with two small read-only modules establishes a stable distinction:
+Tools operate on primitive resources; Modules expose reviewed domain/workflow
+capabilities. Explicit composition keeps availability auditable and compatible
+with the future D44 capability/permission policy. Reusing the narrow
+Project-context read boundary avoids granting a read-only Module broad Project
+mutation authority.
+
+**Consequences**
+
+O-AI gains bounded workspace inspection and current Project snapshot Modules.
+Both remain approval-gated and exactly-once through ModuleRuntime. D43 adds no
+Project mutation, Knowledge mutation, Memory access, filesystem write, shell or
+process control, network request, AI generation, nested Tool/Module execution,
+dynamic loading, Plugin bridge, public endpoint, database migration, frontend
+change, Docker change, or dependency.

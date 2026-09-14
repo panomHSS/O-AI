@@ -472,3 +472,39 @@ D42 adds two operational invariants:
 `TOOL REGISTERED != TOOL AUTHORIZED != TOOL EXECUTED`
 
 `PATH PROVIDED != PATH ALLOWED`
+
+## Explicit bounded Module Catalog v1 (D43)
+
+D43 introduces the first production `ModuleAdapter` catalog while preserving
+the frozen D35-D40 execution lane. A Tool remains a focused primitive
+capability; a Module is a reviewed, bounded O-AI domain/workflow capability.
+D43 registers `module.workspace.overview` and `module.project.snapshot`
+explicitly in the shared `AdapterRegistry`. Registration does not grant
+authorization or execution.
+
+`module.workspace.overview` accepts only the fixed `inspect` operation with no
+parameters. It checks a fixed allowlist of O-AI workspace areas and marker files
+and returns only `present`/`missing` structural state. It accepts no caller path,
+does not enumerate arbitrary directories, reads no file content, exposes no
+absolute paths, and fails closed if an existing or resolved fixed path escapes
+the workspace root.
+
+`module.project.snapshot` accepts only `get_snapshot` with one canonical UUID
+`project_id`. It depends on the existing read-only `ProjectContextReader` /
+`ProjectContextResolver` projection rather than `ProjectService`, and returns
+only project ID, title, bounded objective, status, bounded current summary,
+bounded next action, and current revision. Missing, invalid, or unreadable
+Project state is normalized to a stable safe module error without raw database
+details.
+
+D43 modules do not invoke `ToolRuntime`, `ModuleRuntime`, `AIRouter`,
+AI adapters, or `CommandExecutionCoordinator` from inside an adapter. There is
+no hidden nested execution graph, recursion, retry, fallback, dynamic module
+loading, plugin bridge, public Module API, write operation, database migration,
+network access, subprocess execution, or frontend change.
+
+D43 adds the operational invariants:
+
+`MODULE REGISTERED != MODULE AUTHORIZED != MODULE EXECUTED`
+
+`MODULE OPERATION != HIDDEN EXECUTION GRAPH`

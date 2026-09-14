@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
 from app.adapters.local_ai import LocalAIAdapter
+from app.adapters.project_snapshot_module import ProjectSnapshotModuleAdapter
+from app.adapters.workspace_overview_module import WorkspaceOverviewModuleAdapter
 from app.adapters.standard_tool import StandardToolAdapter
 from app.adapters.filesystem_tools import (
     FilesystemListToolAdapter,
@@ -289,12 +291,26 @@ def get_tool_catalog_adapters() -> tuple[object, ...]:
         FilesystemReadTextToolAdapter(boundary),
     )
 
+def get_module_catalog_adapters(
+    database_session: Session = Depends(get_db),
+) -> tuple[object, ...]:
+    """Compose the bounded D43 read-only Module Catalog."""
+    workspace_root = Path(__file__).resolve().parents[3]
+    project_resolver = ProjectContextResolver(
+        ProjectContextReader(database_session)
+    )
+    return (
+        WorkspaceOverviewModuleAdapter(workspace_root),
+        ProjectSnapshotModuleAdapter(project_resolver),
+    )
+
 def get_adapter_registry(
     conversation_service: ConversationService = Depends(get_conversation_service),
     chat_service: ChatService = Depends(get_chat_service),
     local_ai_adapter: LocalAIAdapter = Depends(get_local_ai_adapter),
     standard_tool_adapter: StandardToolAdapter = Depends(get_standard_tool_adapter),
     tool_catalog_adapters: tuple[object, ...] = Depends(get_tool_catalog_adapters),
+    module_catalog_adapters: tuple[object, ...] = Depends(get_module_catalog_adapters),
 ) -> AdapterRegistry:
     """Compose D31 while preserving the D29 default AI adapter seam."""
     default_adapter_factory = getattr(
@@ -308,6 +324,7 @@ def get_adapter_registry(
             local_ai_adapter,
             standard_tool_adapter,
             *tool_catalog_adapters,
+            *module_catalog_adapters,
         )
     )
 
