@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0008_pgvector_foundation"
+TARGET_REVISION = "0009_execution_audit_events"
 EXPECTED_TABLES = {
     "alembic_version",
     "conversations",
@@ -25,6 +25,7 @@ EXPECTED_TABLES = {
     "project_revisions",
     "project_update_proposals",
     "project_action_execution_proposals",
+    "execution_audit_events",
 }
 EXPECTED_COLUMNS = {
     "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0)],
@@ -37,29 +38,42 @@ EXPECTED_COLUMNS = {
     "projects": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(160)", 0), ("objective", "TEXT", 0), ("status", "VARCHAR(16)", 0), ("current_summary", "TEXT", 0), ("next_action", "VARCHAR(512)", 0), ("current_revision", "INTEGER", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0)],
     "project_revisions": [("id", "VARCHAR(36)", 1), ("project_id", "VARCHAR(36)", 0), ("revision_number", "INTEGER", 0), ("title", "VARCHAR(160)", 0), ("objective", "TEXT", 0), ("status", "VARCHAR(16)", 0), ("current_summary", "TEXT", 0), ("next_action", "VARCHAR(512)", 0), ("change_note", "VARCHAR(512)", 0), ("created_at", "DATETIME", 0)],
     "project_update_proposals": [
-    ("id", "VARCHAR(36)", 1),
-    ("project_id", "VARCHAR(36)", 0),
-    ("conversation_id", "VARCHAR(36)", 0),
-    ("base_revision", "INTEGER", 0),
-    ("proposed_summary", "TEXT", 0),
-    ("proposed_next_action", "VARCHAR(512)", 0),
-    ("reason", "VARCHAR(512)", 0),
-    ("status", "VARCHAR(16)", 0),
-    ("created_at", "DATETIME", 0),
-    ("decided_at", "DATETIME", 0),
-    ("applied_revision", "INTEGER", 0),
-],
-"project_action_execution_proposals": [
-    ("id", "VARCHAR(36)", 1),
-    ("project_id", "VARCHAR(36)", 0),
-    ("conversation_id", "VARCHAR(36)", 0),
-    ("project_revision", "INTEGER", 0),
-    ("source_action", "VARCHAR(512)", 0),
-    ("steps", "JSON", 0),
-    ("status", "VARCHAR(32)", 0),
-    ("approved", "BOOLEAN", 0),
-    ("executed", "BOOLEAN", 0),
-],
+        ("id", "VARCHAR(36)", 1),
+        ("project_id", "VARCHAR(36)", 0),
+        ("conversation_id", "VARCHAR(36)", 0),
+        ("base_revision", "INTEGER", 0),
+        ("proposed_summary", "TEXT", 0),
+        ("proposed_next_action", "VARCHAR(512)", 0),
+        ("reason", "VARCHAR(512)", 0),
+        ("status", "VARCHAR(16)", 0),
+        ("created_at", "DATETIME", 0),
+        ("decided_at", "DATETIME", 0),
+        ("applied_revision", "INTEGER", 0),
+    ],
+    "project_action_execution_proposals": [
+        ("id", "VARCHAR(36)", 1),
+        ("project_id", "VARCHAR(36)", 0),
+        ("conversation_id", "VARCHAR(36)", 0),
+        ("project_revision", "INTEGER", 0),
+        ("source_action", "VARCHAR(512)", 0),
+        ("steps", "JSON", 0),
+        ("status", "VARCHAR(32)", 0),
+        ("approved", "BOOLEAN", 0),
+        ("executed", "BOOLEAN", 0),
+    ],
+    "execution_audit_events": [
+        ("id", "INTEGER", 1),
+        ("contract_version", "VARCHAR(16)", 0),
+        ("request_id", "TEXT", 0),
+        ("stage", "VARCHAR(32)", 0),
+        ("action", "VARCHAR(32)", 0),
+        ("status", "VARCHAR(32)", 0),
+        ("occurred_at", "DATETIME", 0),
+        ("target_kind", "VARCHAR(16)", 0),
+        ("adapter_id", "TEXT", 0),
+        ("reason_code", "TEXT", 0),
+        ("plan_digest", "VARCHAR(64)", 0),
+    ],
 }
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False)},
@@ -72,28 +86,17 @@ EXPECTED_INDEXES = {
     "projects": {"ix_projects_status": (["status"], False), "ix_projects_updated_at": (["updated_at"], False)},
     "project_revisions": {"ix_project_revisions_project_id": (["project_id"], False)},
     "project_update_proposals": {
-        "ix_project_update_proposals_project_id": (
-            ["project_id"],
-            False,
-        ),
-        "ix_project_update_proposals_conversation_id": (
-            ["conversation_id"],
-            False,
-        ),
-        "ix_project_update_proposals_status": (
-            ["status"],
-            False,
-        ),
+        "ix_project_update_proposals_project_id": (["project_id"], False),
+        "ix_project_update_proposals_conversation_id": (["conversation_id"], False),
+        "ix_project_update_proposals_status": (["status"], False),
     },
     "project_action_execution_proposals": {
-        "ix_project_action_execution_proposals_project_id": (
-            ["project_id"],
-            False,
-        ),
-        "ix_project_action_execution_proposals_conversation_id": (
-            ["conversation_id"],
-            False,
-        ),
+        "ix_project_action_execution_proposals_project_id": (["project_id"], False),
+        "ix_project_action_execution_proposals_conversation_id": (["conversation_id"], False),
+    },
+    "execution_audit_events": {
+        "ix_execution_audit_events_request_id": (["request_id"], False),
+        "ix_execution_audit_events_occurred_at": (["occurred_at"], False),
     },
 }
 EXPECTED_FOREIGN_KEYS = {
@@ -107,13 +110,34 @@ EXPECTED_FOREIGN_KEYS = {
         ("project_id", "projects", "id", "NO ACTION"),
         ("conversation_id", "conversations", "id", "NO ACTION"),
     },
+    "execution_audit_events": set(),
 }
-NULLABLE_COLUMNS = {"documents": {"error_message", "indexed_at"}, "memories": {"active_version_id", "pending_version_id"}, "memory_versions": {"decision_comment", "evidence_snapshot", "decided_by", "decided_at"}, "conversations": {"project_id"}, "projects": {"current_summary", "next_action"}, "project_revisions": {"current_summary", "next_action"}, "project_update_proposals": {
-    "proposed_summary",
-    "proposed_next_action",
-    "decided_at",
-    "applied_revision",
-},}
+NULLABLE_COLUMNS = {
+    "documents": {"error_message", "indexed_at"},
+    "memories": {"active_version_id", "pending_version_id"},
+    "memory_versions": {
+        "decision_comment",
+        "evidence_snapshot",
+        "decided_by",
+        "decided_at",
+    },
+    "conversations": {"project_id"},
+    "projects": {"current_summary", "next_action"},
+    "project_revisions": {"current_summary", "next_action"},
+    "project_update_proposals": {
+        "proposed_summary",
+        "proposed_next_action",
+        "decided_at",
+        "applied_revision",
+    },
+    "execution_audit_events": {
+        "target_kind",
+        "adapter_id",
+        "reason_code",
+        "plan_digest",
+    },
+}
+
 
 
 class DatabaseVerificationError(RuntimeError):
@@ -236,6 +260,26 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
         raise DatabaseVerificationError(
             "Configured database is missing Project update proposal constraints."
         )
+    audit_sql = connection.execute(
+        "SELECT sql FROM sqlite_schema "
+        "WHERE type = 'table' AND name = 'execution_audit_events'"
+    ).fetchone()[0].upper()
+    required_audit_constraints = (
+        "CONTRACT_VERSION = '1'",
+        "STAGE IN ('PLANNING', 'AUTHORIZATION', 'EXECUTION')",
+        "ACTION IN ('STARTED', 'COMPLETED')",
+        "STATUS IN ('PLANNED', 'REJECTED', 'UNAVAILABLE', 'AUTHORIZED', 'BLOCKED', 'STARTED', 'SUCCEEDED', 'FAILED')",
+        "TARGET_KIND IS NULL OR TARGET_KIND IN ('AI', 'TOOL', 'MODULE')",
+        "PLAN_DIGEST IS NULL OR LENGTH(PLAN_DIGEST) = 64",
+    )
+    if not all(
+        constraint in audit_sql
+        for constraint in required_audit_constraints
+    ):
+        raise DatabaseVerificationError(
+            "Configured database is missing execution audit constraints."
+        )
+
     memory_foreign_keys = connection.execute("PRAGMA foreign_key_list(memories)").fetchall()
     if {(row[3], row[2], row[4]) for row in memory_foreign_keys} != {("active_version_id", "memory_versions", "id"), ("pending_version_id", "memory_versions", "id")}:
         raise DatabaseVerificationError("Configured database is missing memory version pointers.")

@@ -666,3 +666,48 @@ D46 adds no write tools, shell/process execution, network tools, autonomous
 actions, automatic approval, standing grants, durable approval persistence,
 authentication/RBAC, remote approval, durable audit, database migration,
 Docker change, or new dependency.
+
+## Durable Execution Audit v1 (D47)
+
+D47 makes the existing D39 allowlisted execution observations durable without
+moving any execution authority into persistence. `ExecutionPlanner`,
+`ExecutionGuard`, `ToolRuntime`, and `ModuleRuntime` continue to emit the same
+D39 contract through `ExecutionAuditTrail`; D47 changes only the sink
+composition.
+
+Production composition fans each event to the existing structured
+`LoggingAuditSink` and a new `DatabaseAuditSink`. The database sink opens its
+own short-lived SQLAlchemy session, appends one row, commits, and closes that
+session. It never reuses or commits the request's business transaction. A
+failure in either sink is isolated by the existing D39 `try_record()` boundary
+and cannot authorize, deny, retry, duplicate, or otherwise change execution.
+
+Alembic revision `0009_execution_audit_events` adds the append-only application
+table `execution_audit_events`. The row contains only the D39 allowlisted
+metadata: contract version, execution request ID, stage, action, status,
+observation time, optional target kind, adapter ID, safe reason code, and plan
+digest. It contains no prompt, chat message, command arguments, step
+parameters, filesystem contents, Tool/Module output, raw exception, approval
+ticket, secret, or credential.
+
+The D47 durability boundary establishes:
+
+`OBSERVED != DURABLY RECORDED`
+
+`DURABLY RECORDED != EXECUTION AUTHORITY`
+
+`AUDIT TRANSACTION != BUSINESS TRANSACTION`
+
+`DURABLE != MANDATORY DELIVERY`
+
+`DURABLE != EXACTLY ONCE`
+
+The table is append-only through the application repository: D47 exposes no
+update/delete operation and no public audit API. D47 does not claim
+tamper-evidence or compliance-grade delivery. Retention, dashboards, public
+query APIs, cryptographic signing/hash chains, remote collectors, approval
+persistence, and distributed ordering remain out of scope.
+
+Startup remains read-only and never migrates automatically. A deployment must
+explicitly upgrade the managed database to `0009_execution_audit_events` before
+starting the D47 application revision.

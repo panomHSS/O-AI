@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import Depends
 
 from app.contracts.execution_audit import AuditSink
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
@@ -63,6 +63,10 @@ from app.services.execution_approval_service import (
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
 from app.services.execution_audit import ExecutionAuditTrail, LoggingAuditSink
+from app.services.execution_audit_persistence import (
+    CompositeAuditSink,
+    DatabaseAuditSink,
+)
 from app.services.module_runtime import ModuleRuntime
 from app.services.tool_runtime import ToolRuntime
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
@@ -411,9 +415,26 @@ def get_ai_adapter_registry(
     return AIAdapterRegistry(registry=adapter_registry)
 
 
-def get_audit_sink() -> AuditSink:
-    """Compose the D39 default structured logging sink."""
-    return LoggingAuditSink()
+def get_audit_sink(
+    database_session: Session = Depends(get_db),
+) -> AuditSink:
+    """Compose D47 durable audit plus D39 structured logging."""
+    bind = database_session.get_bind()
+    audit_bind = getattr(bind, "engine", bind)
+    audit_session_factory = sessionmaker(
+        bind=audit_bind,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+    )
+    return CompositeAuditSink(
+        (
+            LoggingAuditSink(),
+            DatabaseAuditSink(
+                audit_session_factory
+            ),
+        )
+    )
 
 
 def get_execution_audit_trail(

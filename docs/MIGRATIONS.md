@@ -28,6 +28,29 @@ Approval and rejection require the requested version number. A decision can be a
 
 Archiving is an explicit owner action, distinct from rejection. It is refused while a proposal is pending and records a separate `ARCHIVED` snapshot. Version snapshot content, evidence, reason, proposer, and creation audit fields are never updated; a SQLite trigger permits only one pending-to-confirmed or pending-to-rejected decision update, including the owner, timestamp, and decision comment.
 
+## Durable execution audit persistence (D47)
+
+Revision `0009_execution_audit_events` adds the local durable
+`execution_audit_events` table for the existing D39 allowlisted execution audit
+contract. The table stores only safe execution metadata and has no foreign keys
+to mutable business objects. Application code appends records through a
+separate short-lived audit transaction; audit persistence failure never changes
+the planning, approval, authorization, or runtime outcome.
+
+D47 does not make pending D45 approval tickets durable and does not add an
+audit API, retention policy, automatic migration, payload JSON, prompt storage,
+Tool/Module output storage, raw exception storage, tamper-evident chain, or
+remote collector.
+
+Startup remains read-only. Existing managed deployments must deliberately run:
+
+```powershell
+python -m alembic -c alembic.ini upgrade head
+```
+
+and then verify that the database reports revision
+`0009_execution_audit_events` before starting the new backend.
+
 ## Fresh databases
 
 Set `OAI_DATABASE_URL` to the intended empty SQLite database, then run from the repository root:

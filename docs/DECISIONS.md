@@ -835,3 +835,58 @@ Project action suggestions remain separate from executable capability
 proposals. D46 introduces no LLM function calling, autonomous tool selection,
 write capability, database schema, approval persistence, RBAC, durable audit,
 Docker change, or dependency.
+
+## ADR-039: Durable non-authoritative execution audit persistence v1
+
+**Decision**
+
+Persist the existing D39 `ExecutionAuditEvent` allowlist in an
+Alembic-managed `execution_audit_events` table while keeping
+`ExecutionAuditTrail` non-authoritative. Production audit composition fans each
+event to both the existing structured logging sink and a database sink. The
+database sink owns a separate short-lived SQLAlchemy session and transaction
+for each event.
+
+The durable row mirrors only the D39 contract fields. No command arguments,
+plan parameters, prompts, chat content, Tool/Module output, raw exceptions,
+approval tickets, credentials, or arbitrary payload JSON may be persisted by
+this boundary. The application repository exposes append and bounded
+request-correlation reads only; it exposes no update or delete operation.
+
+**Context**
+
+D39 deliberately selected a pluggable audit sink and made sink failures
+best-effort so planning, authorization, and exactly-once runtime behavior could
+not depend on observability availability. D45 explicitly leaves pending owner
+approval tickets process-local and identifies D47 as the milestone responsible
+for durable audit. D46 now lets owner-reviewed chat actions traverse the frozen
+execution lane, making restart-surviving execution observations useful without
+making approval state itself durable.
+
+**Rationale**
+
+Adding persistence behind the existing sink seam preserves the frozen
+D35-D40 ownership boundaries. A separate audit transaction prevents audit
+commit/rollback from changing Conversation, Project, Memory, approval, or other
+business state. Fan-out preserves operational structured logging while adding
+restart-surviving local records. Keeping the stored shape identical to the D39
+allowlist preserves the existing privacy boundary.
+
+**Consequences**
+
+An event that commits successfully survives backend restart and can be ordered
+deterministically by its durable integer identity. Audit delivery remains
+best-effort: a database lock, unavailable database, logging failure, or commit
+failure does not alter the business execution outcome and is not retried by
+D47. Therefore D47 is durable persistence, not mandatory delivery,
+exactly-once delivery, a compliance ledger, or tamper-proof storage.
+
+Alembic revision `0009_execution_audit_events` becomes the required managed
+schema revision. Startup verification remains read-only and fails closed on an
+older or incompatible schema; deployment must run an explicit migration before
+starting the new application revision.
+
+D47 adds no public audit API, frontend, retention policy, automatic migration,
+remote telemetry collector, OpenTelemetry dependency, cryptographic signing,
+hash chain, approval persistence, authentication/RBAC, write Tool, shell/process
+Tool, network Tool, AI execution change, Docker change, or dependency.

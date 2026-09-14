@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0008_pgvector_foundation"
+REVISION = "0009_execution_audit_events"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -35,6 +35,7 @@ EXPECTED_TABLES = {
     "projects",
     "project_revisions",
     "project_action_execution_proposals",
+    "execution_audit_events",
 }
 
 EXPECTED_INDEXES = {
@@ -45,6 +46,7 @@ EXPECTED_INDEXES = {
     "document_chunks": {"ix_document_chunks_document_id"},
     "message_citations": {"ix_message_citations_message_id"},
     "project_action_execution_proposals": {"ix_project_action_execution_proposals_project_id", "ix_project_action_execution_proposals_conversation_id"},
+    "execution_audit_events": {"ix_execution_audit_events_request_id", "ix_execution_audit_events_occurred_at"},
     "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at"},
     "memory_versions": {"ix_memory_versions_memory_id"},
     "projects": {"ix_projects_status", "ix_projects_updated_at"},
@@ -119,6 +121,42 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
             {
                 "ix_project_action_execution_proposals_project_id",
                 "ix_project_action_execution_proposals_conversation_id",
+            },
+        )
+
+        audit_columns = {
+            column["name"]
+            for column in inspector.get_columns(
+                "execution_audit_events"
+            )
+        }
+        self.assertEqual(
+            audit_columns,
+            {
+                "id",
+                "contract_version",
+                "request_id",
+                "stage",
+                "action",
+                "status",
+                "occurred_at",
+                "target_kind",
+                "adapter_id",
+                "reason_code",
+                "plan_digest",
+            },
+        )
+        audit_indexes = {
+            index["name"]
+            for index in inspector.get_indexes(
+                "execution_audit_events"
+            )
+        }
+        self.assertEqual(
+            audit_indexes,
+            {
+                "ix_execution_audit_events_request_id",
+                "ix_execution_audit_events_occurred_at",
             },
         )
 
