@@ -686,3 +686,57 @@ Project mutation, Knowledge mutation, Memory access, filesystem write, shell or
 process control, network request, AI generation, nested Tool/Module execution,
 dynamic loading, Plugin bridge, public endpoint, database migration, frontend
 change, Docker change, or dependency.
+
+## ADR-036: Central fail-closed Capability & Permission Policy v1
+
+**Decision**
+
+Introduce an immutable central `CapabilityPermissionPolicy` for executable
+Tool/Module operations. A permission is an exact tuple of target kind, adapter
+ID, and operation plus a stable capability ID, effect classification, data
+classification, and owner-approval requirement.
+
+The production D44 catalog permits only the existing D42/D43 Tool and Module
+operations. All current entries remain owner-approval-required. No policy
+entry means deny; there are no wildcard, prefix, default-allow, fallback, or
+adapter self-declaration mechanisms.
+
+`ExecutionPlanner` must resolve an exact permission before creating a Tool or
+Module plan and derives `owner_approval_required` from that permission.
+`ExecutionGuard` must re-resolve the same exact permission and reject a plan
+whose approval flag differs from policy. The existing plan digest and
+`OwnerApprovalEvidence` remain unchanged and continue to bind approval to the
+exact proposed plan.
+
+**Context**
+
+D31 registration distinguishes AI, Tool, and Module adapter kinds. D35 plans
+registered Tool/Module operations, while D36 previously applied one broad rule:
+AI chat required no approval and every Tool/Module plan required approval.
+D42/D43 added real read-only catalogs, creating the need to distinguish
+registration from execution permission and to classify operation effects/data
+before D45 owner-approval surfaces, D46 Chat-to-Action, and D48 safe writes.
+
+**Rationale**
+
+A separate central policy preserves least privilege and prevents adapters from
+declaring themselves safe. Registry remains structural, policy remains
+authoritative for what may be planned, Guard remains authoritative for whether
+a permitted plan may execute now, and adapters retain operation/parameter
+validation. Keeping these responsibilities separate avoids hidden grants,
+duplicate schemas, and policy logic inside runtime adapters.
+
+**Consequences**
+
+Registered adapters may exist without any executable permission. Unknown or
+unpermitted operations fail before an `ExecutionPlan` is produced. Guard
+revalidates permission and approval semantics, so mutating a plan's approval
+flag cannot bypass owner control. The contract can represent future no-approval,
+write, external-side-effect, and process-execution capabilities, but D44 grants
+none of those new production behaviors.
+
+D44 adds no authentication/RBAC, standing grants, remembered approvals,
+runtime-editable permissions, database persistence, environment overrides,
+OAuth scopes, Tool/Module discovery, Chat-to-Action bridge, write tools,
+network integrations, durable audit storage, frontend changes, Docker changes,
+or dependencies.

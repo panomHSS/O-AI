@@ -6,6 +6,7 @@ from app.contracts.ai import (
     AIResult,
 )
 from app.contracts.ai_discovery import AI_CAPABILITY_TEXT_GENERATION
+from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.command import (
     CommandRequest,
     ExecutionPlan,
@@ -16,6 +17,7 @@ from app.contracts.execution_authorization import OwnerApprovalEvidence
 from app.contracts.execution_planning import ExecutionPlanningOutcome
 from app.contracts.tool_module import TOOL_MODULE_ADAPTER_CONTRACT_VERSION
 from app.services.adapter_registry import AdapterRegistry
+from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.execution_guard import (
     ExecutionGuard,
     execution_plan_digest,
@@ -65,8 +67,23 @@ class ExecutionGuardTests(unittest.TestCase):
         self.ai = StubAIAdapter()
         self.tool = StubToolAdapter()
         self.module = StubModuleAdapter()
+        self.registry = AdapterRegistry((self.ai, self.tool, self.module))
+        self.policy = CapabilityPermissionPolicy(
+            registry=self.registry,
+            permissions=(
+                ExecutableCapabilityPermission(
+                    "exec.test.tool", "tool", "tool.stub", "echo",
+                    "none", "none", True,
+                ),
+                ExecutableCapabilityPermission(
+                    "exec.test.module", "module", "module.stub", "inspect",
+                    "read", "workspace_metadata", True,
+                ),
+            ),
+        )
         self.guard = ExecutionGuard(
-            registry=AdapterRegistry((self.ai, self.tool, self.module))
+            registry=self.registry,
+            permission_policy=self.policy,
         )
 
     @staticmethod
@@ -251,12 +268,12 @@ class ExecutionGuardTests(unittest.TestCase):
         self.assertEqual(tool_auth.status, "rejected")
         self.assertEqual(
             tool_auth.reason_code,
-            "authorization_policy_violation",
+            "capability_policy_violation",
         )
         self.assertEqual(module_auth.status, "rejected")
         self.assertEqual(
             module_auth.reason_code,
-            "authorization_policy_violation",
+            "capability_policy_violation",
         )
 
     def test_approval_for_plan_a_cannot_authorize_mutated_plan_b(self) -> None:
@@ -387,6 +404,43 @@ class ExecutionGuardTests(unittest.TestCase):
             execution_plan_digest(first),
             execution_plan_digest(second),
         )
+
+    def test_registered_without_policy_entry_is_rejected(self) -> None:
+        guard = ExecutionGuard(
+            registry=self.registry,
+            permission_policy=CapabilityPermissionPolicy(registry=self.registry),
+        )
+        plan = self.tool_plan()
+        authorization = guard.authorize(
+            CommandRequest("req-tool", "tool.execute"),
+            self.planning(plan, "tool"),
+        )
+        self.assertEqual(authorization.status, "rejected")
+        self.assertEqual(authorization.reason_code, "capability_not_permitted")
+
+    def test_policy_can_explicitly_authorize_no_approval_capability(self) -> None:
+        policy = CapabilityPermissionPolicy(
+            registry=self.registry,
+            permissions=(
+                ExecutableCapabilityPermission(
+                    "exec.test.no-approval", "tool", "tool.stub", "echo",
+                    "none", "none", False,
+                ),
+            ),
+        )
+        guard = ExecutionGuard(
+            registry=self.registry,
+            permission_policy=policy,
+        )
+        plan = self.tool_plan(approval_required=False)
+        authorization = guard.authorize(
+            CommandRequest("req-tool", "tool.execute"),
+            self.planning(plan, "tool"),
+        )
+        self.assertEqual(authorization.status, "authorized")
+        self.assertEqual(authorization.reason_code, "approval_not_required_by_policy")
+        self.assertIs(authorization.execution_plan, plan)
+        self.assertEqual(self.tool.execute_calls, 0)
 
 
 if __name__ == "__main__":

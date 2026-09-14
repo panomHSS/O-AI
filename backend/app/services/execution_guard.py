@@ -16,6 +16,7 @@ from app.contracts.execution_authorization import (
 )
 from app.contracts.execution_planning import ExecutionPlanningOutcome
 from app.services.adapter_registry import AdapterRegistry
+from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.execution_audit import ExecutionAuditTrail
 
 
@@ -111,9 +112,11 @@ class ExecutionGuard:
         self,
         *,
         registry: AdapterRegistry,
+        permission_policy: CapabilityPermissionPolicy,
         audit: ExecutionAuditTrail | None = None,
     ) -> None:
         self._registry = registry
+        self._permission_policy = permission_policy
         self._audit = audit
 
     def authorize(
@@ -301,12 +304,54 @@ class ExecutionGuard:
                 target_kind=target_kind,
                 digest=digest,
             )
-        if not plan.owner_approval_required:
+        permission = self._permission_policy.resolve(
+            target_kind,
+            plan.adapter_id,
+            plan.steps[0].operation,
+        )
+        if permission is None:
             return self._rejected(
                 request.request_id,
-                "authorization_policy_violation",
+                "capability_not_permitted",
                 target_kind=target_kind,
                 digest=digest,
+            )
+        if plan.owner_approval_required != permission.owner_approval_required:
+            return self._rejected(
+                request.request_id,
+                "capability_policy_violation",
+                target_kind=target_kind,
+                digest=digest,
+            )
+
+        if not permission.owner_approval_required:
+            if approval is not None:
+                if (
+                    approval.request_id != request.request_id
+                    or approval.plan_digest != digest
+                ):
+                    return self._rejected(
+                        request.request_id,
+                        "approval_plan_mismatch",
+                        target_kind=target_kind,
+                        digest=digest,
+                    )
+                if approval.decision == "denied":
+                    return ExecutionAuthorization(
+                        request_id=request.request_id,
+                        status="blocked",
+                        target_kind=target_kind,  # type: ignore[arg-type]
+                        source_plan_digest=digest,
+                        execution_plan=None,
+                        reason_code="owner_approval_denied",
+                    )
+            return ExecutionAuthorization(
+                request_id=request.request_id,
+                status="authorized",
+                target_kind=target_kind,  # type: ignore[arg-type]
+                source_plan_digest=digest,
+                execution_plan=plan,
+                reason_code="approval_not_required_by_policy",
             )
 
         if approval is None:

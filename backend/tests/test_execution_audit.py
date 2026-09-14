@@ -2,11 +2,13 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import Mock
 
+from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.command import CommandRequest, ExecutionPlan, ExecutionStep, Result
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.execution_planning import ExecutionPlanningOutcome
 from app.contracts.tool_module import TOOL_MODULE_ADAPTER_CONTRACT_VERSION
 from app.services.adapter_registry import AdapterRegistry
+from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.execution_audit import (
     ExecutionAuditTrail,
     InMemoryAuditSink,
@@ -208,6 +210,7 @@ class ExecutionAuditTests(unittest.TestCase):
             decision_engine=object(),  # type: ignore[arg-type]
             ai_router=object(),  # type: ignore[arg-type]
             ai_discovery=object(),  # type: ignore[arg-type]
+            permission_policy=object(),  # type: ignore[arg-type]
             audit=self.trail(sink),
         )
 
@@ -228,6 +231,7 @@ class ExecutionAuditTests(unittest.TestCase):
             decision_engine=object(),  # type: ignore[arg-type]
             ai_router=object(),  # type: ignore[arg-type]
             ai_discovery=object(),  # type: ignore[arg-type]
+            permission_policy=object(),  # type: ignore[arg-type]
             audit=self.trail(RaisingSink()),
         )
 
@@ -240,8 +244,19 @@ class ExecutionAuditTests(unittest.TestCase):
 
     def test_guard_records_safe_blocked_authorization(self) -> None:
         sink = InMemoryAuditSink()
+        registry = AdapterRegistry((StubToolAdapter(),))
+        policy = CapabilityPermissionPolicy(
+            registry=registry,
+            permissions=(
+                ExecutableCapabilityPermission(
+                    "exec.test.audit", "tool", "tool.audit", "echo",
+                    "none", "none", True,
+                ),
+            ),
+        )
         guard = ExecutionGuard(
-            registry=GuardRegistry(),  # type: ignore[arg-type]
+            registry=registry,
+            permission_policy=policy,
             audit=self.trail(sink),
         )
         plan = self.tool_plan(approval_required=True)

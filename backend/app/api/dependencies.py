@@ -36,6 +36,10 @@ from app.repositories.project_update_proposals import (
 from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
+from app.services.capability_permission_policy import (
+    CapabilityPermissionPolicy,
+    PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
+)
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -430,12 +434,29 @@ def get_module_runtime(
     return ModuleRuntime(registry=adapter_registry, audit=audit)
 
 
+def get_capability_permission_policy(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+) -> CapabilityPermissionPolicy:
+    """Compose D44 exact-match Tool/Module execution permissions."""
+    return CapabilityPermissionPolicy(
+        registry=adapter_registry,
+        permissions=PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
+    )
+
+
 def get_execution_guard(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    permission_policy: CapabilityPermissionPolicy = Depends(
+        get_capability_permission_policy
+    ),
     audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
 ) -> ExecutionGuard:
-    """Compose D36 authorization with D39 observation."""
-    return ExecutionGuard(registry=adapter_registry, audit=audit)
+    """Compose D36 authorization with D44 policy and D39 observation."""
+    return ExecutionGuard(
+        registry=adapter_registry,
+        permission_policy=permission_policy,
+        audit=audit,
+    )
 
 
 def get_execution_planner(
@@ -445,14 +466,18 @@ def get_execution_planner(
     ai_discovery: AICapabilityModelDiscovery = Depends(
         get_ai_capability_model_discovery
     ),
+    permission_policy: CapabilityPermissionPolicy = Depends(
+        get_capability_permission_policy
+    ),
     audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
 ) -> ExecutionPlanner:
-    """Compose D35 planning with D39 observation."""
+    """Compose D35 planning with D44 policy and D39 observation."""
     return ExecutionPlanner(
         registry=adapter_registry,
         decision_engine=decision_engine,
         ai_router=ai_router,
         ai_discovery=ai_discovery,
+        permission_policy=permission_policy,
         audit=audit,
     )
 

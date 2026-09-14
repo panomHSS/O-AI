@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import Mock
 
 from app.adapters.standard_tool import StandardToolAdapter
+from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.command import (
     CommandRequest,
     ExecutionPlan,
@@ -12,6 +13,7 @@ from app.contracts.execution_authorization import OwnerApprovalEvidence
 from app.contracts.tool_module import TOOL_MODULE_ADAPTER_CONTRACT_VERSION
 from app.services.adapter_registry import AdapterRegistry
 from app.services.command_decision_engine import CommandDecisionEngine
+from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.command_execution_coordinator import (
     CommandExecutionCoordinator,
 )
@@ -62,16 +64,31 @@ class ExecutionArchitectureE2ETests(unittest.TestCase):
         registry = AdapterRegistry((tool, module))
         actual_sink = sink or InMemoryAuditSink()
         audit = ExecutionAuditTrail(sink=actual_sink)
+        policy = CapabilityPermissionPolicy(
+            registry=registry,
+            permissions=(
+                ExecutableCapabilityPermission(
+                    "exec.test.tool", "tool", "tool.standard.echo", "echo",
+                    "none", "none", True,
+                ),
+                ExecutableCapabilityPermission(
+                    "exec.test.module", "module", "module.stub", "inspect",
+                    "read", "workspace_metadata", True,
+                ),
+            ),
+        )
 
         planner = ExecutionPlanner(
             registry=registry,
             decision_engine=CommandDecisionEngine(),
             ai_router=object(),  # type: ignore[arg-type]
             ai_discovery=object(),  # type: ignore[arg-type]
+            permission_policy=policy,
             audit=audit,
         )
         guard = ExecutionGuard(
             registry=registry,
+            permission_policy=policy,
             audit=audit,
         )
         tool_runtime = ToolRuntime(

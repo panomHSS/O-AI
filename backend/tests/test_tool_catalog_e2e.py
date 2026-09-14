@@ -4,10 +4,12 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from app.adapters.filesystem_tools import FilesystemReadTextToolAdapter
+from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.command import CommandRequest, ExecutionPlan, ExecutionStep
 from app.contracts.execution_authorization import OwnerApprovalEvidence
 from app.services.adapter_registry import AdapterRegistry
 from app.services.command_decision_engine import CommandDecisionEngine
+from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.command_execution_coordinator import CommandExecutionCoordinator
 from app.services.execution_guard import ExecutionGuard, execution_plan_digest
 from app.services.execution_planner import ExecutionPlanner
@@ -29,13 +31,26 @@ class ToolCatalogE2ETests(unittest.TestCase):
         adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
         self.adapter = adapter
         registry = AdapterRegistry((adapter,))
+        policy = CapabilityPermissionPolicy(
+            registry=registry,
+            permissions=(
+                ExecutableCapabilityPermission(
+                    "exec.test.e2e", "tool", "tool.filesystem.read_text", "read_text",
+                    "read", "workspace_content", True,
+                ),
+            ),
+        )
         planner = ExecutionPlanner(
             registry=registry,
             decision_engine=CommandDecisionEngine(),
             ai_router=object(),  # type: ignore[arg-type]
             ai_discovery=object(),  # type: ignore[arg-type]
+            permission_policy=policy,
         )
-        guard = ExecutionGuard(registry=registry)
+        guard = ExecutionGuard(
+            registry=registry,
+            permission_policy=policy,
+        )
         self.coordinator = CommandExecutionCoordinator(
             planner=planner,
             guard=guard,

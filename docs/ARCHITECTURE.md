@@ -508,3 +508,47 @@ D43 adds the operational invariants:
 `MODULE REGISTERED != MODULE AUTHORIZED != MODULE EXECUTED`
 
 `MODULE OPERATION != HIDDEN EXECUTION GRAPH`
+
+## Central Capability & Permission Policy v1 (D44)
+
+D44 inserts a central, immutable, fail-closed permission boundary between
+registered Tool/Module adapters and executable planning. `AdapterRegistry`
+continues to answer only what exists. `CapabilityPermissionPolicy` answers
+which exact `(target_kind, adapter_id, operation)` tuple may be planned.
+`ExecutionGuard` answers whether one already-permitted plan may execute now.
+
+The D44 permission contract classifies each permitted operation by stable
+capability ID, Tool/Module target kind, adapter ID, exact operation, effect,
+data class, and owner-approval requirement. Effects are `none`, `read`,
+`write`, `external_side_effect`, or `process_execution`; data classes are
+`none`, `system_metadata`, `workspace_metadata`, `workspace_content`,
+`owner_data`, or `external_data`. The production v1 catalog contains only the
+existing D42/D43 none/read capabilities and all eight remain owner-approval
+required.
+
+There are no wildcard, prefix, fallback, adapter-name inference, dynamic
+configuration, or self-declared adapter permissions. A registered adapter with
+no exact policy entry remains unavailable for executable planning. Planner
+derives `ExecutionPlan.owner_approval_required` from policy; Guard revalidates
+the exact policy entry and approval requirement before issuing authorization.
+Parameter validation remains owned by each adapter/boundary and is not
+duplicated in policy.
+
+The execution lane is therefore:
+
+`Registry -> Capability Permission Policy -> Planner -> Guard -> Runtime`
+
+with the additional invariants:
+
+`REGISTERED != PERMITTED`
+
+`POLICY CLASSIFICATION != PARAMETER VALIDATION`
+
+`CAPABILITY METADATA != EXECUTION AUTHORITY`
+
+`NO EXACT POLICY MATCH == DENY`
+
+D44 does not change AI chat capability/model discovery, public APIs, database
+state, migrations, frontend behavior, Tool/Module adapter contracts, runtime
+invocation semantics, audit payloads, or the current approval behavior of any
+production Tool/Module capability.

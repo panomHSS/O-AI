@@ -11,6 +11,7 @@ from app.contracts.ai_discovery import (
 from app.contracts.command import CommandRequest, ExecutionPlan, ExecutionStep
 from app.contracts.execution_planning import ExecutionPlanningOutcome
 from app.services.adapter_registry import AdapterRegistry
+from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_router import AIRouter
 from app.services.command_decision_engine import CHAT_MESSAGE_COMMAND, CommandDecisionEngine
@@ -33,12 +34,14 @@ class ExecutionPlanner:
         decision_engine: CommandDecisionEngine,
         ai_router: AIRouter,
         ai_discovery: AICapabilityModelDiscovery,
+        permission_policy: CapabilityPermissionPolicy,
         audit: ExecutionAuditTrail | None = None,
     ) -> None:
         self._registry = registry
         self._decision_engine = decision_engine
         self._ai_router = ai_router
         self._ai_discovery = ai_discovery
+        self._permission_policy = permission_policy
         self._audit = audit
 
     def plan(self, request: CommandRequest) -> ExecutionPlanningOutcome:
@@ -155,11 +158,22 @@ class ExecutionPlanner:
                     return self._rejected("module_adapter_kind_mismatch", request.request_id)
                 return self._unavailable("module_adapter_unavailable", request.request_id)
 
+        permission = self._permission_policy.resolve(
+            target_kind,
+            adapter_id,
+            operation,
+        )
+        if permission is None:
+            return self._rejected(
+                "capability_not_permitted",
+                request.request_id,
+            )
+
         plan = ExecutionPlan(
             request_id=request.request_id,
             adapter_id=adapter_id,
             steps=(ExecutionStep(sequence=1, operation=operation, parameters=dict(parameters)),),
-            owner_approval_required=True,
+            owner_approval_required=permission.owner_approval_required,
         )
         return ExecutionPlanningOutcome(
             request_id=request.request_id,

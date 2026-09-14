@@ -9,10 +9,12 @@ from app.contracts.ai_discovery import (
     AIAdapterDiscovery,
     AIModelDescriptor,
 )
+from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.command import CommandRequest, ExecutionPlan, Result
 from app.contracts.tool_module import TOOL_MODULE_ADAPTER_CONTRACT_VERSION
 from app.services.adapter_registry import AdapterRegistry
 from app.services.command_decision_engine import CommandDecisionEngine
+from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.execution_planner import ExecutionPlanner, MODULE_EXECUTE_COMMAND, TOOL_EXECUTE_COMMAND
 
 
@@ -77,13 +79,27 @@ class ExecutionPlannerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.ai, self.tool, self.module = StubAIAdapter(), StubToolAdapter(), StubModuleAdapter()
         self.registry = AdapterRegistry((self.ai, self.tool, self.module))
+        self.policy = CapabilityPermissionPolicy(
+            registry=self.registry,
+            permissions=(
+                ExecutableCapabilityPermission(
+                    "exec.test.tool", "tool", "tool.stub", "echo",
+                    "none", "none", True,
+                ),
+                ExecutableCapabilityPermission(
+                    "exec.test.module", "module", "module.stub", "inspect",
+                    "read", "workspace_metadata", True,
+                ),
+            ),
+        )
 
-    def make_planner(self, *, router=None, discovery=None) -> ExecutionPlanner:
+    def make_planner(self, *, router=None, discovery=None, permission_policy=None) -> ExecutionPlanner:
         return ExecutionPlanner(
             registry=self.registry,
             decision_engine=CommandDecisionEngine(),
             ai_router=router or StubAIRouter(),  # type: ignore[arg-type]
             ai_discovery=discovery or StubDiscovery(available_discovery()),  # type: ignore[arg-type]
+            permission_policy=permission_policy or self.policy,
         )
 
     @staticmethod
@@ -138,6 +154,35 @@ class ExecutionPlannerTests(unittest.TestCase):
         outcome = self.make_planner().plan(request)
         self.assertEqual((outcome.status, outcome.target_kind), ("planned", "tool"))
         self.assertTrue(outcome.plan.owner_approval_required)  # type: ignore[union-attr]
+        self.assertEqual(self.tool.execute_calls, 0)
+
+    def test_registered_but_unpermitted_operation_is_rejected(self) -> None:
+        request = CommandRequest(
+            "req-tool-policy", TOOL_EXECUTE_COMMAND,
+            {"adapter_id": "tool.stub", "operation": "delete", "parameters": {}},
+        )
+        outcome = self.make_planner().plan(request)
+        self.assertEqual(outcome.status, "rejected")
+        self.assertEqual(outcome.reason_code, "capability_not_permitted")
+        self.assertIsNone(outcome.plan)
+
+    def test_policy_derives_no_approval_plan_without_execution(self) -> None:
+        policy = CapabilityPermissionPolicy(
+            registry=self.registry,
+            permissions=(
+                ExecutableCapabilityPermission(
+                    "exec.test.no-approval", "tool", "tool.stub", "echo",
+                    "none", "none", False,
+                ),
+            ),
+        )
+        request = CommandRequest(
+            "req-tool-no-approval", TOOL_EXECUTE_COMMAND,
+            {"adapter_id": "tool.stub", "operation": "echo", "parameters": {"value": "hello"}},
+        )
+        outcome = self.make_planner(permission_policy=policy).plan(request)
+        self.assertEqual(outcome.status, "planned")
+        self.assertFalse(outcome.plan.owner_approval_required)  # type: ignore[union-attr]
         self.assertEqual(self.tool.execute_calls, 0)
 
     def test_unknown_tool_and_wrong_kind_fail_closed(self) -> None:
