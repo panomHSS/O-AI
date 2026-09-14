@@ -36,6 +36,16 @@ function Remove-StalePid([string]$Path) {
     Remove-Item -LiteralPath $Path -Force
 }
 
+function Start-DetachedCommand([string]$Command, [string]$WorkingDirectory) {
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = Join-Path $env:SystemRoot "System32/cmd.exe"
+    $startInfo.Arguments = "/d /s /c $Command"
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $true
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+    if ($null -eq $process) { throw "Could not start O-AI MVP command." }
+}
+
 function Wait-ForLocalPort([int]$Port) {
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
         $line = netstat.exe -ano -p tcp | Select-String "127.0.0.1:$Port\s+.*LISTENING" | Select-Object -First 1
@@ -55,22 +65,17 @@ Assert-PortAvailable 8000
 Assert-PortAvailable 3000
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$cmd = Join-Path $env:SystemRoot "System32/cmd.exe"
-$backendCommand = 'start "" /b ""{0}"" -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 1>"{1}" 2>"{2}"' -f `
+$backendCommand = '""{0}" -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 1>"{1}" 2>"{2}""' -f `
     (Join-Path $repositoryRoot ".venv/Scripts/python.exe"), `
     (Join-Path $logDirectory "backend-$stamp.out.log"), `
     (Join-Path $logDirectory "backend-$stamp.err.log")
-Push-Location $repositoryRoot
-& $cmd /c $backendCommand
-Pop-Location
+Start-DetachedCommand $backendCommand $repositoryRoot
 $backendProcessId = Wait-ForLocalPort 8000
 
-$frontendCommand = 'start "" /b npm.cmd run dev -- --hostname 127.0.0.1 --port 3000 1>"{0}" 2>"{1}"' -f `
+$frontendCommand = '"npm.cmd run dev -- --hostname 127.0.0.1 --port 3000 1>"{0}" 2>"{1}""' -f `
     (Join-Path $logDirectory "frontend-$stamp.out.log"), `
     (Join-Path $logDirectory "frontend-$stamp.err.log")
-Push-Location (Join-Path $repositoryRoot "frontend")
-& $cmd /c $frontendCommand
-Pop-Location
+Start-DetachedCommand $frontendCommand (Join-Path $repositoryRoot "frontend")
 $frontendProcessId = Wait-ForLocalPort 3000
 
 Set-Content -LiteralPath $backendPid -Value $backendProcessId -NoNewline

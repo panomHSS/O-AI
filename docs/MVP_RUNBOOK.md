@@ -1,6 +1,6 @@
 # O-AI MVP Runbook (D30)
 
-The official MVP path is a trusted, single-owner native Windows machine. Backend and frontend bind only to `127.0.0.1`; do not expose this MVP to LAN or the public Internet.
+The official MVP path is a trusted, single-owner native Windows machine. Backend and frontend bind only to `127.0.0.1`; use either `http://localhost:3000/chat` or `http://127.0.0.1:3000/chat`. Both loopback origins are explicitly allowed; do not expose this MVP to LAN or the public Internet.
 
 ## 1. Bootstrap
 

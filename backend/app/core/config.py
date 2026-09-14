@@ -4,6 +4,12 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+LOOPBACK_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
@@ -12,7 +18,7 @@ class Settings(BaseSettings):
     app_name: str = "O-AI API"
     environment: str = "development"
     log_level: str = "INFO"
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    cors_origins: list[str] = Field(default_factory=lambda: list(LOOPBACK_CORS_ORIGINS))
     openai_api_key: SecretStr | None = None
     openai_model: str | None = None
     oai_embedding_model: str | None = None
@@ -48,6 +54,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_chunk_settings(self) -> "Settings":
+        self.cors_origins = list(dict.fromkeys((*self.cors_origins, *LOOPBACK_CORS_ORIGINS)))
         if self.oai_chunk_overlap_chars >= self.oai_chunk_size_chars:
             raise ValueError("OAI_CHUNK_OVERLAP_CHARS must be smaller than OAI_CHUNK_SIZE_CHARS.")
         if self.oai_memory_context_max_item_chars > self.oai_memory_context_max_chars:

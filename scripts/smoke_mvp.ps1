@@ -30,9 +30,11 @@ if (-not $healthBody.success -or -not $healthBody.data.database_revision) { thro
 if ($health.Headers["X-Request-ID"] -ne $requestId) { throw "Backend did not preserve X-Request-ID." }
 Write-Host "Backend health and database revision: OK ($($healthBody.data.database_revision))"
 
-$frontend = Invoke-OaiRequest "GET" "http://127.0.0.1:3000/chat"
-if ($frontend.StatusCode -ne 200) { throw "Frontend reachability check failed with HTTP $($frontend.StatusCode)." }
-Write-Host "Frontend reachability: OK"
+foreach ($frontendUrl in @("http://localhost:3000/chat", "http://127.0.0.1:3000/chat")) {
+    $frontend = Invoke-OaiRequest "GET" $frontendUrl
+    if ($frontend.StatusCode -ne 200) { throw "Frontend reachability check failed for $frontendUrl with HTTP $($frontend.StatusCode)." }
+}
+Write-Host "Frontend localhost and 127.0.0.1 reachability: OK"
 
 $negative = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "" } @{ "X-Request-ID" = $requestId }
 if ($negative.StatusCode -ne 422 -or $negative.Content -match "Traceback|Exception") { throw "Safe negative chat check failed." }

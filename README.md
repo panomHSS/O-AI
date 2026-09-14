@@ -14,7 +14,7 @@ O-AI currently supports a trusted local, single-owner deployment model. The offi
 1. Run `./scripts/bootstrap.ps1` in Windows PowerShell.
 2. Review `.env`; set `OAI_LOCAL_AI_ENABLED=true` to use the configured Ollama model. OpenAI is optional.
 3. Run `./scripts/start_mvp.ps1`.
-4. Run `./scripts/smoke_mvp.ps1`, then open `http://localhost:3000/chat`.
+4. Run `./scripts/smoke_mvp.ps1`, then open `http://localhost:3000/chat` or `http://127.0.0.1:3000/chat`.
 5. Run `./scripts/stop_mvp.ps1` when finished.
 
 See [the MVP runbook](docs/MVP_RUNBOOK.md) for the complete local run path. Docker support is retained but is deferred/non-MVP deployment work; it is not the D30 quick-start path.
