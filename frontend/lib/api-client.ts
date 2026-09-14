@@ -1,4 +1,8 @@
-import type { ChatRequest, ChatResponse } from "../types/chat";
+import type {
+  ChatRequest,
+  ChatResponse,
+  ExecutionApprovalDecision,
+} from "../types/chat";
 import type { ConversationDetail } from "../types/conversation";
 import type { KnowledgeDocumentList, KnowledgeScanResult, KnowledgeSearchResponse } from "../types/knowledge";
 import type {
@@ -94,6 +98,11 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
   }
 }
 
+function isExplicitActionMessage(message: string): boolean {
+  const normalized = message.trim();
+  return normalized === "/action" || /^\/action\s/.test(normalized);
+}
+
 export function sendChatMessage(message: string, conversationId?: string, projectId?: string): Promise<ChatResponse> {
   const payload: ChatRequest = {
     message,
@@ -103,8 +112,33 @@ export function sendChatMessage(message: string, conversationId?: string, projec
   return apiRequest<ChatResponse>("/chat", {
     method: "POST",
     body: payload,
+    headers: isExplicitActionMessage(message)
+      ? { "X-OAI-Local-Request": "1" }
+      : undefined,
     timeoutMs: configuredChatTimeoutMs(),
   });
+}
+
+export function approveExecutionApproval(approvalId: string, planDigest: string): Promise<ExecutionApprovalDecision> {
+  return apiRequest<ExecutionApprovalDecision>(
+    `/execution-approvals/${encodeURIComponent(approvalId)}/approve`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: { plan_digest: planDigest },
+    },
+  );
+}
+
+export function denyExecutionApproval(approvalId: string, planDigest: string): Promise<ExecutionApprovalDecision> {
+  return apiRequest<ExecutionApprovalDecision>(
+    `/execution-approvals/${encodeURIComponent(approvalId)}/deny`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: { plan_digest: planDigest },
+    },
+  );
 }
 
 export function getConversation(conversationId: string): Promise<ConversationDetail> {

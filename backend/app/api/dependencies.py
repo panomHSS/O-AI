@@ -47,6 +47,7 @@ from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
 from app.telemetry.system_metrics import SystemMetricsProvider
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
+from app.services.chat_action_bridge import ChatActionBridge
 from app.services.tool_module_router import ToolModuleRouter
 from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
 from app.services.response_composer import ResponseComposer
@@ -524,6 +525,21 @@ def get_execution_approval_service(
         permission_policy=permission_policy,
         coordinator=coordinator,
         store=store,
+    )
+
+
+def get_chat_action_bridge(
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    approval_service: ExecutionApprovalService = Depends(
+        get_execution_approval_service
+    ),
+) -> ChatActionBridge:
+    """Compose D46 over conversation persistence and D45 proposal authority."""
+    return ChatActionBridge(
+        conversation_service=conversation_service,
+        approval_service=approval_service,
     )
 
 

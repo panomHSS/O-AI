@@ -1,14 +1,24 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.api.dependencies import (
+    get_chat_action_bridge,
     get_command_input_pipeline,
     get_command_orchestrator,
     get_project_update_turn_orchestrator,
 )
 from app.schemas.api import ApiSuccess
-from app.schemas.chat import ChatRequest, ChatResponse, MemoryUsageResponse
+from app.schemas.chat import (
+    ChatActionResponse,
+    ChatRequest,
+    ChatResponse,
+    MemoryUsageResponse,
+)
+from app.schemas.execution_approvals import (
+    ExecutionApprovalProposalResponse,
+)
+from app.services.chat_action_bridge import ChatActionBridge
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.command_orchestrator import (
     CommandOrchestrator,
@@ -20,6 +30,8 @@ from app.services.project_update_orchestrator import (
 )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+LOCAL_REQUEST_HEADER_VALUE = "1"
 
 
 @router.post(
@@ -42,8 +54,47 @@ def send_chat_message(
         ProjectUpdateTurnOrchestrator,
         Depends(get_project_update_turn_orchestrator),
     ],
+    chat_action_bridge: Annotated[
+        ChatActionBridge,
+        Depends(get_chat_action_bridge),
+    ],
+    x_oai_local_request: Annotated[
+        str | None,
+        Header(),
+    ] = None,
 ) -> ApiSuccess[ChatResponse]:
-    """Handle a chat turn through the narrow D22 input boundary."""
+    """Handle normal chat or one explicit owner-reviewed /action turn."""
+
+    if chat_action_bridge.is_action_directive(payload.message):
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        action_outcome = chat_action_bridge.process(
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+        )
+        approval = (
+            ExecutionApprovalProposalResponse.from_outcome(
+                action_outcome.approval
+            )
+            if action_outcome.approval is not None
+            else None
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=action_outcome.reply,
+                conversation_id=action_outcome.conversation_id,
+                action=ChatActionResponse(
+                    status=action_outcome.status,
+                    reason_code=action_outcome.reason_code,
+                    approval=approval,
+                ),
+            )
+        )
+
     command = command_input_pipeline.normalize_chat(
         request_id=request.state.request_id,
         message=payload.message,

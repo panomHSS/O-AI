@@ -3,16 +3,22 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { ApiError, getConversation, getProject, sendChatMessage } from "../../lib/api-client";
-import type { ChatMessage } from "../../types/chat";
+import type { ChatAction, ChatMessage } from "../../types/chat";
 import type { Project } from "../../types/projects";
+import { ActionApprovalCard } from "./action-approval-card";
 
 const ACTIVE_CONVERSATION_STORAGE_KEY = "oai.activeConversationId";
 
-function createMessage(role: ChatMessage["role"], content: string): ChatMessage {
+function createMessage(
+  role: ChatMessage["role"],
+  content: string,
+  action?: ChatAction | null,
+): ChatMessage {
   return {
     id: crypto.randomUUID(),
     role,
     content,
+    ...(action ? { action } : {}),
   };
 }
 
@@ -86,7 +92,10 @@ export function Chat() {
         setPendingProject(null);
         window.history.replaceState({}, "", "/chat");
       }
-      setMessages((currentMessages) => [...currentMessages, createMessage("assistant", response.reply)]);
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        createMessage("assistant", response.reply, response.action),
+      ]);
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Something went wrong. Please try again.");
     } finally {
@@ -135,6 +144,9 @@ export function Chat() {
                 ))}
               </ol>
             ) : null}
+            {chatMessage.action ? (
+              <ActionApprovalCard action={chatMessage.action} />
+            ) : null}
           </article>
         ))}
         {isRestoring ? <p className="text-sm text-zinc-400">Restoring conversation…</p> : null}
@@ -148,7 +160,7 @@ export function Chat() {
           disabled={isLoading || isRestoring}
           id="chat-message"
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Write a message"
+          placeholder="Write a message or use /action"
           value={draft}
         />
         <button

@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import json
 import unittest
 from urllib.parse import urlsplit
@@ -124,6 +124,7 @@ class ApiStandardizationTests(unittest.TestCase):
         "data": {
             "reply": "Test reply: Hello",
             "conversation_id": "11111111-1111-1111-1111-111111111111",
+            "action": None,
             "project_update_proposal": None,
             "project_action_analysis": None,
             "project_action_plan": None,

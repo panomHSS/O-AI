@@ -604,3 +604,65 @@ D45 intentionally adds no frontend approval UI, Chat-to-Action bridge,
 authentication/RBAC, standing grants, remembered approvals, durable approval
 persistence, Tool/Module discovery, write tools, network integrations, durable
 audit storage, Docker changes, dependencies, or schema migrations.
+
+## Deterministic Chat -> Action Bridge v1 (D46)
+
+D46 connects the existing Chat surface to D45 approval proposals without
+granting Chat, the AI provider, or the frontend any execution authority.
+Only an explicit `/action` directive at the beginning of a trimmed chat
+message enters the action lane. Ordinary natural-language chat continues
+through the existing AI lane unchanged.
+
+The v1 grammar is deterministic and allowlisted:
+
+- `/action echo <text>`
+- `/action system info`
+- `/action system health`
+- `/action list <relative-path>`
+- `/action stat <relative-path>`
+- `/action read <relative-path>`
+- `/action workspace overview`
+- `/action project snapshot`
+
+There is no fuzzy matching, semantic intent inference, LLM function calling,
+automatic correction, or silent fallback. `project snapshot` derives the
+Project identifier only from the immutable conversation association; chat text
+cannot supply or override that identifier.
+
+The action lane is:
+
+`Chat /action -> ChatActionBridge -> D45 ExecutionApprovalService.propose()
+-> owner review -> D45 approve/deny -> Coordinator -> Planner -> Guard -> Runtime`
+
+Creating the chat action turn never calls Guard, ToolRuntime, ModuleRuntime, or
+`CommandExecutionCoordinator.execute()`. The D46 bridge creates no second
+approval store and no authorization object. It uses the D45 one-time approval
+ticket, digest, capability metadata, TTL, and replay protection exactly as
+defined by D45.
+
+D46 establishes:
+
+`CHAT INTENT != EXECUTION AUTHORITY`
+
+`AI RESPONSE != TOOL CALL`
+
+`ACTION PROPOSED != ACTION APPROVED != ACTION EXECUTED`
+
+`PROJECT ACTION SUGGESTION != EXECUTABLE CAPABILITY PROPOSAL`
+
+Recognized `/action` requests require `X-OAI-Local-Request: 1` before
+conversation mutation or proposal creation. The marker remains request intent,
+not authentication. Action turns are persisted as deterministic user/assistant
+conversation messages, but pending approval cards are intentionally ephemeral
+and are not reconstructed after browser reload or backend restart.
+
+The frontend displays the exact D45 review projection and exposes explicit
+Approve/Deny buttons that call the existing D45 endpoints with the exact plan
+digest and local-request marker. A decision result is rendered directly from
+the bounded D45 result; Tool/Module output is not automatically fed back to the
+AI as a new prompt.
+
+D46 adds no write tools, shell/process execution, network tools, autonomous
+actions, automatic approval, standing grants, durable approval persistence,
+authentication/RBAC, remote approval, durable audit, database migration,
+Docker change, or new dependency.

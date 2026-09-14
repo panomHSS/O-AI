@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -11,6 +12,10 @@ from app.schemas.project_action_planning import ProjectActionPlan
 from app.schemas.project_action_execution import (
     ProjectActionExecutionProposal,
 )
+from app.schemas.execution_approvals import (
+    ExecutionApprovalProposalResponse,
+)
+
 
 class ChatRequest(BaseModel):
     """Validated input for a chat turn."""
@@ -20,11 +25,24 @@ class ChatRequest(BaseModel):
     project_id: UUID | None = None
 
 
+class ChatActionResponse(BaseModel):
+    """Ephemeral D46 owner-review state returned by an action chat turn."""
+
+    status: Literal[
+        "pending_approval",
+        "rejected",
+        "unavailable",
+    ]
+    reason_code: str
+    approval: ExecutionApprovalProposalResponse | None = None
+
+
 class ChatResponse(BaseModel):
     """Stable response contract for a chat turn."""
 
     reply: str
     conversation_id: UUID
+    action: ChatActionResponse | None = None
     project_update_proposal: ProjectUpdateProposalResponse | None = None
     project_action_analysis: ProjectActionAnalysis | None = None
     memories_used: list["MemoryUsageResponse"] = Field(default_factory=list)
@@ -34,6 +52,7 @@ class ChatResponse(BaseModel):
     goal_analysis: GoalAnalysis | None = None
     project_action_plan: ProjectActionPlan | None = None
     project_action_execution_proposal: ProjectActionExecutionProposal | None = None
+
 
 class MemoryUsageResponse(BaseModel):
     memory_id: UUID

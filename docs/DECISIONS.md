@@ -788,3 +788,50 @@ audit log. D47 remains responsible for durable audit. D45 adds no database
 table, migration, frontend UI, Chat-to-Action bridge, authentication, RBAC,
 standing permissions, remembered approvals, remote/LAN approval, write tools,
 network tools, Docker changes, or new dependencies.
+
+## ADR-038: Deterministic Chat -> Action Bridge v1
+
+**Decision**
+
+Introduce a deterministic `ChatActionBridge` in front of the existing normal
+Chat pipeline. A message enters the action lane only when its trimmed form
+starts with the exact `/action` token. The bridge parses a small allowlisted
+grammar into an exact Tool/Module adapter, operation, and parameter mapping,
+persists the chat turn through the existing `ConversationService` boundaries,
+and delegates proposal creation exclusively to D45
+`ExecutionApprovalService.propose()`.
+
+The bridge never invokes `ExecutionGuard`, ToolRuntime, ModuleRuntime, or
+`CommandExecutionCoordinator.execute()`, and never creates
+`OwnerApprovalEvidence` or `ExecutionAuthorization`. Normal non-action chat
+continues through the existing CommandInputPipeline/CommandOrchestrator/AI lane
+without changed semantics.
+
+**Project binding**
+
+`/action project snapshot` never accepts a Project UUID from free-form chat.
+The exact Project identifier is derived from the conversation's immutable
+Project association. An unlinked conversation returns
+`project_context_required` and creates no D45 ticket.
+
+**Local owner boundary**
+
+An explicit action chat request requires `X-OAI-Local-Request: 1` before the
+bridge may mutate conversation state. This is the same local request-intent
+boundary as D45 and is not authentication.
+
+**Frontend**
+
+The Chat response gains an optional ephemeral action projection. When a pending
+D45 proposal is present, the UI renders its exact adapter, operation,
+parameters, capability/effect/data class, expiry, and plan digest with explicit
+Approve and Deny controls. Those controls call the existing D45 decision
+endpoints. Backend one-time ticket semantics remain authoritative.
+
+**Consequences**
+
+Action approval UI state is intentionally not durable across reload/restart.
+Project action suggestions remain separate from executable capability
+proposals. D46 introduces no LLM function calling, autonomous tool selection,
+write capability, database schema, approval persistence, RBAC, durable audit,
+Docker change, or dependency.
