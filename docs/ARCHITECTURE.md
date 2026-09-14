@@ -329,6 +329,14 @@ D38 introduces a dedicated `ToolRuntime` that mirrors the D37 Module runtime bou
 
 D38 moves Tool execution ownership out of `CommandOrchestrator`. The orchestrator retains D36 authorization normalization and response composition, but delegates authorized invocation to `ToolRuntime`. D27 `ToolModuleRouter` remains available as a compatibility routing mechanism and continues to be regression-tested, but it is no longer the owner of the D38 Tool execution path. Live chat behavior remains unchanged.
 
+## Safe execution observability and audit trail (D39)
+
+D39 adds an immutable, allowlisted execution audit event contract and pluggable audit sinks for D35 planning, D36 authorization, and D37/D38 Module/Tool execution. Audit events contain only structural metadata such as request ID, stage, action, target kind, adapter ID, safe status/reason codes, plan digest, and UTC timestamp. User prompts, command arguments, execution-step parameters, adapter outputs, raw exceptions, credentials, and arbitrary metadata are intentionally excluded from the v1 event contract.
+
+`ExecutionAuditTrail` is explicitly non-authoritative. It constructs validated events and isolates all sink failures: audit recording must never alter planning outcomes, authorization decisions, adapter invocation counts, or returned execution results. Tool and Module runtimes emit `execution/started` only immediately before the selected adapter invocation and `execution/completed` after the runtime reaches a safe result. Adapter-specific error text is not copied into audit reason codes.
+
+D39 provides a standard-library `LoggingAuditSink` for structured operational logging and an ordered `InMemoryAuditSink` for deterministic tests/local inspection. No database table, migration, durable retention policy, remote telemetry dependency, distributed tracing, or compliance-grade tamper protection is introduced. Durable backends can be added later behind the `AuditSink` contract without changing the D35-D38 execution boundaries.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

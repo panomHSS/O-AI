@@ -1,6 +1,8 @@
 from functools import lru_cache
 
 from fastapi import Depends
+
+from app.contracts.execution_audit import AuditSink
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -37,6 +39,7 @@ from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
+from app.services.execution_audit import ExecutionAuditTrail, LoggingAuditSink
 from app.services.module_runtime import ModuleRuntime
 from app.services.tool_runtime import ToolRuntime
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
@@ -355,25 +358,40 @@ def get_ai_adapter_registry(
     return AIAdapterRegistry(registry=adapter_registry)
 
 
+def get_audit_sink() -> AuditSink:
+    """Compose the D39 default structured logging sink."""
+    return LoggingAuditSink()
+
+
+def get_execution_audit_trail(
+    audit_sink: AuditSink = Depends(get_audit_sink),
+) -> ExecutionAuditTrail:
+    """Compose non-authoritative D39 execution observation."""
+    return ExecutionAuditTrail(sink=audit_sink)
+
+
 def get_tool_runtime(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
 ) -> ToolRuntime:
-    """Compose D38 Tool runtime from the D31 registry."""
-    return ToolRuntime(registry=adapter_registry)
+    """Compose D38 Tool runtime with D39 observation."""
+    return ToolRuntime(registry=adapter_registry, audit=audit)
 
 
 def get_module_runtime(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
 ) -> ModuleRuntime:
-    """Compose D37 Module runtime from the D31 registry."""
-    return ModuleRuntime(registry=adapter_registry)
+    """Compose D37 Module runtime with D39 observation."""
+    return ModuleRuntime(registry=adapter_registry, audit=audit)
 
 
 def get_execution_guard(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
 ) -> ExecutionGuard:
-    'Compose the fail-closed D36 authorization boundary.'
-    return ExecutionGuard(registry=adapter_registry)
+    """Compose D36 authorization with D39 observation."""
+    return ExecutionGuard(registry=adapter_registry, audit=audit)
 
 
 def get_execution_planner(
@@ -383,13 +401,15 @@ def get_execution_planner(
     ai_discovery: AICapabilityModelDiscovery = Depends(
         get_ai_capability_model_discovery
     ),
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
 ) -> ExecutionPlanner:
-    """Compose pure D35 planning from D31-D34 mechanisms."""
+    """Compose D35 planning with D39 observation."""
     return ExecutionPlanner(
         registry=adapter_registry,
         decision_engine=decision_engine,
         ai_router=ai_router,
         ai_discovery=ai_discovery,
+        audit=audit,
     )
 
 def get_command_orchestrator(

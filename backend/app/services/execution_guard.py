@@ -16,6 +16,7 @@ from app.contracts.execution_authorization import (
 )
 from app.contracts.execution_planning import ExecutionPlanningOutcome
 from app.services.adapter_registry import AdapterRegistry
+from app.services.execution_audit import ExecutionAuditTrail
 
 
 def _canonical_value(value: object) -> object:
@@ -106,10 +107,30 @@ def execution_plan_digest(plan: ExecutionPlan) -> str:
 class ExecutionGuard:
     """Revalidate a D35 plan and materialize execution readiness only when allowed."""
 
-    def __init__(self, *, registry: AdapterRegistry) -> None:
+    def __init__(
+        self,
+        *,
+        registry: AdapterRegistry,
+        audit: ExecutionAuditTrail | None = None,
+    ) -> None:
         self._registry = registry
+        self._audit = audit
 
     def authorize(
+        self,
+        request: CommandRequest,
+        planning: ExecutionPlanningOutcome,
+        approval: OwnerApprovalEvidence | None = None,
+    ) -> ExecutionAuthorization:
+        authorization = self._authorize_unobserved(
+            request,
+            planning,
+            approval,
+        )
+        self._record_authorization(planning, authorization)
+        return authorization
+
+    def _authorize_unobserved(
         self,
         request: CommandRequest,
         planning: ExecutionPlanningOutcome,
@@ -171,6 +192,28 @@ class ExecutionGuard:
             approval,
             target_kind="module",
         )
+
+    def _record_authorization(
+        self,
+        planning: ExecutionPlanningOutcome,
+        authorization: ExecutionAuthorization,
+    ) -> None:
+        if self._audit is None:
+            return
+        adapter_id = planning.plan.adapter_id if planning.plan is not None else None
+        try:
+            self._audit.try_record(
+                request_id=authorization.request_id,
+                stage="authorization",
+                action="completed",
+                status=authorization.status,
+                target_kind=authorization.target_kind,
+                adapter_id=adapter_id,
+                reason_code=authorization.reason_code,
+                plan_digest=authorization.source_plan_digest,
+            )
+        except Exception:
+            pass
 
     def _authorize_ai(
         self,

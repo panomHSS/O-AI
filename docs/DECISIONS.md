@@ -502,3 +502,20 @@ A dedicated Tool runtime creates the same security and lifecycle boundary as D37
 
 **Consequences**
 Raw `ExecutionPlan` values cannot invoke ToolRuntime. Wrong-kind, non-authorized, mismatched, approval-gated, malformed, or unavailable Tool executions fail closed without adapter invocation. Valid adapters run exactly once with no retry/fallback. `CommandOrchestrator` no longer resolves or invokes Tool adapters directly. Public APIs, UI, databases, migrations, dynamic Tool loading, observability, and multi-step execution remain out of scope.
+
+## ADR-031: Safe non-authoritative execution audit trail
+
+**Decision**
+Record allowlisted planning, authorization, and execution metadata through an immutable execution-audit contract and pluggable `AuditSink`. D35 `ExecutionPlanner`, D36 `ExecutionGuard`, D37 `ModuleRuntime`, and D38 `ToolRuntime` emit observations at the layer that owns each action. Audit recording is non-authoritative and all sink failures are isolated from business execution.
+
+**Context**
+D35-D38 established deterministic planning, plan-bound authorization, and dedicated Module/Tool execution owners. D39 needs visibility into those decisions and executions without weakening the authorization boundary, duplicating execution ownership, or leaking request/adapter payloads. A durable compliance store has not yet been selected and would prematurely couple Core behavior to persistence.
+
+**Alternatives**
+Log arbitrary objects or payloads, place all audit generation in `CommandOrchestrator`, make successful audit recording mandatory for execution, write directly to the application database, add a migration now, expose raw adapter exceptions, add OpenTelemetry or a remote collector dependency, or postpone all observability until after D40.
+
+**Rationale**
+An allowlisted event contract creates a stable privacy boundary. Layer-local instrumentation avoids duplicate or misleading events. A pluggable sink keeps Core independent from the final storage/telemetry backend. Fail-open observation preserves the D35-D38 business and security semantics: audit system availability cannot authorize, deny, retry, or duplicate execution.
+
+**Consequences**
+Operational logs can observe planning, authorization, and Tool/Module execution without storing prompts, arguments, step parameters, outputs, or raw exceptions. `LoggingAuditSink` and `InMemoryAuditSink` are available in v1. Audit delivery is best-effort and is not durable, exactly-once, tamper-evident, cryptographically signed, cross-process ordered, or compliance-grade. Database persistence, retention, dashboards, public audit APIs, distributed tracing, and D40 live-pipeline integration remain out of scope.

@@ -15,6 +15,7 @@ from app.services.ai_capability_model_discovery import AICapabilityModelDiscover
 from app.services.ai_router import AIRouter
 from app.services.command_decision_engine import CHAT_MESSAGE_COMMAND, CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputError, CommandInputPipeline
+from app.services.execution_audit import ExecutionAuditTrail
 
 
 TOOL_EXECUTE_COMMAND = "tool.execute"
@@ -32,11 +33,13 @@ class ExecutionPlanner:
         decision_engine: CommandDecisionEngine,
         ai_router: AIRouter,
         ai_discovery: AICapabilityModelDiscovery,
+        audit: ExecutionAuditTrail | None = None,
     ) -> None:
         self._registry = registry
         self._decision_engine = decision_engine
         self._ai_router = ai_router
         self._ai_discovery = ai_discovery
+        self._audit = audit
 
     def plan(self, request: CommandRequest) -> ExecutionPlanningOutcome:
         """Return a deterministic single-step proposal for one command."""
@@ -45,15 +48,38 @@ class ExecutionPlanner:
             or not request.request_id
             or request.request_id != request.request_id.strip()
         ):
-            return self._rejected("invalid_request", "invalid")
+            outcome = self._rejected("invalid_request", "invalid")
+        elif request.command == CHAT_MESSAGE_COMMAND:
+            outcome = self._plan_ai(request)
+        elif request.command == TOOL_EXECUTE_COMMAND:
+            outcome = self._plan_structured(request, target_kind="tool")
+        elif request.command == MODULE_EXECUTE_COMMAND:
+            outcome = self._plan_structured(request, target_kind="module")
+        else:
+            outcome = self._rejected(
+                "unsupported_command",
+                request.request_id,
+            )
 
-        if request.command == CHAT_MESSAGE_COMMAND:
-            return self._plan_ai(request)
-        if request.command == TOOL_EXECUTE_COMMAND:
-            return self._plan_structured(request, target_kind="tool")
-        if request.command == MODULE_EXECUTE_COMMAND:
-            return self._plan_structured(request, target_kind="module")
-        return self._rejected("unsupported_command", request.request_id)
+        self._record_planning(outcome)
+        return outcome
+
+    def _record_planning(self, outcome: ExecutionPlanningOutcome) -> None:
+        if self._audit is None:
+            return
+        adapter_id = outcome.plan.adapter_id if outcome.plan is not None else None
+        try:
+            self._audit.try_record(
+                request_id=outcome.request_id,
+                stage="planning",
+                action="completed",
+                status=outcome.status,
+                target_kind=outcome.target_kind,
+                adapter_id=adapter_id,
+                reason_code=outcome.reason_code,
+            )
+        except Exception:
+            pass
 
     def _plan_ai(self, request: CommandRequest) -> ExecutionPlanningOutcome:
         try:
