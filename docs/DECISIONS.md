@@ -519,3 +519,46 @@ An allowlisted event contract creates a stable privacy boundary. Layer-local ins
 
 **Consequences**
 Operational logs can observe planning, authorization, and Tool/Module execution without storing prompts, arguments, step parameters, outputs, or raw exceptions. `LoggingAuditSink` and `InMemoryAuditSink` are available in v1. Audit delivery is best-effort and is not durable, exactly-once, tamper-evident, cryptographically signed, cross-process ordered, or compliance-grade. Database persistence, retention, dashboards, public audit APIs, distributed tracing, and D40 live-pipeline integration remain out of scope.
+
+## ADR-032: O-AI Architecture v1 integration and freeze
+
+**Decision**
+
+Freeze the adapter, planning, authorization, runtime, and audit ownership
+boundaries established in D31-D39 and add a narrow
+`CommandExecutionCoordinator` as the official internal Tool/Module integration
+path. Keep the existing Chat/AI execution path as a separate compatibility lane
+for Architecture v1.
+
+**Context**
+
+D31-D39 established independently testable boundaries for registration, AI
+routing, Local AI replaceability, discovery, planning, approval/authorization,
+Module execution, Tool execution, and non-authoritative audit observation. The
+remaining v1 task is to prove that the action lane composes correctly without
+introducing another policy owner or rewriting the stable chat path during the
+freeze milestone.
+
+**Alternatives**
+
+Rewrite live AI execution into the new pipeline during D40, create a generic
+runtime that replaces Tool/Module runtimes, let the coordinator resolve adapters
+directly, add durable audit persistence now, or postpone defining compatibility
+rules until after new features are added.
+
+**Rationale**
+
+A narrow coordinator integrates the already-tested boundaries while preserving
+their ownership. Keeping Chat/AI as a compatibility lane avoids a high-risk live
+behavior rewrite during architecture freeze. An explicit freeze document makes
+future changes deliberate: breaking contract or owner changes require
+versioning, ADR review, compatibility planning, and regression tests.
+
+**Consequences**
+
+Tool/Module actions now have one official internal end-to-end coordination path.
+Approval integrity, runtime kind isolation, exactly-once invocation, and audit
+failure isolation can be tested across boundaries. AI execution is deliberately
+not performed by the D40 coordinator. Dynamic loading, public action APIs,
+approval UI, durable audit storage, retries/fallback, multi-step execution, and
+Plugin bridging remain post-v1 work.

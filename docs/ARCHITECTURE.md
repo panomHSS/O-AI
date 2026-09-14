@@ -337,6 +337,23 @@ D39 adds an immutable, allowlisted execution audit event contract and pluggable 
 
 D39 provides a standard-library `LoggingAuditSink` for structured operational logging and an ordered `InMemoryAuditSink` for deterministic tests/local inspection. No database table, migration, durable retention policy, remote telemetry dependency, distributed tracing, or compliance-grade tamper protection is introduced. Durable backends can be added later behind the `AuditSink` contract without changing the D35-D38 execution boundaries.
 
+## Integrated execution lane and Architecture v1 freeze (D40)
+
+D40 establishes `CommandExecutionCoordinator` as the official internal
+Tool/Module integration path across D35 planning, D36 authorization, and the
+D37/D38 runtimes. The coordinator does not resolve adapters or duplicate policy;
+it coordinates existing owners and returns immutable
+`ExecutionIntegrationOutcome` values.
+
+Architecture v1 intentionally keeps the existing Chat/AI compatibility lane
+separate from the authorized Tool/Module action lane. AI planning can be
+recognized by D35, but the D40 coordinator does not execute AI; live AI execution
+remains owned by the existing chat compatibility path.
+
+The canonical frozen snapshot is `docs/ARCHITECTURE_FREEZE_V1.md`. Future
+breaking changes to frozen v1 contracts or ownership boundaries require explicit
+versioning, ADR review, compatibility strategy, and regression coverage.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

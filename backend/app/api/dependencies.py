@@ -37,6 +37,9 @@ from app.services.orchestration_error_normalizer import OrchestrationErrorNormal
 from app.services.response_composer import ResponseComposer
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
+from app.services.command_execution_coordinator import (
+    CommandExecutionCoordinator,
+)
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
 from app.services.execution_audit import ExecutionAuditTrail, LoggingAuditSink
@@ -411,6 +414,21 @@ def get_execution_planner(
         ai_discovery=ai_discovery,
         audit=audit,
     )
+
+def get_command_execution_coordinator(
+    planner: ExecutionPlanner = Depends(get_execution_planner),
+    guard: ExecutionGuard = Depends(get_execution_guard),
+    tool_runtime: ToolRuntime = Depends(get_tool_runtime),
+    module_runtime: ModuleRuntime = Depends(get_module_runtime),
+) -> CommandExecutionCoordinator:
+    """Compose the frozen D40 Tool/Module integration boundary."""
+    return CommandExecutionCoordinator(
+        planner=planner,
+        guard=guard,
+        tool_runtime=tool_runtime,
+        module_runtime=module_runtime,
+    )
+
 
 def get_command_orchestrator(
     conversation_service: ConversationService = Depends(get_conversation_service),
