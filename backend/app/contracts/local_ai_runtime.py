@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 
+LOCAL_AI_RUNTIME_OLLAMA = "ollama"
+
+
 class LocalAIRuntimeError(Exception):
     """Base error from a Local AI runtime boundary."""
 

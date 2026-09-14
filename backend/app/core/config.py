@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     )
     oai_knowledge_answer_context_char_budget: int = Field(default=8000, ge=500, le=20000)
     oai_local_ai_enabled: bool = False
+    oai_local_ai_backend: str = "ollama"
     oai_local_ai_base_url: str = "http://127.0.0.1:11434"
     oai_local_ai_model: str = "qwen3.5:9b"
     oai_local_ai_timeout_seconds: float = Field(default=120.0, gt=0, le=600)

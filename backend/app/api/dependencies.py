@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
 from app.adapters.local_ai import LocalAIAdapter
-from app.adapters.ollama_runtime import OllamaRuntimeClient
 from app.adapters.standard_tool import StandardToolAdapter
 from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
@@ -36,7 +35,10 @@ from app.services.orchestration_error_normalizer import OrchestrationErrorNormal
 from app.services.response_composer import ResponseComposer
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
+from app.services.local_ai_config import LocalAIAdapterConfig
+from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
 from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
+from app.contracts.local_ai_runtime import LocalAIRuntimeClient
 from app.services.conversations import ConversationService
 from app.services.decision import DecisionService
 from app.services.knowledge import KnowledgeService
@@ -187,20 +189,61 @@ def get_ai_provider_routing_policy() -> AIProviderRoutingPolicy:
     )
 
 
-def get_local_ai_adapter() -> LocalAIAdapter:
-    """Compose D26 Local AI without changing D24 route execution behavior."""
+def get_local_ai_config() -> LocalAIAdapterConfig:
+    """Translate deployment settings into immutable D33 Local AI configuration."""
     settings = get_settings()
-    runtime_client = OllamaRuntimeClient(base_url=settings.oai_local_ai_base_url)
-    return LocalAIAdapter(
-        runtime_client=runtime_client,
+    return LocalAIAdapterConfig(
         enabled=settings.oai_local_ai_enabled,
+        backend_id=settings.oai_local_ai_backend,
         model=settings.oai_local_ai_model,
+        base_url=settings.oai_local_ai_base_url,
         timeout_seconds=settings.oai_local_ai_timeout_seconds,
         context_length=settings.oai_local_ai_context_length,
-        telemetry_provider=SystemMetricsProvider(
-            runtime_client=runtime_client,
-            model=settings.oai_local_ai_model,
-        ),
+    )
+
+
+def get_local_ai_runtime_factory() -> LocalAIRuntimeFactory:
+    """Expose explicit, fail-closed D33 Local AI runtime construction."""
+    return LocalAIRuntimeFactory()
+
+
+def get_local_ai_runtime_client(
+    config: LocalAIAdapterConfig = Depends(get_local_ai_config),
+    factory: LocalAIRuntimeFactory = Depends(get_local_ai_runtime_factory),
+) -> LocalAIRuntimeClient:
+    """Resolve the configured Local AI backend without probing or fallback."""
+    return factory.create(
+        backend_id=config.backend_id,
+        base_url=config.base_url,
+    )
+
+
+def get_local_ai_telemetry_provider(
+    config: LocalAIAdapterConfig = Depends(get_local_ai_config),
+    runtime_client: LocalAIRuntimeClient = Depends(get_local_ai_runtime_client),
+) -> SystemMetricsProvider:
+    """Share the provider-neutral D33 runtime with best-effort D26 telemetry."""
+    return SystemMetricsProvider(
+        runtime_client=runtime_client,
+        model=config.model,
+    )
+
+
+def get_local_ai_adapter(
+    config: LocalAIAdapterConfig = Depends(get_local_ai_config),
+    runtime_client: LocalAIRuntimeClient = Depends(get_local_ai_runtime_client),
+    telemetry_provider: SystemMetricsProvider = Depends(
+        get_local_ai_telemetry_provider
+    ),
+) -> LocalAIAdapter:
+    """Compose LocalAIAdapter without coupling it to a runtime implementation."""
+    return LocalAIAdapter(
+        runtime_client=runtime_client,
+        enabled=config.enabled,
+        model=config.model,
+        timeout_seconds=config.timeout_seconds,
+        context_length=config.context_length,
+        telemetry_provider=telemetry_provider,
     )
 
 

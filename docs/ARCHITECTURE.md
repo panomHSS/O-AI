@@ -277,6 +277,14 @@ Registration and route availability remain separate. A Local AI adapter may be p
 
 `AIRouter` remains decision-only: it does not invoke adapters, probe provider/model health, retry, fall back to another provider, inspect provider SDKs, change owner-approval state, or create execution plans. The legacy D24 constructor remains available for compatibility tests/callers, while runtime dependency composition uses registry-backed mode. Deployment settings are translated into `AIProviderRoutingPolicy` only at the FastAPI composition root.
 
+## Replaceable Local AI runtime backend (D33)
+
+D33 formalizes the provider-neutral `LocalAIRuntimeClient` introduced in D26 as the replaceable runtime seam behind `LocalAIAdapter`. `LocalAIAdapter` remains the stable AI Adapter Contract v1 implementation with adapter ID `local_ai.default`; runtime backend identity and model identity are separate concerns and are never encoded into that adapter ID.
+
+Application composition converts deployment settings into an immutable `LocalAIAdapterConfig`, selects a runtime implementation through a fail-closed `LocalAIRuntimeFactory`, and injects the resulting `LocalAIRuntimeClient` into both `LocalAIAdapter` and best-effort telemetry. Ollama remains the default runtime implementation (`ollama`) for compatibility, but `LocalAIAdapter` does not import, instantiate, or otherwise depend on Ollama.
+
+Runtime selection occurs only at the composition boundary. Unknown runtime backend IDs are rejected instead of silently falling back to Ollama or a cloud provider. Creating a runtime client does not probe runtime/model availability; the existing D26 adapter availability guard remains responsible for fail-closed runtime/model checks immediately before local generation. D33 does not add capability/model discovery, automatic runtime discovery, retry/fallback, model installation, public APIs, persistence, migrations, frontend behavior, dependencies, or deployment changes.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

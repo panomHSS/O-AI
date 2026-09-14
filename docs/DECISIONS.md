@@ -392,3 +392,22 @@ Using `AdapterRegistry.resolve_ai()` makes registered AI identity authoritative 
 A registered-but-disabled Local AI adapter remains unavailable for routing. An enabled-but-unregistered ID also fails closed. `AIRouter` never invokes an adapter and does not probe models/providers. D29 remains responsible for controlled orchestration/invocation through the selected adapter. Settings remain at the composition root and are translated into `AIProviderRoutingPolicy`; the routing service itself does not import configuration.
 
 The D24 constructor remains as a compatibility surface for existing tests/callers, but application runtime composition uses registry-backed mode. There is no public API/schema, database, migration, frontend, Docker, dependency/package, capability-discovery, execution-planner, approval, or dynamic-plugin change in D32.
+
+## ADR-025: Replaceable Local AI runtime backend
+
+**Decision**
+Keep `LocalAIAdapter` provider-neutral and designate `LocalAIRuntimeClient` as the official replaceable Local AI runtime seam. Select the runtime implementation only at the application composition boundary through an immutable `LocalAIAdapterConfig` and a fail-closed `LocalAIRuntimeFactory`. Keep `local_ai.default` as the stable AI adapter identity, independent from runtime backend and model identity.
+
+**Context**
+D26 already separated `LocalAIAdapter` from Ollama behind `LocalAIRuntimeClient`, but application dependency composition still instantiated `OllamaRuntimeClient` directly. D31 and D32 subsequently made adapter registration and routing provider-neutral. D33 completes the Local AI replacement boundary without redesigning inference behavior or taking on D34 capability/model discovery.
+
+**Alternatives**
+Instantiate Ollama directly in `get_local_ai_adapter`, encode backend/model identity into the AI adapter ID, create one AI adapter per runtime implementation, dynamically discover local runtimes, or silently fall back to Ollama/cloud providers when configuration is invalid.
+
+**Rationale**
+A stable `LocalAIAdapter` plus a small runtime protocol keeps routing and orchestration independent from Local AI implementation details. Explicit runtime configuration makes replacement deterministic and testable. Fail-closed selection avoids hidden privacy, cost, and execution-boundary changes. Reusing the same runtime protocol for telemetry preserves the D26 separation between inference and best-effort monitoring.
+
+**Consequences**
+Ollama remains the default supported D33 runtime backend, identified by `ollama`, but it is no longer instantiated inside the Local AI adapter dependency itself. A future runtime can satisfy `LocalAIRuntimeClient` and be injected without changing `LocalAIAdapter`, D31 registration, or D32 routing. Unknown backends raise a composition error and do not fall back. D26 runtime/model availability checks and safe error normalization remain unchanged.
+
+D33 does not add model/capability discovery, runtime probing during factory creation, automatic retry/fallback, dynamic plugins, model downloading, database/persistence changes, migrations, public API/schema changes, frontend changes, dependency/package changes, or Docker/deployment changes.
