@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.contracts.command import CommandRequest, ExecutionPlan, Response
+from app.contracts.command import CommandRequest, Response
+from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.ai_router import AIRouter
@@ -93,25 +94,47 @@ class CommandOrchestrator:
     def execute_tool(
         self,
         request: CommandRequest,
-        plan: ExecutionPlan,
+        authorization: ExecutionAuthorization,
     ) -> Response:
-        """Execute one structured, selected Tool/Module adapter exactly once."""
+        'Execute one Tool adapter only from a D36 authorized plan.'
+        authorization_error = (
+            self._error_normalizer.normalize_execution_authorization(
+                authorization
+            )
+        )
+        if authorization_error is not None:
+            return self._normalized(authorization_error).response
+        if (
+            authorization.target_kind != "tool"
+            or authorization.execution_plan is None
+        ):
+            return self._error(
+                "EXECUTION_AUTHORIZATION_REJECTED",
+                request.request_id,
+            ).response
+
+        plan = authorization.execution_plan
         route = self._tool_module_router.route(request, plan)
         route_error = self._error_normalizer.normalize_tool_route(route)
         if route_error is not None:
             return self._normalized(route_error).response
         adapter = self._tool_module_router.get_adapter(route.adapter_id or "")
         if adapter is None:
-            return self._error("TOOL_ROUTE_UNAVAILABLE", request.request_id).response
+            return self._error(
+                "TOOL_ROUTE_UNAVAILABLE",
+                request.request_id,
+            ).response
         try:
             return self._response_composer.compose_tool_result(
                 adapter.execute(request, plan)
             )
         except Exception as error:
             return self._normalized(
-                self._error_normalizer.normalize_exception(request.request_id, error)
+                self._error_normalizer.normalize_exception(
+                    request.request_id,
+                    error,
+                )
             ).response
-
     def _normalized(self, error: NormalizedError) -> CommandOrchestrationOutcome:
         return CommandOrchestrationOutcome(self._response_composer.compose_error(error))
 

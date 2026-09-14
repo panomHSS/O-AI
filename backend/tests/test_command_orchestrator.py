@@ -6,6 +6,7 @@ from app.adapters.local_ai import LocalAIResponseError, LocalAIUnavailableError
 from app.adapters.standard_tool import StandardToolAdapter
 from app.contracts.ai import AI_ADAPTER_CONTRACT_VERSION, AIAdapter, AIRequest, AIResult
 from app.contracts.command import CommandRequest, ExecutionPlan, ExecutionStep
+from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.command_decision import CommandDecision
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.ai_router import AIRouter
@@ -132,38 +133,105 @@ class CommandOrchestratorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AIAdapterRegistry((UnsupportedVersionAdapter("wrong"),))
 
-    def test_tool_selected_executes_once_and_composes_result(self) -> None:
+    def test_raw_tool_plan_cannot_execute_directly(self) -> None:
         adapter = StandardToolAdapter()
         adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
         orchestrator = self.orchestrator()
         orchestrator._tool_module_router = ToolModuleRouter((adapter,))  # type: ignore[attr-defined]
         request = CommandRequest("request-1", "tool.echo")
-        plan = ExecutionPlan(
-            "request-1", adapter.adapter_id,
-            (ExecutionStep(1, "echo", {"value": "safe"}),), False,
+        raw_plan = ExecutionPlan(
+            "request-1",
+            adapter.adapter_id,
+            (ExecutionStep(1, "echo", {"value": "safe"}),),
+            False,
         )
-        response = orchestrator.execute_tool(request, plan)
-        self.assertEqual(response.result.status, "succeeded")
-        self.assertEqual(response.result.output, {"value": "safe"})
-        adapter.execute.assert_called_once_with(request, plan)
 
-    def test_tool_nonselected_routes_never_execute(self) -> None:
-        adapter = StandardToolAdapter()
-        adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
-        orchestrator = self.orchestrator()
-        orchestrator._tool_module_router = ToolModuleRouter((adapter,))  # type: ignore[attr-defined]
-        request = CommandRequest("request-1", "tool.echo")
-        plans = (
-            ExecutionPlan("request-1", adapter.adapter_id, owner_approval_required=True),
-            ExecutionPlan("request-1", "tool.unknown", owner_approval_required=False),
-            ExecutionPlan("other", adapter.adapter_id, owner_approval_required=False),
+        response = orchestrator.execute_tool(
+            request,
+            raw_plan,  # type: ignore[arg-type]
         )
-        expected = ("OWNER_APPROVAL_REQUIRED", "TOOL_ROUTE_UNAVAILABLE", "TOOL_ROUTE_REJECTED")
-        for plan, code in zip(plans, expected, strict=True):
-            with self.subTest(plan=plan):
-                self.assertEqual(orchestrator.execute_tool(request, plan).result.error, code)
+
+        self.assertEqual(response.result.error, "INTERNAL_ERROR")
         adapter.execute.assert_not_called()
 
+    def test_authorized_tool_executes_once_and_composes_result(self) -> None:
+        adapter = StandardToolAdapter()
+        adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
+        orchestrator = self.orchestrator()
+        orchestrator._tool_module_router = ToolModuleRouter((adapter,))  # type: ignore[attr-defined]
+        request = CommandRequest("request-1", "tool.echo")
+        execution_plan = ExecutionPlan(
+            "request-1",
+            adapter.adapter_id,
+            (ExecutionStep(1, "echo", {"value": "safe"}),),
+            False,
+        )
+        authorization = ExecutionAuthorization(
+            request_id="request-1",
+            status="authorized",
+            target_kind="tool",
+            source_plan_digest="a" * 64,
+            execution_plan=execution_plan,
+            reason_code="owner_approval_verified",
+        )
+
+        response = orchestrator.execute_tool(request, authorization)
+
+        self.assertEqual(response.result.status, "succeeded")
+        self.assertEqual(response.result.output, {"value": "safe"})
+        adapter.execute.assert_called_once_with(request, execution_plan)
+
+    def test_non_authorized_tool_never_executes(self) -> None:
+        adapter = StandardToolAdapter()
+        adapter.execute = Mock(wraps=adapter.execute)  # type: ignore[method-assign]
+        orchestrator = self.orchestrator()
+        orchestrator._tool_module_router = ToolModuleRouter((adapter,))  # type: ignore[attr-defined]
+        request = CommandRequest("request-1", "tool.echo")
+        authorizations = (
+            ExecutionAuthorization(
+                "request-1",
+                "blocked",
+                "tool",
+                "b" * 64,
+                None,
+                "owner_approval_required",
+            ),
+            ExecutionAuthorization(
+                "request-1",
+                "blocked",
+                "tool",
+                "b" * 64,
+                None,
+                "owner_approval_denied",
+            ),
+            ExecutionAuthorization(
+                "request-1",
+                "rejected",
+                "tool",
+                "b" * 64,
+                None,
+                "approval_plan_mismatch",
+            ),
+        )
+        expected = (
+            "OWNER_APPROVAL_REQUIRED",
+            "OWNER_APPROVAL_DENIED",
+            "EXECUTION_AUTHORIZATION_REJECTED",
+        )
+
+        for authorization, code in zip(
+            authorizations,
+            expected,
+            strict=True,
+        ):
+            with self.subTest(authorization=authorization):
+                response = orchestrator.execute_tool(
+                    request,
+                    authorization,
+                )
+                self.assertEqual(response.result.error, code)
+
+        adapter.execute.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.adapters.local_ai import LocalAIResponseError, LocalAIUnavailableError
 from app.contracts.ai_route import AIRouteDecision, LOCAL_AI_ADAPTER_ID
 from app.contracts.command import Result
+from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
 from app.contracts.tool_module_route import ToolModuleRouteDecision
 from app.providers.base import ChatConfigurationError, ChatProviderError
@@ -43,6 +44,39 @@ class OrchestrationErrorNormalizer:
         if route.status == "rejected":
             return NormalizedError(route.request_id, "TOOL_ROUTE_REJECTED", "failed")
         return self._internal(route.request_id)
+
+    def normalize_execution_authorization(
+        self,
+        authorization: object,
+    ) -> NormalizedError | None:
+        'Normalize D36 authorization without exposing approval/plan details.'
+        if not isinstance(authorization, ExecutionAuthorization):
+            return self._internal(
+                getattr(authorization, "request_id", "")
+            )
+        if authorization.status == "authorized":
+            return None
+        if authorization.status == "blocked":
+            if authorization.reason_code == "owner_approval_required":
+                return NormalizedError(
+                    authorization.request_id,
+                    "OWNER_APPROVAL_REQUIRED",
+                    "blocked",
+                )
+            if authorization.reason_code == "owner_approval_denied":
+                return NormalizedError(
+                    authorization.request_id,
+                    "OWNER_APPROVAL_DENIED",
+                    "blocked",
+                )
+            return self._internal(authorization.request_id)
+        if authorization.status == "rejected":
+            return NormalizedError(
+                authorization.request_id,
+                "EXECUTION_AUTHORIZATION_REJECTED",
+                "failed",
+            )
+        return self._internal(authorization.request_id)
 
     def normalize_result(self, result: object) -> NormalizedError | None:
         """Normalize terminal Tool/Module results without exposing adapter detail."""

@@ -36,6 +36,7 @@ from app.services.response_composer import ResponseComposer
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
 from app.services.execution_planner import ExecutionPlanner
+from app.services.execution_guard import ExecutionGuard
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -350,6 +351,13 @@ def get_ai_adapter_registry(
 ) -> AIAdapterRegistry:
     """Preserve the D29 AI registry surface over the shared D31 registry."""
     return AIAdapterRegistry(registry=adapter_registry)
+
+
+def get_execution_guard(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+) -> ExecutionGuard:
+    'Compose the fail-closed D36 authorization boundary.'
+    return ExecutionGuard(registry=adapter_registry)
 
 
 def get_execution_planner(

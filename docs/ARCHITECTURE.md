@@ -303,6 +303,16 @@ AI planning reuses the existing chat input validation, D23 decision engine, D32 
 
 Tool and Module planning use explicit internal commands (`tool.execute` and `module.execute`) with structured adapter, operation, and parameter fields. Adapter kinds are validated against the D31 `AdapterRegistry`. Tool and Module plans always set `owner_approval_required=True` in v1. D35 does not execute adapters, does not load modules, and does not modify D29 live chat orchestration. The live path remains unchanged until the D36 approval/execution guard boundary is available.
 
+## Approval and execution authorization guard (D36)
+
+D36 adds a fail-closed authorization boundary between D35 planning and any execution path. The invariant is `PLAN != APPROVAL != AUTHORIZATION != EXECUTION`. `ExecutionGuard` revalidates request/plan identity, adapter kind, one-step policy, operation shape, and approval policy before producing an immutable `ExecutionAuthorization`. The guard never invokes AI, Tool, or Module adapters.
+
+Owner approval evidence is bound to the exact original approval-gated plan through a deterministic SHA-256 digest over canonical JSON-safe plan data. Tool and Module execution always requires matching explicit owner approval in D36 v1 even if an untrusted caller fabricates a plan with `owner_approval_required=False`; such a plan is rejected as a policy violation. A verified approval materializes a new immutable execution-ready plan with `owner_approval_required=False` while retaining the digest of the original approved proposal. AI `ai.generate_text` plans may authorize without a separate owner-approval ceremony but are still structurally and kind-validated by the guard.
+
+The digest is an integrity binding, not an owner-authentication signature. D36 does not add identity authentication, durable approval storage, replay protection across processes, UI/API approval surfaces, or database migrations. Existing Project action execution proposal persistence remains a separate domain mechanism and is not treated as a core authorization token.
+
+D36 hardens the existing D29 Tool execution boundary so raw `ExecutionPlan` values are no longer executable there; `CommandOrchestrator.execute_tool` accepts only an `ExecutionAuthorization`, and only an authorized Tool plan can reach D27 routing and adapter invocation. Live chat orchestration remains unchanged.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

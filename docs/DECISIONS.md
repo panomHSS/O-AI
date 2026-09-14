@@ -449,3 +449,22 @@ A deterministic one-step planner preserves clear ownership boundaries and is eas
 D35 v1 emits at most one execution step. AI text generation plans use `owner_approval_required=False`; Tool and Module plans always require owner approval. Route/discovery failures produce structured non-planned outcomes and never trigger fallback. User message content remains in the original command rather than being copied into the plan. D36 must still implement the actual approval and execution guard before planner output is wired into live orchestration.
 
 D35 does not add execution, approval persistence, approval UI, public APIs, frontend behavior, database changes, migrations, Docker changes, new dependencies, model switching, capability discovery, multi-step decomposition, retries, parallelism, or automatic fallback.
+
+## ADR-028: Plan-bound owner approval and execution authorization
+
+**Decision**
+Require approval-gated execution to pass through a fail-closed `ExecutionGuard` that revalidates request/plan identity, adapter kind, operation policy, and approval requirements. Bind explicit owner approval evidence to the exact proposed plan using a deterministic SHA-256 digest, then emit a separate immutable `ExecutionAuthorization`. Tool and Module targets always require approval in v1; AI text generation does not require a separate approval ceremony but still passes structural policy checks.
+
+**Context**
+D35 can now deterministically propose `ExecutionPlan` values, but plan construction is not authorization. Existing Project action proposal persistence is domain-specific and database-backed, while D36 must provide a provider-neutral core boundary for AI, Tool, and Module execution. D27 and D29 previously allowed an execution-ready raw Tool plan to reach adapter execution, which leaves authorization semantics distributed across callers and plan flags.
+
+**Alternatives**
+Trust `owner_approval_required` directly, let callers clear the approval flag, reuse Project proposal database rows as universal authorization tokens, mutate plans in place after approval, bind approval only to request ID, execute directly inside the guard, add signatures/authentication immediately, or defer enforcement until Tool/Module runtime milestones.
+
+**Rationale**
+Defense in depth requires the guard to enforce target-kind policy independently from planner output. Binding approval to a canonical digest prevents an approval for Plan A from authorizing a modified Plan B. Materializing a new execution-ready immutable plan preserves the approved proposal and keeps D27 compatibility. Keeping the guard side-effect-free separates authorization from runtime execution.
+
+**Consequences**
+Tool and Module plans with `owner_approval_required=False` are rejected rather than trusted. Missing approval blocks; denied approval blocks; mismatched approval rejects. Only authorized Tool execution can enter the D29 execution path. Safe D28 normalization adds owner-denied and authorization-rejected outcomes. The plan digest supports JSON-safe parameters and fails closed for unsupported values.
+
+The digest is not a digital signature and does not authenticate owner identity. D36 does not add approval UI/API, authentication, persistence, database tables, migrations, cross-process replay protection, Module Runtime, Tool Runtime redesign, public schema changes, frontend changes, Docker changes, or new dependencies.

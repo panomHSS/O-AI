@@ -20,6 +20,8 @@ class ResponseComposer:
         "LOCAL_AI_RESPONSE_FAILED": "The Local AI service could not complete the request.",
         "TOOL_ROUTE_UNAVAILABLE": "The requested tool is unavailable.",
         "OWNER_APPROVAL_REQUIRED": "Owner approval is required before this operation can continue.",
+        "OWNER_APPROVAL_DENIED": "Owner approval was denied for this operation.",
+        "EXECUTION_AUTHORIZATION_REJECTED": "This execution request cannot be authorized.",
         "TOOL_ROUTE_REJECTED": "This tool request cannot be processed.",
         "TOOL_EXECUTION_FAILED": "The requested operation could not be completed.",
         "INTERNAL_ERROR": "An internal error occurred. Please try again later.",
