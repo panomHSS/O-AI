@@ -711,3 +711,52 @@ persistence, and distributed ordering remain out of scope.
 Startup remains read-only and never migrates automatically. A deployment must
 explicitly upgrade the managed database to `0009_execution_audit_events` before
 starting the D47 application revision.
+
+## Safe Write Tools v1 (D48)
+
+D48 adds two explicitly registered, approval-gated text write Tools without
+changing the frozen execution lane:
+
+`ExecutionPlanner -> ExecutionGuard -> ToolRuntime -> ToolAdapter`
+
+`tool.filesystem.create_text / create_text` creates one UTF-8 text file only
+when the target does not already exist. Its parent directory must already
+exist; D48 never creates directories and never falls back from create to
+replace.
+
+`tool.filesystem.replace_text / replace_text` replaces one existing regular
+workspace file only when the caller supplies the exact lowercase SHA-256 digest
+of the reviewed current bytes. The adapter checks that precondition before
+preparing the replacement and again immediately before the atomic replace. A
+stale precondition fails closed without an intentional write. On Windows the
+publish boundary uses `ReplaceFileW` without ACL/merge-ignore flags so failure
+to preserve replaced-file security metadata fails the write; non-Windows
+platforms use the native atomic `os.replace()` boundary.
+
+Both operations use the existing workspace containment boundary. Absolute,
+drive-qualified, UNC, parent-traversal, resolved-outside, sensitive runtime,
+symlink/junction/reparse, and D48 write-protected `.github` paths are rejected.
+Writes are bounded to 256 KiB of UTF-8 bytes, reject NUL and unencodable text,
+do not normalize newlines, and return only path/size/digest/write-kind metadata.
+File content is never included in the execution audit event.
+
+D48 preserves:
+
+`WRITE PERMITTED != WRITE APPROVED != WRITE AUTHORIZED != WRITE APPLIED`
+
+`CREATE != REPLACE`
+
+`CREATE EXISTING TARGET == DENY`
+
+`REPLACE WITHOUT EXPECTED DIGEST == DENY`
+
+`EXPECTED DIGEST != CURRENT DIGEST == DENY`
+
+`NO OWNER APPROVAL == NO FILESYSTEM MUTATION`
+
+D48 does not add delete, rename/move, append, binary writes, directory
+management, shell/process execution, network writes, Git commit/push, automatic
+retry, automatic backup, Chat `/action` write grammar, AI tool selection,
+frontend changes, database migrations, Docker changes, or dependencies. D47
+durable audit remains non-authoritative and persists no command arguments,
+write parameters, or file content.

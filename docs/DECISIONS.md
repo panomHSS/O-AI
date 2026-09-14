@@ -890,3 +890,65 @@ D47 adds no public audit API, frontend, retention policy, automatic migration,
 remote telemetry collector, OpenTelemetry dependency, cryptographic signing,
 hash chain, approval persistence, authentication/RBAC, write Tool, shell/process
 Tool, network Tool, AI execution change, Docker change, or dependency.
+
+## ADR-040: Approval-gated bounded text write Tools v1
+
+**Decision**
+
+Introduce two focused ToolAdapters: `tool.filesystem.create_text` and
+`tool.filesystem.replace_text`. Both are exact D44 capabilities with
+`effect=write`, `data_class=workspace_content`, and
+`owner_approval_required=True`. They remain behind the existing
+Planner -> Guard -> ToolRuntime lane; registration never grants execution.
+
+Create is create-only: the destination must be absent and the parent directory
+must already exist. It never overwrites and never silently changes into a
+replace operation. Replace is replacement-only: the destination must be an
+existing regular file and the approved parameters must include a lowercase
+SHA-256 digest of the current file bytes. A stale or malformed digest fails
+closed.
+
+The shared workspace boundary continues to reject absolute, drive-qualified,
+UNC, parent-traversal, sensitive, and resolved-outside paths. D48 additionally
+blocks writes under `.github` and rejects symlink, junction, or other reparse
+path components. Text writes are exact UTF-8 bytes, bounded to 256 KiB, reject
+NUL and unencodable text, and do not normalize line endings.
+
+Both adapters prepare content in a same-directory temporary file. Create
+publishes without overwrite; replace revalidates the target digest immediately
+before an atomic replace. On Windows, replacement uses `ReplaceFileW` without
+ACL/merge-ignore flags so inability to preserve replaced-file security metadata
+fails closed. Non-Windows replacement uses `os.replace()`. Temporary artifacts
+are owned and cleaned on ordinary failure paths. There is no automatic retry or
+fallback.
+
+**Context**
+
+D42 established bounded read-only filesystem Tools. D44 already defines a
+closed `write` effect and exact fail-closed capability policy. D45 provides
+one-time owner approval bound to the exact execution-plan digest, D36 rechecks
+that approval before authorization, D38 invokes the authorized Tool exactly
+once, and D47 records only allowlisted execution metadata. D48 is therefore
+able to add useful local writes without moving execution authority.
+
+**Rationale**
+
+Separating create from replace prevents an apparently harmless create request
+from becoming an overwrite. Binding replace to an expected SHA-256 digest
+reduces stale-review risk: content changed after proposal/review is not
+silently overwritten. Keeping write adapters separate from the D42 read-only
+catalog preserves capability classification and makes later policy review
+explicit.
+
+**Consequences**
+
+O-AI can create and conditionally replace bounded workspace text files only
+after explicit owner approval. Tool results contain only safe metadata; D47
+audit contains neither old nor new file content nor plan parameters.
+
+D48 adds no delete, rename/move, append, binary write, mkdir/rmdir, permission
+or ACL mutation, shell/process execution, network write, Git commit/push,
+automatic backup, automatic retry, Chat `/action` write grammar, AI tool
+selection, frontend change, database schema/migration, Docker change, or new
+dependency. The managed database revision remains
+`0009_execution_audit_events`.

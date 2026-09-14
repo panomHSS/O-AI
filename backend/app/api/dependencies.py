@@ -17,6 +17,10 @@ from app.adapters.filesystem_tools import (
     FilesystemReadTextToolAdapter,
     FilesystemStatToolAdapter,
 )
+from app.adapters.filesystem_write_tools import (
+    FilesystemCreateTextToolAdapter,
+    FilesystemReplaceTextToolAdapter,
+)
 from app.adapters.system_health_tool import SystemHealthToolAdapter
 from app.adapters.system_info_tool import SystemInfoToolAdapter
 from app.services.tool_filesystem_boundary import ToolFilesystemBoundary
@@ -304,6 +308,18 @@ def get_tool_catalog_adapters() -> tuple[object, ...]:
         FilesystemReadTextToolAdapter(boundary),
     )
 
+
+@lru_cache
+def get_safe_write_tool_adapters() -> tuple[object, ...]:
+    """Compose the approval-gated D48 safe-write Tool Catalog."""
+    workspace_root = Path(__file__).resolve().parents[3]
+    boundary = ToolFilesystemBoundary(workspace_root)
+    return (
+        FilesystemCreateTextToolAdapter(boundary),
+        FilesystemReplaceTextToolAdapter(boundary),
+    )
+
+
 def get_module_catalog_adapters(
     database_session: Session = Depends(get_db),
 ) -> tuple[object, ...]:
@@ -323,6 +339,9 @@ def get_adapter_registry(
     local_ai_adapter: LocalAIAdapter = Depends(get_local_ai_adapter),
     standard_tool_adapter: StandardToolAdapter = Depends(get_standard_tool_adapter),
     tool_catalog_adapters: tuple[object, ...] = Depends(get_tool_catalog_adapters),
+    safe_write_tool_adapters: tuple[object, ...] = Depends(
+        get_safe_write_tool_adapters
+    ),
     module_catalog_adapters: tuple[object, ...] = Depends(get_module_catalog_adapters),
 ) -> AdapterRegistry:
     """Compose D31 while preserving the D29 default AI adapter seam."""
@@ -337,6 +356,7 @@ def get_adapter_registry(
             local_ai_adapter,
             standard_tool_adapter,
             *tool_catalog_adapters,
+            *safe_write_tool_adapters,
             *module_catalog_adapters,
         )
     )

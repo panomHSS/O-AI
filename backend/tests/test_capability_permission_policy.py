@@ -203,6 +203,8 @@ class CapabilityPermissionPolicyTests(unittest.TestCase):
             "exec.workspace.list",
             "exec.workspace.stat",
             "exec.workspace.read_text",
+            "exec.workspace.create_text",
+            "exec.workspace.replace_text",
             "exec.workspace.overview",
             "exec.project.snapshot.read",
         }
@@ -215,7 +217,7 @@ class CapabilityPermissionPolicyTests(unittest.TestCase):
         )
         self.assertEqual(
             len(PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS),
-            8,
+            10,
         )
         self.assertTrue(
             all(
@@ -231,6 +233,16 @@ class CapabilityPermissionPolicyTests(unittest.TestCase):
             by_id["exec.workspace.read_text"].data_class,
             "workspace_content",
         )
+        for capability_id in (
+            "exec.workspace.create_text",
+            "exec.workspace.replace_text",
+        ):
+            self.assertEqual(by_id[capability_id].effect, "write")
+            self.assertEqual(
+                by_id[capability_id].data_class,
+                "workspace_content",
+            )
+            self.assertTrue(by_id[capability_id].owner_approval_required)
         self.assertEqual(
             by_id["exec.project.snapshot.read"].data_class,
             "owner_data",
