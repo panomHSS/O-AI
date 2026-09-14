@@ -594,3 +594,9 @@ text parsing of `netstat.exe` remains a fallback. This change affects discovery
 only. Listener PID equality still does not establish ownership, and the
 existing repository/process identity validation remains mandatory before any
 state write or termination.
+
+**D41 frontend launch quoting clarification.** The frontend `cmd.exe /d /s /c`
+payload begins directly with `npm.cmd`; only redirected log paths are quoted.
+An outer doubled-quote wrapper is not used because it can prevent Windows
+`cmd.exe` from invoking `npm.cmd`. This is a launch-mechanics fix only and does
+not change PID ownership, listener validation, or termination policy.

@@ -187,6 +187,20 @@ try {
         4321 `
         "Netstat fallback listener discovery failed."
 
+
+    $startScriptPath = Join-Path $scriptDirectory "start_mvp.ps1"
+    $startScriptText = Get-Content -LiteralPath $startScriptPath -Raw
+    Assert-True `
+        ($startScriptText.Contains(
+            '$frontendCommand = ''npm.cmd run dev -- --hostname 127.0.0.1 --port 3000'
+        )) `
+        "Frontend launch command must begin directly with npm.cmd."
+    Assert-False `
+        ($startScriptText.Contains(
+            '$frontendCommand = ''""npm.cmd run dev -- --hostname 127.0.0.1 --port 3000'
+        )) `
+        "Frontend launch command must not wrap the entire cmd.exe payload in doubled quotes."
+
     Write-Host "D41 MVP process lifecycle tests passed: $script:Passed assertions."
 } finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

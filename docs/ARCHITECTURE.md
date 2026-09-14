@@ -427,3 +427,12 @@ as a compatibility fallback. A discovered listener PID is still only a
 candidate: backend/frontend process ownership validation must succeed before
 the PID can be persisted, treated as O-AI-owned, or terminated. Non-loopback
 listeners are not accepted as the supported MVP listener.
+
+### D41 frontend launch quoting clarification
+
+The native Windows frontend launcher passes an unquoted `npm.cmd run dev ...`
+command payload to `cmd.exe /d /s /c` while quoting only redirected file paths.
+Wrapping the entire payload in an additional doubled-quote pair can cause
+`cmd.exe` to exit before invoking `npm.cmd`, producing no listener and no
+stdout/stderr files. The backend launch form remains unchanged because its
+Python executable path itself is quoted.

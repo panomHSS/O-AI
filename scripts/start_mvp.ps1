@@ -117,7 +117,7 @@ try {
     $backendProcessId = Wait-ForOwnedLocalPort "backend" 8000
     Set-Content -LiteralPath $backendPid -Value $backendProcessId -NoNewline
 
-    $frontendCommand = '""npm.cmd run dev -- --hostname 127.0.0.1 --port 3000 1>"{0}" 2>"{1}""' -f `
+    $frontendCommand = 'npm.cmd run dev -- --hostname 127.0.0.1 --port 3000 1>"{0}" 2>"{1}"' -f `
         (Join-Path $logDirectory "frontend-$stamp.out.log"), `
         (Join-Path $logDirectory "frontend-$stamp.err.log")
     $frontendLauncher = Start-DetachedCommand $frontendCommand (Join-Path $repositoryRoot "frontend")
