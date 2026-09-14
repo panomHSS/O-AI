@@ -24,6 +24,7 @@ from app.repositories.project_update_proposals import (
 from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
+from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_router import AIRouter
 from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
 from app.telemetry.system_metrics import SystemMetricsProvider
@@ -207,13 +208,31 @@ def get_standard_tool_adapter() -> StandardToolAdapter:
     return StandardToolAdapter()
 
 
+def get_adapter_registry(
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    chat_service: ChatService = Depends(get_chat_service),
+    local_ai_adapter: LocalAIAdapter = Depends(get_local_ai_adapter),
+    standard_tool_adapter: StandardToolAdapter = Depends(get_standard_tool_adapter),
+) -> AdapterRegistry:
+    """Compose D31 while preserving the D29 default AI adapter seam."""
+    default_adapter_factory = getattr(
+        conversation_service,
+        "default_ai_adapter",
+        chat_service.default_ai_adapter,
+    )
+    return AdapterRegistry(
+        (
+            default_adapter_factory(),
+            local_ai_adapter,
+            standard_tool_adapter,
+        )
+    )
+
 def get_tool_module_router(
-    standard_tool_adapter: StandardToolAdapter = Depends(
-        get_standard_tool_adapter
-    ),
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
 ) -> ToolModuleRouter:
-    """Register D27 adapters for selection only; no execution is wired here."""
-    return ToolModuleRouter((standard_tool_adapter,))
+    """Expose the shared D31 registry through the D27 selection boundary."""
+    return ToolModuleRouter(registry=adapter_registry)
 
 
 def get_orchestration_error_normalizer() -> OrchestrationErrorNormalizer:
@@ -231,17 +250,10 @@ def get_response_composer(
 
 
 def get_ai_adapter_registry(
-    conversation_service: ConversationService = Depends(get_conversation_service),
-    chat_service: ChatService = Depends(get_chat_service),
-    local_ai_adapter: LocalAIAdapter = Depends(get_local_ai_adapter),
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
 ) -> AIAdapterRegistry:
-    """Register D25/D26 adapters once per dependency graph without invocation."""
-    default_adapter_factory = getattr(
-        conversation_service,
-        "default_ai_adapter",
-        chat_service.default_ai_adapter,
-    )
-    return AIAdapterRegistry((default_adapter_factory(), local_ai_adapter))
+    """Preserve the D29 AI registry surface over the shared D31 registry."""
+    return AIAdapterRegistry(registry=adapter_registry)
 
 
 def get_command_orchestrator(

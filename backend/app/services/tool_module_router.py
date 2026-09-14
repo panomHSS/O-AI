@@ -1,31 +1,35 @@
-"""Fail-closed D27 selector for structured Tool/Module execution plans."""
+"""Fail-closed D27 selector backed by the D31 unified adapter registry."""
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 
 from app.contracts.command import CommandRequest, ExecutionPlan
-from app.contracts.tool_module import (
-    TOOL_MODULE_ADAPTER_CONTRACT_VERSION,
-    ModuleAdapter,
-    ToolAdapter,
-)
+from app.contracts.tool_module import ModuleAdapter, ToolAdapter
 from app.contracts.tool_module_route import ToolModuleRouteDecision
+from app.services.adapter_registry import AdapterRegistry
 
 
 class ToolModuleRouter:
     """Select a registered adapter from structured contracts without execution."""
 
-    def __init__(self, adapters: Iterable[ToolAdapter | ModuleAdapter]) -> None:
-        self._adapters: dict[str, ToolAdapter | ModuleAdapter] = {}
-        for adapter in adapters:
+    def __init__(
+        self,
+        adapters: Iterable[ToolAdapter | ModuleAdapter] | None = None,
+        *,
+        registry: AdapterRegistry | None = None,
+    ) -> None:
+        if registry is not None and adapters is not None:
+            raise ValueError("Provide adapters or registry, not both.")
+        if registry is not None:
+            self._registry = registry
+            return
+
+        executable_adapters = tuple(adapters or ())
+        for adapter in executable_adapters:
             if not isinstance(adapter, (ToolAdapter, ModuleAdapter)):
                 raise TypeError("D27 adapters must implement ToolAdapter or ModuleAdapter.")
-            if adapter.contract_version != TOOL_MODULE_ADAPTER_CONTRACT_VERSION:
-                raise ValueError("D27 adapters must implement Tool/Module Adapter Contract v1.")
-            if adapter.adapter_id in self._adapters:
-                raise ValueError("D27 adapter IDs must be unique.")
-            self._adapters[adapter.adapter_id] = adapter
+        self._registry = AdapterRegistry(executable_adapters)
 
     def route(
         self,
@@ -41,7 +45,7 @@ class ToolModuleRouter:
                 reason_code="request_plan_mismatch",
             )
 
-        if plan.adapter_id not in self._adapters:
+        if self._registry.resolve_executable(plan.adapter_id) is None:
             return ToolModuleRouteDecision(
                 request_id=request.request_id,
                 status="unavailable",
@@ -66,4 +70,4 @@ class ToolModuleRouter:
 
     def get_adapter(self, adapter_id: str) -> ToolAdapter | ModuleAdapter | None:
         """Resolve a registered adapter for separately approved orchestration."""
-        return self._adapters.get(adapter_id)
+        return self._registry.resolve_executable(adapter_id)

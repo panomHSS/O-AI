@@ -1,26 +1,31 @@
-"""D29 dependency-composed registry for AI Adapter Contract v1."""
+"""Compatibility view over the D31 unified adapter registry for AI adapters."""
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 
-from app.contracts.ai import AI_ADAPTER_CONTRACT_VERSION, AIAdapter
+from app.contracts.ai import AIAdapter
+from app.services.adapter_registry import AdapterRegistry
 
 
 class AIAdapterRegistry:
-    """Validate and resolve registered adapters without invoking them."""
+    """Preserve the D29 AI-only registry surface over the D31 registry."""
 
-    def __init__(self, adapters: Iterable[AIAdapter]) -> None:
-        self._adapters: dict[str, AIAdapter] = {}
-        for adapter in adapters:
-            if not isinstance(adapter, AIAdapter):
-                raise TypeError("D29 adapters must implement AIAdapter Contract v1.")
-            if adapter.contract_version != AI_ADAPTER_CONTRACT_VERSION:
-                raise ValueError("D29 adapters must implement AI Adapter Contract v1.")
-            if adapter.adapter_id in self._adapters:
-                raise ValueError("D29 adapter IDs must be unique.")
-            self._adapters[adapter.adapter_id] = adapter
+    def __init__(
+        self,
+        adapters: Iterable[AIAdapter] | None = None,
+        *,
+        registry: AdapterRegistry | None = None,
+    ) -> None:
+        if registry is not None and adapters is not None:
+            raise ValueError("Provide adapters or registry, not both.")
+        self._registry = registry or AdapterRegistry(adapters or ())
+
+    @property
+    def adapter_ids(self) -> tuple[str, ...]:
+        """Return registered AI adapter IDs in deterministic order."""
+        return self._registry.ai_adapter_ids
 
     def resolve(self, adapter_id: str) -> AIAdapter | None:
-        """Return a registered adapter without provider selection or invocation."""
-        return self._adapters.get(adapter_id)
+        """Return a registered AI adapter without selection or invocation."""
+        return self._registry.resolve_ai(adapter_id)

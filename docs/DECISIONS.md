@@ -352,3 +352,24 @@ Establish native Windows as the D30 MVP operational path: FastAPI on `127.0.0.1:
 
 **Consequences**
 The MVP remains trusted single-owner localhost-only with no authentication, LAN/public exposure, new Core capability, Docker redesign, PostgreSQL migration, or O-SERVER work. Local AI remains opt-in, uses deployment configuration without a hard-coded model path, and its explicit route cannot fall back to cloud. Docker is retained as deferred/non-MVP deployment work. Smoke checks exercise the running API and persistence path, including explicit Local AI E2E only when enabled; OpenAI smoke skips when no credentials are configured.
+
+## ADR-023: Unified immutable adapter runtime registry
+
+**Decision**
+Introduce D31 `AdapterRegistry` as the single dependency-composed registration and discovery boundary for AI, Tool, and Module Adapter Contract v1 implementations. The registry is an immutable construction-time snapshot: it classifies each supplied adapter against exactly one approved structural contract, validates the matching contract version and a non-empty trimmed stable ID, rejects ambiguous contracts, and enforces globally unique adapter IDs across adapter kinds.
+
+Preserve `AIAdapterRegistry` as a D29 compatibility view over the unified registry and allow `ToolModuleRouter` to use the same registry. Dependency composition registers the configured ChatGPT adapter, Local AI adapter, and standard read-only Tool adapter into one snapshot. D24 route availability remains an independent policy boundary and continues to decide whether Local AI is selectable from deployment configuration.
+
+**Context**
+D29 introduced an AI-only registry while D27 kept a separate Tool/Module adapter map inside its router. Those local registries validate similar identity/version rules but leave registration ownership split across runtime boundaries. D31 needs one stable composition seam before future provider/module extensibility without changing the already proven D24 routing, D27 approval guard, or D29 execution behavior.
+
+**Alternatives**
+Keep separate registry maps indefinitely, move adapter registration into routers/orchestrators, add dynamic filesystem or Python entry-point discovery now, or combine registration with provider/capability routing.
+
+**Rationale**
+A single explicit snapshot removes duplicate registration state and gives future adapters one provider-neutral composition boundary. Keeping discovery limited to registered IDs/kinds makes behavior deterministic and testable, while compatibility views avoid rewriting D29 callers. Separating registration from availability, routing, approval, and invocation prevents a registered adapter from becoming executable merely because it exists in the registry.
+
+**Consequences**
+D31 registration never invokes adapters, creates plans, selects providers, grants owner approval, loads external code, scans the filesystem, performs network/database access, or mutates runtime state after construction. Unknown IDs resolve to `None` and downstream fail-closed behavior remains authoritative. Local AI may be registered while disabled; D24 still reports it unavailable and `LocalAIAdapter` remains responsible for runtime/model validation.
+
+There is no public API/schema, persistence, migration, dependency, frontend, Docker, or deployment change. Rollback restores the D29 AI registry implementation and D27 router-local adapter map, removes the unified registry/tests, and reverts only dependency composition and documentation.
