@@ -313,6 +313,14 @@ The digest is an integrity binding, not an owner-authentication signature. D36 d
 
 D36 hardens the existing D29 Tool execution boundary so raw `ExecutionPlan` values are no longer executable there; `CommandOrchestrator.execute_tool` accepts only an `ExecutionAuthorization`, and only an authorized Tool plan can reach D27 routing and adapter invocation. Live chat orchestration remains unchanged.
 
+## Authorization-gated Module Runtime (D37)
+
+D37 introduces a dedicated `ModuleRuntime` for invoking D21 `ModuleAdapter` implementations only after D36 authorization. The runtime accepts a `CommandRequest` plus `ExecutionAuthorization`; it does not accept raw `ExecutionPlan` values as an execution boundary. Before invocation it revalidates authorized status, `module` target kind, request/authorization/plan identity, the `module.execute` command, execution-ready approval state, the D35 v1 one-step shape, and Module adapter registration through the D31 `AdapterRegistry`.
+
+Module loading in D37 v1 means resolving an already registered `ModuleAdapter` from the central registry. D37 does not scan folders, dynamically import packages, install/download modules, hot-reload code, or create another Module registry. The selected adapter is invoked exactly once with no retry or fallback. Returned values must be valid provider-neutral D21 `Result` values bound to the same request; invalid results and adapter exceptions fail closed with safe runtime errors.
+
+The existing Plugin subsystem remains separate. `PluginRuntime`/`PluginRegistry` use their own Plugin contracts and lifecycle and are not modified or treated as ModuleAdapter runtime infrastructure. A future bridge may wrap Plugin functionality behind a `ModuleAdapter`, but D37 v1 does not add that bridge.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

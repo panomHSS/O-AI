@@ -37,6 +37,7 @@ from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
+from app.services.module_runtime import ModuleRuntime
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -351,6 +352,13 @@ def get_ai_adapter_registry(
 ) -> AIAdapterRegistry:
     """Preserve the D29 AI registry surface over the shared D31 registry."""
     return AIAdapterRegistry(registry=adapter_registry)
+
+
+def get_module_runtime(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+) -> ModuleRuntime:
+    """Compose D37 Module runtime from the D31 registry."""
+    return ModuleRuntime(registry=adapter_registry)
 
 
 def get_execution_guard(

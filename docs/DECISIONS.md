@@ -468,3 +468,20 @@ Defense in depth requires the guard to enforce target-kind policy independently 
 Tool and Module plans with `owner_approval_required=False` are rejected rather than trusted. Missing approval blocks; denied approval blocks; mismatched approval rejects. Only authorized Tool execution can enter the D29 execution path. Safe D28 normalization adds owner-denied and authorization-rejected outcomes. The plan digest supports JSON-safe parameters and fails closed for unsupported values.
 
 The digest is not a digital signature and does not authenticate owner identity. D36 does not add approval UI/API, authentication, persistence, database tables, migrations, cross-process replay protection, Module Runtime, Tool Runtime redesign, public schema changes, frontend changes, Docker changes, or new dependencies.
+
+## ADR-029: Authorization-gated Module Runtime
+
+**Decision**
+Invoke `ModuleAdapter` implementations only through a dedicated `ModuleRuntime` that accepts D36 `ExecutionAuthorization`, resolves modules exclusively from the D31 `AdapterRegistry`, revalidates execution-ready module plan structure, invokes the selected adapter exactly once, and returns only validated D21 `Result` values.
+
+**Context**
+D31 established central adapter registration, D35 creates deterministic plans, and D36 binds owner approval to plans and materializes execution-ready authorization. A Module runtime is now needed, but O-AI already has a separate Plugin subsystem whose contracts and lifecycle differ from `ModuleAdapter`.
+
+**Alternatives**
+Execute raw plans directly, let modules bypass D36, add a second Module registry, reuse PluginRuntime as though Plugin and ModuleAdapter were the same contract, add filesystem discovery/dynamic imports now, retry failed modules automatically, or add a Plugin-to-Module bridge in the same milestone.
+
+**Rationale**
+Keeping authorization separate from invocation preserves the D35/D36 security boundary. Resolving only registered `ModuleAdapter` objects keeps D31 as the single registration authority. A one-shot runtime is deterministic, easy to test, and establishes the pattern D38 can mirror for Tool execution. Keeping PluginRuntime separate avoids conflating two existing contract families.
+
+**Consequences**
+Raw `ExecutionPlan` values cannot invoke ModuleRuntime. Non-authorized, wrong-kind, mismatched, approval-gated, malformed, or unavailable Module executions fail closed without adapter invocation. Valid adapters run exactly once with no retry/fallback. Invalid adapter results and exceptions become safe failed `Result` values. Dynamic module discovery/loading, Plugin bridging, public APIs, UI, DB changes, migrations, observability, and multi-step execution remain out of scope.
