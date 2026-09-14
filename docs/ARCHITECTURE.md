@@ -295,6 +295,14 @@ ChatGPT discovery describes only the configured OpenAI model and performs no pro
 
 D34 capability metadata is intentionally conservative. Contract v1 advertises only `text_generation`; other capabilities remain unknown until a later contract has explicit evidence for them. D34 provides metadata for future planning but does not create `ExecutionPlan` values or choose an adapter.
 
+## Deterministic execution planning boundary (D35)
+
+D35 introduces a pure `ExecutionPlanner` that converts one internal `CommandRequest` into a structured `ExecutionPlanningOutcome` and, when planning succeeds, the existing D21 `ExecutionPlan`. Planning is declarative only: it never authorizes, invokes, generates, loads, mutates, or falls back.
+
+AI planning reuses the existing chat input validation, D23 decision engine, D32 AI routing, D31 AI registration, and D34 capability/model metadata. D35 v1 plans only `text_generation`, emits exactly one `ai.generate_text` step, records the configured model identifier as metadata, and deliberately leaves the user message in the original `CommandRequest` instead of duplicating it into the plan. Conversational AI generation is marked `owner_approval_required=False`, indicating that no separate approval ceremony is required; D36 remains responsible for execution authorization.
+
+Tool and Module planning use explicit internal commands (`tool.execute` and `module.execute`) with structured adapter, operation, and parameter fields. Adapter kinds are validated against the D31 `AdapterRegistry`. Tool and Module plans always set `owner_approval_required=True` in v1. D35 does not execute adapters, does not load modules, and does not modify D29 live chat orchestration. The live path remains unchanged until the D36 approval/execution guard boundary is available.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

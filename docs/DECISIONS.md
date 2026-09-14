@@ -430,3 +430,22 @@ A dedicated metadata contract keeps discovery read-only and makes its semantics 
 D34 can describe registered AI adapters without invoking them. Missing discovery sources and expected runtime failures produce structured unavailable results. Local AI disabled state is reported without runtime probing. Ollama adds read-only deterministic model listing through `/api/tags`; future Local AI runtimes may implement the optional discovery protocol without changing `LocalAIAdapter`. Capability v1 advertises only `text_generation`.
 
 D34 does not add capability-based routing, model switching, model installation/download, execution planning, public discovery APIs, frontend selectors, persistence, migrations, Docker changes, new dependencies, or fallback behavior.
+
+## ADR-027: Deterministic execution planning boundary
+
+**Decision**
+Convert validated internal commands and registered/discovered execution resources into immutable proposed `ExecutionPlan` values without authorizing or executing them. Reuse the D21 plan contracts. AI planning reuses D23 decision semantics, D32 routing, D31 registration, and D34 capability/model discovery. Tool and Module planning accepts only explicit structured internal commands and validates adapter kind through the D31 registry.
+
+**Context**
+D21 defined `CommandRequest`, `ExecutionStep`, and `ExecutionPlan`; D27 already consumes those plans for guarded Tool/Module routing; D29 coordinates live execution; D31-D34 established registration, AI route enablement, replaceable Local AI runtime composition, and read-only AI capability/model metadata. What is missing is a mechanism that describes what should happen before D36 decides whether execution is authorized.
+
+**Alternatives**
+Create a second plan schema, generate plans with an LLM, let the planner execute selected adapters, merge approval into planning, infer Tool/Module intent from free text, add multi-step decomposition immediately, or rewire the live D29 chat path before an execution guard exists.
+
+**Rationale**
+A deterministic one-step planner preserves clear ownership boundaries and is easy to test. Reusing the existing D21 plan type avoids contract duplication. Structured Tool/Module commands avoid unsafe free-text interpretation. Keeping live orchestration unchanged prevents D35 from becoming an authorization or runtime milestone. Explicit approval flags describe the required ceremony but do not themselves grant permission.
+
+**Consequences**
+D35 v1 emits at most one execution step. AI text generation plans use `owner_approval_required=False`; Tool and Module plans always require owner approval. Route/discovery failures produce structured non-planned outcomes and never trigger fallback. User message content remains in the original command rather than being copied into the plan. D36 must still implement the actual approval and execution guard before planner output is wired into live orchestration.
+
+D35 does not add execution, approval persistence, approval UI, public APIs, frontend behavior, database changes, migrations, Docker changes, new dependencies, model switching, capability discovery, multi-step decomposition, retries, parallelism, or automatic fallback.

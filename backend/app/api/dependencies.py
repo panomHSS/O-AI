@@ -35,6 +35,7 @@ from app.services.orchestration_error_normalizer import OrchestrationErrorNormal
 from app.services.response_composer import ResponseComposer
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
+from app.services.execution_planner import ExecutionPlanner
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -350,6 +351,22 @@ def get_ai_adapter_registry(
     """Preserve the D29 AI registry surface over the shared D31 registry."""
     return AIAdapterRegistry(registry=adapter_registry)
 
+
+def get_execution_planner(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    decision_engine: CommandDecisionEngine = Depends(get_command_decision_engine),
+    ai_router: AIRouter = Depends(get_ai_router),
+    ai_discovery: AICapabilityModelDiscovery = Depends(
+        get_ai_capability_model_discovery
+    ),
+) -> ExecutionPlanner:
+    """Compose pure D35 planning from D31-D34 mechanisms."""
+    return ExecutionPlanner(
+        registry=adapter_registry,
+        decision_engine=decision_engine,
+        ai_router=ai_router,
+        ai_discovery=ai_discovery,
+    )
 
 def get_command_orchestrator(
     conversation_service: ConversationService = Depends(get_conversation_service),
