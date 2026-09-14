@@ -15,6 +15,7 @@ npm-debug.log*
 .env
 .env.*
 !/.env.example
+!frontend/.env.example
 data/
 *.db
 *.db-shm

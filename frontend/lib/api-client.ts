@@ -14,7 +14,15 @@ import type {
 import type { ApiResponse } from "../types/api";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_CHAT_TIMEOUT_MS = 130_000;
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1").replace(/\/$/, "");
+
+function configuredChatTimeoutMs(): number {
+  const configured = Number(process.env.NEXT_PUBLIC_CHAT_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured > 0 && configured <= 600_000
+    ? configured
+    : DEFAULT_CHAT_TIMEOUT_MS;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -92,7 +100,11 @@ export function sendChatMessage(message: string, conversationId?: string, projec
     ...(conversationId ? { conversation_id: conversationId } : {}),
     ...(!conversationId && projectId ? { project_id: projectId } : {}),
   };
-  return apiRequest<ChatResponse>("/chat", { method: "POST", body: payload });
+  return apiRequest<ChatResponse>("/chat", {
+    method: "POST",
+    body: payload,
+    timeoutMs: configuredChatTimeoutMs(),
+  });
 }
 
 export function getConversation(conversationId: string): Promise<ConversationDetail> {

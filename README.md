@@ -2,7 +2,7 @@
 
 O-AI is a local-first Personal AI Operating System foundation with chat, conversation memory, and local document knowledge.
 
-O-AI currently supports a trusted local, single-owner deployment model. The default Docker deployment publishes the frontend and backend only through the Windows host loopback interface, for a browser on that same host. Another LAN computer, phone/tablet over LAN, and public/Internet access are not currently supported as secured paths; they require a separately designed security boundary before exposure. The API has no authentication or authorization layer.
+O-AI currently supports a trusted local, single-owner deployment model. The official MVP path is native Windows with the backend and frontend bound only to loopback. Another LAN computer, phone/tablet over LAN, and public/Internet access are not currently supported as secured paths; they require a separately designed security boundary before exposure. The API has no authentication or authorization layer.
 
 ## Stack
 
@@ -11,11 +11,13 @@ O-AI currently supports a trusted local, single-owner deployment model. The defa
 
 ## Quick start
 
-1. Run the bootstrap script for your shell. It installs dependencies and creates local environment files when needed.
-2. Start the full stack with `docker compose up --build`.
-3. Open `http://localhost:3000`. The API health endpoint is `http://localhost:8000/api/v1/health`.
+1. Run `./scripts/bootstrap.ps1` in Windows PowerShell.
+2. Review `.env`; set `OAI_LOCAL_AI_ENABLED=true` to use the configured Ollama model. OpenAI is optional.
+3. Run `./scripts/start_mvp.ps1`.
+4. Run `./scripts/smoke_mvp.ps1`, then open `http://localhost:3000/chat`.
+5. Run `./scripts/stop_mvp.ps1` when finished.
 
-Docker Compose has safe development defaults and does not require a root `.env` file. To override them, copy `.env.example` to `.env`. For local Next.js development, copy `frontend/.env.example` to `frontend/.env.local`.
+See [the MVP runbook](docs/MVP_RUNBOOK.md) for the complete local run path. Docker support is retained but is deferred/non-MVP deployment work; it is not the D30 quick-start path.
 
 ## Local development
 

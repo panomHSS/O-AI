@@ -344,3 +344,11 @@ Add `CommandOrchestrator` as the D29 coordinator for validated chat commands. It
 The registry rejects duplicate IDs and unsupported contract versions; missing selected adapters fail closed. Local AI becomes route-available only when deployment configuration enables it, while runtime/model checks remain inside `LocalAIAdapter`. Explicit Local AI failure never falls back to ChatGPT. D28 normalizes terminal outcomes before safe API error presentation, preserving the request ID and excluding raw error details.
 
 The existing `/api/v1/chat` endpoint and success response stay intact. No `ExecutionPlan` is created from chat input and normal chat does not execute tools. The guarded tool lane permits only separately supplied structured plans and preserves blocked/unavailable/rejected non-execution. This introduces no autonomous behavior, side-effect tool, data migration, public API schema change, or new deployment dependency.
+
+## ADR-022: Native Windows MVP run path
+
+**Decision**
+Establish native Windows as the D30 MVP operational path: FastAPI on `127.0.0.1:8000`, Next.js on `127.0.0.1:3000`, SQLite, and optional Ollama on the configured loopback URL. Bootstrap creates missing local configuration only from examples, provisions existing dependencies, and migrates the configured database. Start, stop, and smoke scripts manage only O-AI-owned local processes.
+
+**Consequences**
+The MVP remains trusted single-owner localhost-only with no authentication, LAN/public exposure, new Core capability, Docker redesign, PostgreSQL migration, or O-SERVER work. Local AI remains opt-in, uses deployment configuration without a hard-coded model path, and its explicit route cannot fall back to cloud. Docker is retained as deferred/non-MVP deployment work. Smoke checks exercise the running API and persistence path, including explicit Local AI E2E only when enabled; OpenAI smoke skips when no credentials are configured.
