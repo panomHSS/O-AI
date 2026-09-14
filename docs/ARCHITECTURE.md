@@ -399,3 +399,13 @@ Next.js provides a production-ready React framework with routing, server renderi
 ## Architecture governance
 
 Architecture changes require owner approval. New modules should be introduced through an architectural decision record, a documented system boundary, and a small, validated implementation plan.
+
+## Native Windows MVP lifecycle hardening (D41)
+
+D41 hardens the native Windows MVP start/stop lifecycle without changing the frozen Architecture v1 application contracts. PID state is treated only as a reference that must be validated against live process identity; a matching PID alone never proves O-AI ownership.
+
+`scripts/mvp_process.ps1` centralizes PID parsing, live-process classification, and backend/frontend command-line ownership rules. PID state is classified as missing, invalid, dead, foreign, or O-AI-owned. Invalid/dead/foreign PID files are stale state and may be removed, but a foreign live process is never killed. A validated O-AI process blocks duplicate start and is the only state eligible for termination by `stop_mvp.ps1`.
+
+Backend ownership requires the repository root plus the expected Uvicorn app, backend app directory, and port 8000. Frontend ownership requires the repository frontend root plus the Next.js server command and port 3000. Port occupancy does not grant ownership: unknown listeners remain fail-closed and are never killed.
+
+Startup writes PID files only after the expected listener is found and its process ownership is validated. If startup fails after creating a component, the script makes a best-effort cleanup of launchers and any already-validated O-AI listener from that startup attempt. This operational hardening does not change Adapter, Planner, Authorization, Runtime, Audit, Coordinator, database, frontend application, or public API contracts.

@@ -562,3 +562,21 @@ failure isolation can be tested across boundaries. AI execution is deliberately
 not performed by the D40 coordinator. Dynamic loading, public action APIs,
 approval UI, durable audit storage, retries/fallback, multi-step execution, and
 Plugin bridging remain post-v1 work.
+
+## ADR-033: Safe native Windows process ownership and stale PID recovery
+
+**Decision**
+
+Treat native Windows MVP PID files as untrusted runtime state. A recorded PID must be resolved to a live process and validated against the expected O-AI repository and backend/frontend command identity before it can block duplicate startup as an owned process or become eligible for termination. Invalid, dead, and foreign/reused PID state is stale and is removed; foreign live processes are never killed.
+
+**Context**
+
+The D30 native Windows lifecycle stored backend and frontend listener PIDs. A closed console could terminate O-AI while leaving a PID file behind, and Windows could later reuse that numeric PID for an unrelated process. The prior start path treated any live process at the recorded PID as O-AI and blocked startup. The prior stop path correctly refused to kill a mismatched live process, but returned without removing the stale PID file, so subsequent starts could remain blocked indefinitely.
+
+**Rationale**
+
+PID equality is not process ownership. Centralizing classification and ownership rules makes start and stop agree on the same safety boundary. Removing foreign PID state without killing the foreign process recovers from PID reuse while preserving the core rule that O-AI must never terminate an unrelated process. Validating listener ownership before persisting PID state also closes a race where an unexpected listener could otherwise be recorded as O-AI.
+
+**Consequences**
+
+Native Windows start/stop becomes recoverable from invalid, dead, and PID-reuse state. Duplicate start remains blocked when a validated O-AI process is active. Unknown port listeners remain fail-closed and are not terminated. Partial startup performs best-effort cleanup of processes created by that attempt. D41 adds no process-manager dependency, service installation, dynamic port selection, backend contract change, database change, or frontend feature.

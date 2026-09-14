@@ -1,7 +1,9 @@
 $ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repositoryRoot
+. (Join-Path $PSScriptRoot "mvp_process.ps1")
 
 $requiredPaths = @(
     ".env",
@@ -21,19 +23,28 @@ $logDirectory = Join-Path $stateDirectory "logs"
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 
 function Assert-PortAvailable([int]$Port) {
-    $listener = netstat.exe -ano -p tcp | Select-String "127.0.0.1:$Port\s+.*LISTENING"
-    if ($listener.Count -gt 0) {
-        throw "127.0.0.1:$Port is already in use. Stop the existing O-AI MVP or select a free local environment."
+    $listenerPid = Get-OAiMvpListenerPid -Port $Port
+    if ($null -ne $listenerPid) {
+        throw "127.0.0.1:$Port is already in use by process $listenerPid. O-AI will not stop an unknown listener."
     }
 }
 
-function Remove-StalePid([string]$Path) {
-    if (-not (Test-Path $Path)) { return }
-    $processId = [int](Get-Content $Path -Raw)
-    if (Get-Process -Id $processId -ErrorAction SilentlyContinue) {
-        throw "O-AI MVP process $processId is still running. Run .\scripts\stop_mvp.ps1 first."
+function Prepare-MvpPidForStart([string]$Name, [string]$Path) {
+    $state = Get-OAiMvpPidState -Path $Path -Name $Name -RepositoryRoot $repositoryRoot
+    $disposition = Get-OAiMvpStartDisposition -Status $state.Status
+
+    if ($disposition -eq "block") {
+        throw "O-AI MVP $Name process $($state.ProcessId) is still running. Run .\scripts\stop_mvp.ps1 first."
     }
-    Remove-Item -LiteralPath $Path -Force
+
+    if ($disposition -eq "cleanup") {
+        if ($state.Status -eq "Foreign") {
+            Write-Warning "Recorded $Name PID $($state.ProcessId) belongs to another process. O-AI will not stop it; stale PID state will be removed."
+        } elseif ($state.Status -eq "Invalid") {
+            Write-Warning "Recorded $Name PID state is invalid. Stale PID state will be removed."
+        }
+        Remove-OAiMvpPidFile -Path $Path
+    }
 }
 
 function Start-DetachedCommand([string]$Command, [string]$WorkingDirectory) {
@@ -44,42 +55,81 @@ function Start-DetachedCommand([string]$Command, [string]$WorkingDirectory) {
     $startInfo.UseShellExecute = $true
     $process = [System.Diagnostics.Process]::Start($startInfo)
     if ($null -eq $process) { throw "Could not start O-AI MVP command." }
+    return $process
 }
 
-function Wait-ForLocalPort([int]$Port) {
+function Wait-ForOwnedLocalPort([string]$Name, [int]$Port) {
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
-        $line = netstat.exe -ano -p tcp | Select-String "127.0.0.1:$Port\s+.*LISTENING" | Select-Object -First 1
-        if ($line -and $line.Line -match "\s+(\d+)\s*$") {
-            return [int]$Matches[1]
+        $listenerPid = Get-OAiMvpListenerPid -Port $Port
+        if ($null -ne $listenerPid) {
+            $process = Get-OAiMvpProcessById -ProcessId $listenerPid
+            if ($process -and (Test-OAiMvpProcessOwnership -Name $Name -RepositoryRoot $repositoryRoot -Process $process)) {
+                return $listenerPid
+            }
+            throw "127.0.0.1:$Port began listening from process $listenerPid, but it is not the expected O-AI MVP $Name process."
         }
         Start-Sleep -Seconds 1
     }
-    throw "O-AI MVP did not begin listening on 127.0.0.1:$Port. Check data/mvp/logs."
+    throw "O-AI MVP $Name did not begin listening on 127.0.0.1:$Port. Check data/mvp/logs."
+}
+
+function Stop-StartedLauncher([object]$Launcher, [string]$Name) {
+    if ($null -eq $Launcher) { return }
+    try {
+        if (-not $Launcher.HasExited) {
+            & taskkill.exe /PID $Launcher.Id /T /F | Out-Null
+            Write-Warning "Cleaned up partially started O-AI MVP $Name launcher process $($Launcher.Id)."
+        }
+    } catch {
+        Write-Warning "Could not clean up partially started $Name launcher process: $($_.Exception.Message)"
+    }
+}
+
+function Stop-ValidatedOwnedPid([string]$Name, [string]$PidPath, [Nullable[int]]$ExpectedPid) {
+    if ($null -eq $ExpectedPid) { return }
+
+    $state = Get-OAiMvpPidState -Path $PidPath -Name $Name -RepositoryRoot $repositoryRoot
+    if ($state.Status -eq "Owned" -and $state.ProcessId -eq $ExpectedPid) {
+        & taskkill.exe /PID $ExpectedPid /T /F | Out-Null
+    }
+    Remove-OAiMvpPidFile -Path $PidPath
 }
 
 $backendPid = Join-Path $stateDirectory "backend.pid"
 $frontendPid = Join-Path $stateDirectory "frontend.pid"
-Remove-StalePid $backendPid
-Remove-StalePid $frontendPid
+Prepare-MvpPidForStart "backend" $backendPid
+Prepare-MvpPidForStart "frontend" $frontendPid
 Assert-PortAvailable 8000
 Assert-PortAvailable 3000
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$backendCommand = '""{0}" -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 1>"{1}" 2>"{2}""' -f `
-    (Join-Path $repositoryRoot ".venv/Scripts/python.exe"), `
-    (Join-Path $logDirectory "backend-$stamp.out.log"), `
-    (Join-Path $logDirectory "backend-$stamp.err.log")
-Start-DetachedCommand $backendCommand $repositoryRoot
-$backendProcessId = Wait-ForLocalPort 8000
+$backendLauncher = $null
+$frontendLauncher = $null
+$backendProcessId = $null
+$frontendProcessId = $null
 
-$frontendCommand = '"npm.cmd run dev -- --hostname 127.0.0.1 --port 3000 1>"{0}" 2>"{1}""' -f `
-    (Join-Path $logDirectory "frontend-$stamp.out.log"), `
-    (Join-Path $logDirectory "frontend-$stamp.err.log")
-Start-DetachedCommand $frontendCommand (Join-Path $repositoryRoot "frontend")
-$frontendProcessId = Wait-ForLocalPort 3000
+try {
+    $backendCommand = '""{0}" -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 1>"{1}" 2>"{2}""' -f `
+        (Join-Path $repositoryRoot ".venv/Scripts/python.exe"), `
+        (Join-Path $logDirectory "backend-$stamp.out.log"), `
+        (Join-Path $logDirectory "backend-$stamp.err.log")
+    $backendLauncher = Start-DetachedCommand $backendCommand $repositoryRoot
+    $backendProcessId = Wait-ForOwnedLocalPort "backend" 8000
+    Set-Content -LiteralPath $backendPid -Value $backendProcessId -NoNewline
 
-Set-Content -LiteralPath $backendPid -Value $backendProcessId -NoNewline
-Set-Content -LiteralPath $frontendPid -Value $frontendProcessId -NoNewline
+    $frontendCommand = '""npm.cmd run dev -- --hostname 127.0.0.1 --port 3000 1>"{0}" 2>"{1}""' -f `
+        (Join-Path $logDirectory "frontend-$stamp.out.log"), `
+        (Join-Path $logDirectory "frontend-$stamp.err.log")
+    $frontendLauncher = Start-DetachedCommand $frontendCommand (Join-Path $repositoryRoot "frontend")
+    $frontendProcessId = Wait-ForOwnedLocalPort "frontend" 3000
+    Set-Content -LiteralPath $frontendPid -Value $frontendProcessId -NoNewline
+} catch {
+    Stop-ValidatedOwnedPid -Name "frontend" -PidPath $frontendPid -ExpectedPid $frontendProcessId
+    Stop-StartedLauncher -Launcher $frontendLauncher -Name "frontend"
+    Stop-ValidatedOwnedPid -Name "backend" -PidPath $backendPid -ExpectedPid $backendProcessId
+    Stop-StartedLauncher -Launcher $backendLauncher -Name "backend"
+    throw
+}
 
 Write-Host "O-AI MVP starting on loopback only:"
 Write-Host "  Backend:  http://127.0.0.1:8000"
