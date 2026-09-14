@@ -147,6 +147,46 @@ try {
         "Foreign" `
         "Foreign Next.js parent chain was incorrectly recognized as O-AI."
 
+
+    $tcpListener = [pscustomobject]@{
+        LocalAddress = "127.0.0.1"
+        LocalPort = 3000
+        State = "Listen"
+        OwningProcess = 15204
+    }
+    Assert-Equal `
+        (Get-OAiMvpListenerPid `
+            -Port 3000 `
+            -TcpConnectionResolver { param($port) @($tcpListener) } `
+            -NetstatResolver { param($port) @() }) `
+        15204 `
+        "Windows TCP API listener discovery failed."
+
+    $nonLoopbackListener = [pscustomobject]@{
+        LocalAddress = "0.0.0.0"
+        LocalPort = 3000
+        State = "Listen"
+        OwningProcess = 15204
+    }
+    Assert-Equal `
+        (Get-OAiMvpListenerPid `
+            -Port 3000 `
+            -TcpConnectionResolver { param($port) @($nonLoopbackListener) } `
+            -NetstatResolver { param($port) @() }) `
+        $null `
+        "Listener discovery accepted a non-loopback binding."
+
+    Assert-Equal `
+        (Get-OAiMvpListenerPid `
+            -Port 3000 `
+            -TcpConnectionResolver { param($port) @() } `
+            -NetstatResolver {
+                param($port)
+                @("  TCP    127.0.0.1:3000    0.0.0.0:0    LISTENING    4321")
+            }) `
+        4321 `
+        "Netstat fallback listener discovery failed."
+
     Write-Host "D41 MVP process lifecycle tests passed: $script:Passed assertions."
 } finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

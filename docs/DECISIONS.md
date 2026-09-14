@@ -587,3 +587,10 @@ The ownership check may inspect a bounded parent chain and accept the listener
 only when the same O-AI frontend root also contains the expected
 `next dev --hostname 127.0.0.1 --port 3000` parent command. A foreign parent
 chain remains non-owned and must never be killed.
+
+**D41 listener discovery clarification.** `Get-NetTCPConnection` is the primary
+Windows source for resolving the PID listening on the expected loopback port;
+text parsing of `netstat.exe` remains a fallback. This change affects discovery
+only. Listener PID equality still does not establish ownership, and the
+existing repository/process identity validation remains mandatory before any
+state write or termination.

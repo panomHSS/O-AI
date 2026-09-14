@@ -285,14 +285,68 @@ function Get-OAiMvpStopDisposition {
 }
 
 function Get-OAiMvpListenerPid {
-    param([Parameter(Mandatory = $true)][int]$Port)
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Port,
+        [scriptblock]$TcpConnectionResolver = $null,
+        [scriptblock]$NetstatResolver = $null
+    )
 
-    $line = netstat.exe -ano -p tcp |
-        Select-String "127.0.0.1:$Port\s+.*LISTENING" |
+    if ($null -eq $TcpConnectionResolver) {
+        $TcpConnectionResolver = {
+            param([int]$ResolvedPort)
+            @(
+                Get-NetTCPConnection `
+                    -LocalPort $ResolvedPort `
+                    -State Listen `
+                    -ErrorAction SilentlyContinue
+            )
+        }
+    }
+
+    try {
+        $connections = @(& $TcpConnectionResolver $Port)
+    } catch {
+        $connections = @()
+    }
+
+    $loopbackListener = $connections |
+        Where-Object {
+            $_.LocalAddress -eq "127.0.0.1" -and
+            [int]$_.LocalPort -eq $Port -and
+            [string]$_.State -eq "Listen" -and
+            [int]$_.OwningProcess -gt 0
+        } |
         Select-Object -First 1
 
-    if ($line -and $line.Line -match "\s+(\d+)\s*$") {
-        return [int]$Matches[1]
+    if ($null -ne $loopbackListener) {
+        return [int]$loopbackListener.OwningProcess
+    }
+
+    if ($null -eq $NetstatResolver) {
+        $NetstatResolver = {
+            param([int]$ResolvedPort)
+            @(netstat.exe -ano -p tcp)
+        }
+    }
+
+    try {
+        $netstatLines = @(& $NetstatResolver $Port)
+    } catch {
+        $netstatLines = @()
+    }
+
+    foreach ($line in $netstatLines) {
+        $text = [string]$line
+        if (
+            $text -match (
+                "^\s*TCP\s+127\.0\.0\.1:" +
+                [regex]::Escape([string]$Port) +
+                "\s+\S+\s+LISTENING\s+(\d+)\s*$"
+            )
+        ) {
+            return [int]$Matches[1]
+        }
     }
 
     return $null

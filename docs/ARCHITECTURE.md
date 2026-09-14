@@ -418,3 +418,12 @@ arguments remain on its parent `next dev` process. D41 therefore permits
 frontend ownership to be proven through a bounded parent-chain check only
 when the listener child and the matching `next dev` parent are rooted in
 the same O-AI `frontend` tree. PID equality alone remains insufficient.
+
+### D41 listener discovery clarification
+
+Native Windows listener discovery uses `Get-NetTCPConnection` as the primary
+source of `127.0.0.1` listener ownership and keeps `netstat.exe` parsing only
+as a compatibility fallback. A discovered listener PID is still only a
+candidate: backend/frontend process ownership validation must succeed before
+the PID can be persisted, treated as O-AI-owned, or terminated. Non-loopback
+listeners are not accepted as the supported MVP listener.
