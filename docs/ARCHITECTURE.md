@@ -552,3 +552,55 @@ D44 does not change AI chat capability/model discovery, public APIs, database
 state, migrations, frontend behavior, Tool/Module adapter contracts, runtime
 invocation semantics, audit payloads, or the current approval behavior of any
 production Tool/Module capability.
+
+## Owner Approval Surface/API v1 (D45)
+
+D45 exposes the frozen Tool/Module execution lane through an explicit local-owner
+review surface without moving execution authority into HTTP. The public API is
+two-phase: a proposal request is planned and projected for review, then a
+separate approve or deny request consumes a one-time pending approval ticket.
+Creating a proposal never calls `ExecutionGuard`, `ToolRuntime`,
+`ModuleRuntime`, or `CommandExecutionCoordinator.execute()`.
+
+Pending approval tickets are process-local, opaque, single-use, thread-safe,
+bounded to 100 entries, and expire after 10 minutes. Expired tickets are
+removed, capacity never silently evicts a still-valid ticket, digest mismatch
+invalidates the ticket, and concurrent decisions can consume a ticket at most
+once. No approval table or migration is introduced. Process restart discards
+all pending approvals.
+
+The review projection contains the exact planned adapter, operation,
+parameters, D44 capability ID/effect/data class, owner-approval policy flag,
+and the D36 canonical plan digest. The owner decision is converted into the
+existing `OwnerApprovalEvidence`; the API never creates an
+`ExecutionAuthorization`. After a ticket is consumed,
+`CommandExecutionCoordinator` plans the stored `CommandRequest` again and
+`ExecutionGuard` revalidates current registry, capability policy, approval
+semantics, and the exact digest before any runtime invocation.
+
+The resulting lane is:
+
+`HTTP approval proposal -> Planner -> one-time pending approval -> owner decision
+-> Coordinator -> Planner -> Guard -> Tool/Module Runtime`
+
+This establishes:
+
+`PROPOSED != APPROVED != AUTHORIZED != EXECUTED`
+
+`APPROVAL TICKET != EXECUTION AUTHORIZATION`
+
+`ONE PENDING APPROVAL -> AT MOST ONE EXECUTION ATTEMPT`
+
+`APPROVED OLD PLAN != AUTHORIZED CURRENT PLAN`
+
+All D45 execution-approval endpoints require `X-OAI-Local-Request: 1`. This is
+an explicit local-browser request-intent boundary only; it is not
+authentication and does not protect against other local processes or OS users.
+The D45 surface accepts Tool and Module targets only. Normal AI chat remains on
+the existing chat lane. The HTTP `X-Request-ID` remains transport correlation
+metadata and is distinct from the server-generated execution request ID.
+
+D45 intentionally adds no frontend approval UI, Chat-to-Action bridge,
+authentication/RBAC, standing grants, remembered approvals, durable approval
+persistence, Tool/Module discovery, write tools, network integrations, durable
+audit storage, Docker changes, dependencies, or schema migrations.

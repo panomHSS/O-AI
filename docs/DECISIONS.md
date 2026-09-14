@@ -740,3 +740,51 @@ runtime-editable permissions, database persistence, environment overrides,
 OAuth scopes, Tool/Module discovery, Chat-to-Action bridge, write tools,
 network integrations, durable audit storage, frontend changes, Docker changes,
 or dependencies.
+
+## ADR-037: One-time Owner Approval Surface/API v1
+
+**Decision**
+
+Expose Tool/Module execution review through a two-phase local HTTP API backed by
+a bounded in-memory one-time approval store. Proposal creation calls the
+existing D35 planner, resolves D44 capability metadata, computes the existing
+D36 canonical plan digest, and returns an owner-reviewable projection. It does
+not authorize or execute.
+
+A pending ticket contains the exact server-created `CommandRequest`, plan
+digest, target/capability metadata, and expiry. Tickets are opaque, single-use,
+thread-safe, capped at 100 live entries, expire after 10 minutes, and are never
+silently evicted. Digest mismatch invalidates the ticket. Approve or deny
+atomically consumes the ticket before any execution attempt.
+
+The decision is translated into the existing `OwnerApprovalEvidence` and sent
+through `CommandExecutionCoordinator`. The coordinator plans again before
+`ExecutionGuard` evaluates the approval, so changes to adapter registration,
+capability permission, or plan content between review and decision fail closed.
+The API never constructs `ExecutionAuthorization` and never invokes Tool or
+Module runtime directly.
+
+**Rationale**
+
+A stateless `approved=true` or reusable digest-only endpoint would allow the
+same owner decision to be replayed, which becomes unsafe once future write
+capabilities exist. A one-time ticket prevents repeat execution while
+preserving the frozen D35-D40 authority boundaries. Re-planning after the owner
+decision prevents an approval from becoming a standing grant when current
+policy no longer permits the reviewed action.
+
+**Security boundary**
+
+All D45 endpoints require `X-OAI-Local-Request: 1`, matching the existing
+explicit local-browser intent pattern. This marker is not authentication and
+does not prove owner identity cryptographically. D45 remains supported only in
+the trusted local, single-owner, loopback deployment model. AI/chat is excluded
+from this approval API.
+
+**Consequences**
+
+Pending approvals are intentionally lost on backend restart and are not an
+audit log. D47 remains responsible for durable audit. D45 adds no database
+table, migration, frontend UI, Chat-to-Action bridge, authentication, RBAC,
+standing permissions, remembered approvals, remote/LAN approval, write tools,
+network tools, Docker changes, or new dependencies.

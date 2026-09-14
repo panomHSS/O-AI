@@ -55,6 +55,10 @@ from app.services.command_orchestrator import CommandOrchestrator
 from app.services.command_execution_coordinator import (
     CommandExecutionCoordinator,
 )
+from app.services.execution_approval_service import (
+    ExecutionApprovalService,
+    PendingExecutionApprovalStore,
+)
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
 from app.services.execution_audit import ExecutionAuditTrail, LoggingAuditSink
@@ -481,6 +485,12 @@ def get_execution_planner(
         audit=audit,
     )
 
+@lru_cache
+def get_pending_execution_approval_store() -> PendingExecutionApprovalStore:
+    """Compose the process-local bounded D45 one-time approval store."""
+    return PendingExecutionApprovalStore()
+
+
 def get_command_execution_coordinator(
     planner: ExecutionPlanner = Depends(get_execution_planner),
     guard: ExecutionGuard = Depends(get_execution_guard),
@@ -493,6 +503,27 @@ def get_command_execution_coordinator(
         guard=guard,
         tool_runtime=tool_runtime,
         module_runtime=module_runtime,
+    )
+
+
+def get_execution_approval_service(
+    planner: ExecutionPlanner = Depends(get_execution_planner),
+    permission_policy: CapabilityPermissionPolicy = Depends(
+        get_capability_permission_policy
+    ),
+    coordinator: CommandExecutionCoordinator = Depends(
+        get_command_execution_coordinator
+    ),
+    store: PendingExecutionApprovalStore = Depends(
+        get_pending_execution_approval_store
+    ),
+) -> ExecutionApprovalService:
+    """Compose D45 review/decision without moving execution authority."""
+    return ExecutionApprovalService(
+        planner=planner,
+        permission_policy=permission_policy,
+        coordinator=coordinator,
+        store=store,
     )
 
 

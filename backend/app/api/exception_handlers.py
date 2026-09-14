@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -20,6 +20,13 @@ from app.services.project_update_proposals import (
 )
 from app.services.project_context import ProjectContextUnavailableError
 from app.services.command_orchestrator import CommandOrchestrationFailure
+from app.services.execution_approval_service import (
+    ExecutionApprovalExpiredError,
+    ExecutionApprovalNotPendingError,
+    ExecutionApprovalPlanMismatchError,
+    ExecutionApprovalProposalInvalidError,
+    ExecutionApprovalStoreFullError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +182,61 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(KnowledgeSearchValidationError)
     async def handle_knowledge_search_validation(_: Request, error: KnowledgeSearchValidationError) -> JSONResponse:
         return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "KNOWLEDGE_SEARCH_VALIDATION_ERROR", str(error))
+
+    @app.exception_handler(ExecutionApprovalNotPendingError)
+    async def handle_execution_approval_not_pending(
+        _: Request,
+        __: ExecutionApprovalNotPendingError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_404_NOT_FOUND,
+            "approval_not_pending",
+            "The execution approval is not pending.",
+        )
+
+    @app.exception_handler(ExecutionApprovalExpiredError)
+    async def handle_execution_approval_expired(
+        _: Request,
+        __: ExecutionApprovalExpiredError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_410_GONE,
+            "approval_expired",
+            "The execution approval has expired.",
+        )
+
+    @app.exception_handler(ExecutionApprovalPlanMismatchError)
+    async def handle_execution_approval_plan_mismatch(
+        _: Request,
+        __: ExecutionApprovalPlanMismatchError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_409_CONFLICT,
+            "approval_plan_mismatch",
+            "The execution approval no longer matches the reviewed plan.",
+        )
+
+    @app.exception_handler(ExecutionApprovalStoreFullError)
+    async def handle_execution_approval_store_full(
+        _: Request,
+        __: ExecutionApprovalStoreFullError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "approval_store_full",
+            "Execution approval capacity is temporarily unavailable.",
+        )
+
+    @app.exception_handler(ExecutionApprovalProposalInvalidError)
+    async def handle_execution_approval_proposal_invalid(
+        _: Request,
+        __: ExecutionApprovalProposalInvalidError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_409_CONFLICT,
+            "approval_proposal_invalid",
+            "The execution approval proposal could not be created safely.",
+        )
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, error: Exception) -> JSONResponse:
