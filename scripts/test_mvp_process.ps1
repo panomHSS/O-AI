@@ -87,6 +87,66 @@ try {
     }
     Assert-False (Test-OAiMvpProcessOwnership -Name "backend" -RepositoryRoot $repoRoot -Process $outside) "Backend outside the O-AI repository was incorrectly owned."
 
+
+    # Regression: the real Windows Next.js listener child can omit --port,
+    # while its parent CLI owns next dev --hostname/--port.
+    Set-Content -LiteralPath $frontendPid -Value "14720" -NoNewline
+    $realisticListener = [pscustomobject]@{
+        ProcessId = 14720
+        ParentProcessId = 22564
+        CommandLine = (
+            '"C:\Program Files\nodejs\node.exe" ' +
+            (Join-Path $repoRoot "frontend\node_modules\next\dist\server\lib\start-server.js")
+        )
+    }
+    $realisticParent = [pscustomobject]@{
+        ProcessId = 22564
+        ParentProcessId = 14196
+        CommandLine = (
+            '"node" "' +
+            (Join-Path $repoRoot "frontend\node_modules\.bin\..\next\dist\bin\next") +
+            '" dev --hostname 127.0.0.1 --port 3000'
+        )
+    }
+
+    $realisticState = Get-OAiMvpPidState `
+        -Path $frontendPid `
+        -Name "frontend" `
+        -RepositoryRoot $repoRoot `
+        -ProcessResolver {
+            param($id)
+            if ($id -eq 14720) { return $realisticListener }
+            if ($id -eq 22564) { return $realisticParent }
+            return $null
+        }
+    Assert-Equal `
+        $realisticState.Status `
+        "Owned" `
+        "Real Next.js listener/parent process chain was not recognized."
+
+    $foreignParent = [pscustomobject]@{
+        ProcessId = 22564
+        ParentProcessId = 0
+        CommandLine = (
+            '"node" "C:\Other\next\dist\bin\next" ' +
+            'dev --hostname 127.0.0.1 --port 3000'
+        )
+    }
+    $foreignParentState = Get-OAiMvpPidState `
+        -Path $frontendPid `
+        -Name "frontend" `
+        -RepositoryRoot $repoRoot `
+        -ProcessResolver {
+            param($id)
+            if ($id -eq 14720) { return $realisticListener }
+            if ($id -eq 22564) { return $foreignParent }
+            return $null
+        }
+    Assert-Equal `
+        $foreignParentState.Status `
+        "Foreign" `
+        "Foreign Next.js parent chain was incorrectly recognized as O-AI."
+
     Write-Host "D41 MVP process lifecycle tests passed: $script:Passed assertions."
 } finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

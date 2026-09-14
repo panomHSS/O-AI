@@ -409,3 +409,12 @@ D41 hardens the native Windows MVP start/stop lifecycle without changing the fro
 Backend ownership requires the repository root plus the expected Uvicorn app, backend app directory, and port 8000. Frontend ownership requires the repository frontend root plus the Next.js server command and port 3000. Port occupancy does not grant ownership: unknown listeners remain fail-closed and are never killed.
 
 Startup writes PID files only after the expected listener is found and its process ownership is validated. If startup fails after creating a component, the script makes a best-effort cleanup of launchers and any already-validated O-AI listener from that startup attempt. This operational hardening does not change Adapter, Planner, Authorization, Runtime, Audit, Coordinator, database, frontend application, or public API contracts.
+
+### D41 frontend ownership clarification
+
+On Windows, the Next.js process listening on port 3000 can be the
+`start-server.js` child while the `--hostname 127.0.0.1 --port 3000`
+arguments remain on its parent `next dev` process. D41 therefore permits
+frontend ownership to be proven through a bounded parent-chain check only
+when the listener child and the matching `next dev` parent are rooted in
+the same O-AI `frontend` tree. PID equality alone remains insufficient.

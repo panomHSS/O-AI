@@ -580,3 +580,10 @@ PID equality is not process ownership. Centralizing classification and ownership
 **Consequences**
 
 Native Windows start/stop becomes recoverable from invalid, dead, and PID-reuse state. Duplicate start remains blocked when a validated O-AI process is active. Unknown port listeners remain fail-closed and are not terminated. Partial startup performs best-effort cleanup of processes created by that attempt. D41 adds no process-manager dependency, service installation, dynamic port selection, backend contract change, database change, or frontend feature.
+
+**D41 frontend process-chain clarification.** On Windows, the Next.js listener
+may be a `start-server.js` child whose command line does not include the port.
+The ownership check may inspect a bounded parent chain and accept the listener
+only when the same O-AI frontend root also contains the expected
+`next dev --hostname 127.0.0.1 --port 3000` parent command. A foreign parent
+chain remains non-owned and must never be killed.

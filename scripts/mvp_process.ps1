@@ -57,43 +57,147 @@ function Test-OAiMvpProcessOwnership {
         [Parameter(Mandatory = $true)]
         [string]$RepositoryRoot,
         [Parameter(Mandatory = $true)]
-        [object]$Process
+        [object]$Process,
+        [scriptblock]$ProcessResolver = $null
     )
 
     $commandLine = [string]$Process.CommandLine
-    if ([string]::IsNullOrWhiteSpace($commandLine)) { return $false }
+    if ([string]::IsNullOrWhiteSpace($commandLine)) {
+        return $false
+    }
 
     $normalizedCommand = $commandLine.Replace("/", "\")
-    $normalizedRoot = ([System.IO.Path]::GetFullPath($RepositoryRoot)).TrimEnd("\", "/").Replace("/", "\")
+    $normalizedRoot = (
+        [System.IO.Path]::GetFullPath($RepositoryRoot)
+    ).TrimEnd("\", "/").Replace("/", "\")
 
-    if ($normalizedCommand.IndexOf($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+    if (
+        $normalizedCommand.IndexOf(
+            $normalizedRoot,
+            [System.StringComparison]::OrdinalIgnoreCase
+        ) -lt 0
+    ) {
         return $false
     }
 
     if ($Name -eq "backend") {
-        foreach ($token in @("uvicorn app.main:app", "--app-dir backend", "--port 8000")) {
-            if ($normalizedCommand.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        foreach ($token in @(
+            "uvicorn app.main:app",
+            "--app-dir backend",
+            "--port 8000"
+        )) {
+            if (
+                $normalizedCommand.IndexOf(
+                    $token,
+                    [System.StringComparison]::OrdinalIgnoreCase
+                ) -lt 0
+            ) {
                 return $false
             }
         }
         return $true
     }
 
-    $frontendRoot = Join-Path $normalizedRoot "frontend"
-    if ($normalizedCommand.IndexOf($frontendRoot, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+    $frontendRoot = (Join-Path $normalizedRoot "frontend").Replace("/", "\")
+    if (
+        $normalizedCommand.IndexOf(
+            $frontendRoot,
+            [System.StringComparison]::OrdinalIgnoreCase
+        ) -lt 0
+    ) {
         return $false
     }
 
-    $hasNextServer = $normalizedCommand.IndexOf(
-        "node_modules\next\dist\server\lib\start-server.js",
-        [System.StringComparison]::OrdinalIgnoreCase
-    ) -ge 0
-    $hasPort = $normalizedCommand.IndexOf(
-        "--port 3000",
-        [System.StringComparison]::OrdinalIgnoreCase
-    ) -ge 0
+    $hasNextServer = (
+        $normalizedCommand.IndexOf(
+            "node_modules\next\dist\server\lib\start-server.js",
+            [System.StringComparison]::OrdinalIgnoreCase
+        ) -ge 0
+    )
+    if (-not $hasNextServer) {
+        return $false
+    }
 
-    return ($hasNextServer -and $hasPort)
+    # Some Next.js versions put --port only on the parent CLI process while
+    # the listening child is start-server.js.
+    if (
+        $normalizedCommand.IndexOf(
+            "--port 3000",
+            [System.StringComparison]::OrdinalIgnoreCase
+        ) -ge 0
+    ) {
+        return $true
+    }
+
+    if ($null -eq $ProcessResolver) {
+        $ProcessResolver = {
+            param([int]$ResolvedProcessId)
+            Get-OAiMvpProcessById -ProcessId $ResolvedProcessId
+        }
+    }
+
+    $parentProperty = $Process.PSObject.Properties["ParentProcessId"]
+    if ($null -eq $parentProperty) {
+        return $false
+    }
+
+    $parentId = [int]$parentProperty.Value
+    for ($depth = 0; $depth -lt 3 -and $parentId -gt 0; $depth++) {
+        $parent = & $ProcessResolver $parentId
+        if ($null -eq $parent) {
+            return $false
+        }
+
+        $parentCommand = ([string]$parent.CommandLine).Replace("/", "\")
+        $sameFrontendRoot = (
+            $parentCommand.IndexOf(
+                $frontendRoot,
+                [System.StringComparison]::OrdinalIgnoreCase
+            ) -ge 0
+        )
+        $hasNextCli = (
+            $parentCommand.IndexOf(
+                "next\dist\bin\next",
+                [System.StringComparison]::OrdinalIgnoreCase
+            ) -ge 0
+        )
+        $hasDev = (
+            $parentCommand.IndexOf(
+                " dev ",
+                [System.StringComparison]::OrdinalIgnoreCase
+            ) -ge 0
+        )
+        $hasHost = (
+            $parentCommand.IndexOf(
+                "--hostname 127.0.0.1",
+                [System.StringComparison]::OrdinalIgnoreCase
+            ) -ge 0
+        )
+        $hasPort = (
+            $parentCommand.IndexOf(
+                "--port 3000",
+                [System.StringComparison]::OrdinalIgnoreCase
+            ) -ge 0
+        )
+
+        if (
+            $sameFrontendRoot -and
+            $hasNextCli -and
+            $hasDev -and
+            $hasHost -and
+            $hasPort
+        ) {
+            return $true
+        }
+
+        $nextParentProperty = $parent.PSObject.Properties["ParentProcessId"]
+        if ($null -eq $nextParentProperty) {
+            return $false
+        }
+        $parentId = [int]$nextParentProperty.Value
+    }
+
+    return $false
 }
 
 function Get-OAiMvpPidState {
@@ -120,14 +224,28 @@ function Get-OAiMvpPidState {
 
     $process = & $ProcessResolver ([int]$pidState.ProcessId)
     if ($null -eq $process) {
-        return New-OAiMvpPidState -Status "Dead" -ProcessId $pidState.ProcessId
+        return New-OAiMvpPidState `
+            -Status "Dead" `
+            -ProcessId $pidState.ProcessId
     }
 
-    if (Test-OAiMvpProcessOwnership -Name $Name -RepositoryRoot $RepositoryRoot -Process $process) {
-        return New-OAiMvpPidState -Status "Owned" -ProcessId $pidState.ProcessId -Process $process
+    if (
+        Test-OAiMvpProcessOwnership `
+            -Name $Name `
+            -RepositoryRoot $RepositoryRoot `
+            -Process $process `
+            -ProcessResolver $ProcessResolver
+    ) {
+        return New-OAiMvpPidState `
+            -Status "Owned" `
+            -ProcessId $pidState.ProcessId `
+            -Process $process
     }
 
-    return New-OAiMvpPidState -Status "Foreign" -ProcessId $pidState.ProcessId -Process $process
+    return New-OAiMvpPidState `
+        -Status "Foreign" `
+        -ProcessId $pidState.ProcessId `
+        -Process $process
 }
 
 function Remove-OAiMvpPidFile {
