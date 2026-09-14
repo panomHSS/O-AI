@@ -35,6 +35,11 @@ from app.services.orchestration_error_normalizer import OrchestrationErrorNormal
 from app.services.response_composer import ResponseComposer
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
+from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
+from app.services.ai_discovery_sources import (
+    ChatGPTConfiguredModelDiscoverySource,
+    LocalAIModelDiscoverySource,
+)
 from app.services.local_ai_config import LocalAIAdapterConfig
 from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
 from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
@@ -303,6 +308,41 @@ def get_response_composer(
     """Compose D28 presentation without wiring orchestration into chat."""
     return ResponseComposer(normalizer)
 
+
+def get_chatgpt_model_discovery_source() -> ChatGPTConfiguredModelDiscoverySource:
+    """Describe only the configured ChatGPT model; no provider network call."""
+    settings = get_settings()
+    return ChatGPTConfiguredModelDiscoverySource(
+        configured_model_id=settings.openai_model,
+    )
+
+
+def get_local_ai_model_discovery_source(
+    config: LocalAIAdapterConfig = Depends(get_local_ai_config),
+    runtime_client: LocalAIRuntimeClient = Depends(get_local_ai_runtime_client),
+) -> LocalAIModelDiscoverySource:
+    """Compose read-only Local AI discovery over the D33 runtime seam."""
+    return LocalAIModelDiscoverySource(
+        enabled=config.enabled,
+        configured_model_id=config.model,
+        runtime_client=runtime_client,
+    )
+
+
+def get_ai_capability_model_discovery(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    chatgpt_source: ChatGPTConfiguredModelDiscoverySource = Depends(
+        get_chatgpt_model_discovery_source
+    ),
+    local_ai_source: LocalAIModelDiscoverySource = Depends(
+        get_local_ai_model_discovery_source
+    ),
+) -> AICapabilityModelDiscovery:
+    """Compose D34 metadata discovery without routing or execution."""
+    return AICapabilityModelDiscovery(
+        registry=adapter_registry,
+        sources=(chatgpt_source, local_ai_source),
+    )
 
 def get_ai_adapter_registry(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),

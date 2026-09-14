@@ -42,6 +42,30 @@ class OllamaRuntimeClient:
             for item in models
         )
 
+    def list_models(self) -> tuple[str, ...]:
+        """Return installed Ollama model names without loading or generating."""
+        payload = self._request_json("/api/tags", timeout_seconds=2.0)
+        models = payload.get("models")
+        if not isinstance(models, list):
+            raise LocalAIRuntimeResponseError(
+                "Local AI runtime returned invalid model data."
+            )
+
+        names: list[str] = []
+        for item in models:
+            if not isinstance(item, dict):
+                raise LocalAIRuntimeResponseError(
+                    "Local AI runtime returned invalid model data."
+                )
+            name = item.get("name")
+            if not isinstance(name, str) or not name or name != name.strip():
+                raise LocalAIRuntimeResponseError(
+                    "Local AI runtime returned invalid model data."
+                )
+            names.append(name)
+
+        return tuple(sorted(set(names)))
+
     def is_model_loaded(self, model: str) -> bool:
         payload = self._request_json("/api/ps", timeout_seconds=2.0)
         models = payload.get("models")

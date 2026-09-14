@@ -411,3 +411,22 @@ A stable `LocalAIAdapter` plus a small runtime protocol keeps routing and orches
 Ollama remains the default supported D33 runtime backend, identified by `ollama`, but it is no longer instantiated inside the Local AI adapter dependency itself. A future runtime can satisfy `LocalAIRuntimeClient` and be injected without changing `LocalAIAdapter`, D31 registration, or D32 routing. Unknown backends raise a composition error and do not fall back. D26 runtime/model availability checks and safe error normalization remain unchanged.
 
 D33 does not add model/capability discovery, runtime probing during factory creation, automatic retry/fallback, dynamic plugins, model downloading, database/persistence changes, migrations, public API/schema changes, frontend changes, dependency/package changes, or Docker/deployment changes.
+
+## ADR-026: AI capability and model discovery metadata boundary
+
+**Decision**
+Represent AI model and capability discovery as immutable, read-only metadata separate from executable plugin capabilities, routing policy, runtime selection, and execution. Validate discovery sources against the D31 AI registry. Describe the configured model for ChatGPT without network enumeration, and use an optional Local AI model-discovery protocol for runtimes that can enumerate installed models.
+
+**Context**
+D31 established a unified immutable adapter registry, D32 separated route enablement from registration, and D33 made the Local AI runtime replaceable behind `LocalAIRuntimeClient`. The repository also has a plugin capability registry, but that registry represents executable plugin capabilities that can be registered, unregistered, and resolved; it is not AI model metadata.
+
+**Alternatives**
+Reuse the executable plugin capability registry for AI metadata, query all models from external providers, require every `LocalAIRuntimeClient` to enumerate models, encode capabilities into adapter IDs, infer unsupported capabilities, or let discovery influence routing/fallback.
+
+**Rationale**
+A dedicated metadata contract keeps discovery read-only and makes its semantics explicit. Configured-model discovery for ChatGPT avoids unnecessary external calls and avoids implying that every provider-visible model is usable by O-AI. Keeping `LocalAIModelDiscoveryProvider` optional preserves D33 runtime replaceability for generation-only backends. Conservative capability reporting prevents later planning from acting on guessed features.
+
+**Consequences**
+D34 can describe registered AI adapters without invoking them. Missing discovery sources and expected runtime failures produce structured unavailable results. Local AI disabled state is reported without runtime probing. Ollama adds read-only deterministic model listing through `/api/tags`; future Local AI runtimes may implement the optional discovery protocol without changing `LocalAIAdapter`. Capability v1 advertises only `text_generation`.
+
+D34 does not add capability-based routing, model switching, model installation/download, execution planning, public discovery APIs, frontend selectors, persistence, migrations, Docker changes, new dependencies, or fallback behavior.

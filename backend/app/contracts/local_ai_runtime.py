@@ -50,3 +50,11 @@ class LocalAIRuntimeClient(Protocol):
     ) -> str:
         """Generate text without exposing a runtime-specific response type."""
         ...
+
+@runtime_checkable
+class LocalAIModelDiscoveryProvider(Protocol):
+    """Optional read-only model enumeration; not required for generation."""
+
+    def list_models(self) -> tuple[str, ...]:
+        """Return deterministic installed model identifiers without mutation."""
+        ...

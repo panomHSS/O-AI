@@ -285,6 +285,16 @@ Application composition converts deployment settings into an immutable `LocalAIA
 
 Runtime selection occurs only at the composition boundary. Unknown runtime backend IDs are rejected instead of silently falling back to Ollama or a cloud provider. Creating a runtime client does not probe runtime/model availability; the existing D26 adapter availability guard remains responsible for fail-closed runtime/model checks immediately before local generation. D33 does not add capability/model discovery, automatic runtime discovery, retry/fallback, model installation, public APIs, persistence, migrations, frontend behavior, dependencies, or deployment changes.
 
+## AI capability and model discovery (D34)
+
+D34 adds immutable, read-only metadata describing models and known capabilities for registered AI adapters. Discovery is deliberately separate from D31 registration, D32 route enablement, D33 runtime selection, executable plugin capabilities, and AI execution. The invariant is `REGISTERED != ROUTE ENABLED != DISCOVERED != EXECUTED`.
+
+`AICapabilityModelDiscovery` validates construction-time discovery sources against the D31 `AdapterRegistry` and exposes deterministic per-adapter or all-adapter discovery. Missing sources produce structured unavailable metadata instead of changing registration. Discovery never invokes `AIAdapter.generate()`, changes routing policy, loads/downloads models, or performs fallback.
+
+ChatGPT discovery describes only the configured OpenAI model and performs no provider/network model-list request. Local AI uses the D33-injected `LocalAIRuntimeClient` plus the optional `LocalAIModelDiscoveryProvider` protocol. A generation-capable runtime is therefore not required to enumerate models. Ollama implements the optional protocol with read-only `/api/tags` model enumeration. Disabled Local AI is reported without probing the runtime, and runtime/model availability failures are normalized into structured discovery results.
+
+D34 capability metadata is intentionally conservative. Contract v1 advertises only `text_generation`; other capabilities remain unknown until a later contract has explicit evidence for them. D34 provides metadata for future planning but does not create `ExecutionPlan` values or choose an adapter.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.
