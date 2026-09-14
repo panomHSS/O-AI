@@ -25,6 +25,7 @@ from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
 from app.services.chat import ChatService
 from app.services.adapter_registry import AdapterRegistry
+from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
 from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
 from app.telemetry.system_metrics import SystemMetricsProvider
@@ -174,15 +175,15 @@ def get_command_decision_engine() -> CommandDecisionEngine:
     return CommandDecisionEngine()
 
 
-def get_ai_router() -> AIRouter:
-    """Expose Local AI to D24 only when deployment enables it."""
+def get_ai_provider_routing_policy() -> AIProviderRoutingPolicy:
+    """Translate deployment settings into immutable D32 route enablement."""
     settings = get_settings()
-    available = [CHATGPT_DEFAULT_ADAPTER_ID]
+    enabled = {CHATGPT_DEFAULT_ADAPTER_ID}
     if settings.oai_local_ai_enabled:
-        available.append(LOCAL_AI_ADAPTER_ID)
-    return AIRouter(
+        enabled.add(LOCAL_AI_ADAPTER_ID)
+    return AIProviderRoutingPolicy(
         default_adapter_id=CHATGPT_DEFAULT_ADAPTER_ID,
-        available_adapter_ids=available,
+        enabled_adapter_ids=frozenset(enabled),
     )
 
 
@@ -227,6 +228,17 @@ def get_adapter_registry(
             standard_tool_adapter,
         )
     )
+
+def get_ai_router(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    policy: AIProviderRoutingPolicy = Depends(get_ai_provider_routing_policy),
+) -> AIRouter:
+    """Compose D32 routing from the shared registry and immutable policy."""
+    return AIRouter(
+        registry=adapter_registry,
+        policy=policy,
+    )
+
 
 def get_tool_module_router(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),

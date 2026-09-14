@@ -269,6 +269,14 @@ The existing D29 `AIAdapterRegistry` remains as a compatibility view over the un
 
 D31 adds no dynamic plugin/module discovery, filesystem scanning, entry-point loading, provider selection, routing policy, capability negotiation, adapter invocation, execution-plan creation, owner-approval bypass, persistence, HTTP endpoint, public schema, dependency, deployment, or database change. Future provider routing, Local AI replacement, module loading, and capability discovery remain separate owner-approved work.
 
+## Registry-backed AI provider routing (D32)
+
+D32 evolves the existing D24 `AIRouter` instead of adding a parallel routing layer. Runtime composition supplies the D31 `AdapterRegistry` together with an immutable `AIProviderRoutingPolicy`. The registry remains the source of truth for whether an ID is a registered AI adapter, while the policy records only which registered AI IDs are enabled for routing and which enabled AI ID is the configured default.
+
+Registration and route availability remain separate. A Local AI adapter may be present in the D31 registry while deployment configuration keeps `local_ai.default` out of the D32 enabled set. Conversely, an enabled ID that is not registered as an AI adapter fails closed. Tool and Module adapters in the unified registry never become eligible for AI routing because D32 checks them through `AdapterRegistry.resolve_ai()` only.
+
+`AIRouter` remains decision-only: it does not invoke adapters, probe provider/model health, retry, fall back to another provider, inspect provider SDKs, change owner-approval state, or create execution plans. The legacy D24 constructor remains available for compatibility tests/callers, while runtime dependency composition uses registry-backed mode. Deployment settings are translated into `AIProviderRoutingPolicy` only at the FastAPI composition root.
+
 ## Architecture Review 1.0
 
 Architecture Review 1.0 confirmed no P0 findings and recorded the verdict **READY WITH REQUIRED PRE-HARDENING CORRECTIONS**. The proposed 0.9 hardening sequence is 0.9.0A operational truth, 0.9.0B backup/restore confidence, 0.9.0C retry/privacy boundary, 0.9.0D composition/test hardening, and 0.9.0E measured readiness. Deferred infrastructure remains deliberate, not missing functionality.

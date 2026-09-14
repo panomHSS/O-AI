@@ -373,3 +373,22 @@ A single explicit snapshot removes duplicate registration state and gives future
 D31 registration never invokes adapters, creates plans, selects providers, grants owner approval, loads external code, scans the filesystem, performs network/database access, or mutates runtime state after construction. Unknown IDs resolve to `None` and downstream fail-closed behavior remains authoritative. Local AI may be registered while disabled; D24 still reports it unavailable and `LocalAIAdapter` remains responsible for runtime/model validation.
 
 There is no public API/schema, persistence, migration, dependency, frontend, Docker, or deployment change. Rollback restores the D29 AI registry implementation and D27 router-local adapter map, removes the unified registry/tests, and reverts only dependency composition and documentation.
+
+## ADR-024: Registry-backed AI provider routing
+
+**Decision**
+Evolve the existing D24 `AIRouter` into a registry-backed, configuration-neutral routing boundary driven by the D31 `AdapterRegistry` and an immutable `AIProviderRoutingPolicy`. Do not introduce a second provider router. Runtime composition uses the unified registry to prove that a candidate ID is a registered AI adapter and uses the routing policy only to decide whether that registered AI ID is enabled and which enabled AI ID is the configured default.
+
+**Context**
+D24 established deterministic provider selection from structured command decisions, but availability was supplied as an independent collection of adapter IDs. D31 then introduced a unified adapter registry that distinguishes AI, Tool, and Module adapters and centralizes registration. D32 must connect these boundaries without allowing registration to imply route availability or routing to imply invocation.
+
+**Alternatives**
+Keep D24 availability independent from the registry, create a parallel provider router, move provider selection into `CommandOrchestrator`, or combine routing with capability discovery, health probing, retry, or fallback.
+
+**Rationale**
+Using `AdapterRegistry.resolve_ai()` makes registered AI identity authoritative while keeping deployment enablement explicit and immutable. This prevents Tool/Module IDs or unknown enabled IDs from becoming AI routes, preserves deterministic D24 decisions, and keeps provider implementation details outside the routing core. Keeping automatic fallback out of D32 avoids hidden changes to privacy, cost, data-boundary, and owner expectations.
+
+**Consequences**
+A registered-but-disabled Local AI adapter remains unavailable for routing. An enabled-but-unregistered ID also fails closed. `AIRouter` never invokes an adapter and does not probe models/providers. D29 remains responsible for controlled orchestration/invocation through the selected adapter. Settings remain at the composition root and are translated into `AIProviderRoutingPolicy`; the routing service itself does not import configuration.
+
+The D24 constructor remains as a compatibility surface for existing tests/callers, but application runtime composition uses registry-backed mode. There is no public API/schema, database, migration, frontend, Docker, dependency/package, capability-discovery, execution-planner, approval, or dynamic-plugin change in D32.
