@@ -1459,3 +1459,44 @@ D51 Echo remains the fixed reference Plugin bridge. D59 does not add generic
 HTTP access, private repositories, credentials, OAuth, pagination, search,
 repository content reads, issues/PR reads, writes, webhooks, caching,
 persistence, database migration, UI/API lifecycle controls or background sync.
+
+## D60 — Plugin Engine Integration / Security Review v1
+
+D60 is a hardening checkpoint over D51-D59 rather than a new capability
+milestone. The production authority lane remains:
+
+`KNOWN -> ADMITTED -> LOADED -> EXPOSED -> BOUND -> ACTIVATED -> D31 REGISTERED
++ D44 PERMITTED -> D35 PLANNED -> D45 OWNER APPROVED -> D36 AUTHORIZED -> D37
+ModuleRuntime -> D58 activation-aware wrapper -> D56 active exposure -> D55 held
+Plugin -> D59 connector`
+
+D60 freezes the in-process Plugin threat model: D55's static exact factory
+allowlist is a loading boundary, not a Python or operating-system sandbox.
+Production Plugin implementations are trusted O-AI application code. Untrusted
+third-party Plugin code requires a separately designed isolation boundary.
+
+Legacy `DefaultPluginRegistrar` and `DefaultPluginRuntime` are quarantined from
+production dependency composition and API authority.
+
+D59 transport is hardened with an explicit empty `ProxyHandler({})`, so
+environment proxy variables cannot redirect connector egress. The fixed GitHub
+HTTPS host, GET-only request, no redirects, no retries, no credentials and
+bounded response handling remain unchanged.
+
+The D45 local-request marker remains an intent marker rather than
+authentication. Supported MVP deployment remains trusted local single-owner
+loopback only.
+
+Frozen invariants include:
+
+`ALLOWLIST != SANDBOX`
+
+`PROXY ENV != CONNECTOR EGRESS AUTHORITY`
+
+`LEGACY PLUGIN RUNTIME != PRODUCTION EXECUTION AUTHORITY`
+
+`LOCAL REQUEST MARKER != AUTHENTICATION`
+
+`ACTIVATED != APPROVED != AUTHORIZED != EXECUTED`
+
+Detailed findings are recorded in `docs/PLUGIN_ENGINE_SECURITY_REVIEW_V1.md`.

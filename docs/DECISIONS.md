@@ -1492,3 +1492,40 @@ authorization remain mandatory before normal ModuleRuntime execution.
 Production now knows one dynamic external connector while remaining default
 deny. The first external capability is intentionally narrow and read-only, so
 D59 does not establish generic web-fetch authority or a credential architecture.
+
+## ADR-052: Plugin Engine Integration / Security Review v1
+
+**Status:** Accepted
+
+**Decision**
+
+Freeze D51-D59 as an in-process trusted-code Plugin architecture with separate
+capability authority and per-execution authority. D55's exact static factory
+allowlist controls which O-AI-owned Plugin implementations may load; it is not
+an OS or Python sandbox.
+
+Keep legacy `DefaultPluginRegistrar` and `DefaultPluginRuntime` outside
+production dependency composition and API authority.
+
+Harden the D59 GitHub connector by disabling environment-derived urllib proxy
+routing with `ProxyHandler({})`. Preserve the fixed HTTPS host, GET-only method,
+no redirects, no retries, no credentials and bounded response handling.
+
+Preserve D54-D58 plus D45 owner approval and D36 authorization. Add end-to-end
+regression tests proving discovery through activation performs no network
+access, approval proposal alone does not execute, missing/mismatched approval
+fails closed, stale activation or revoked governance blocks old snapshots, and
+exact approved current execution reaches the connector once.
+
+The local-request marker remains non-authentication; supported deployment is
+trusted local single-owner loopback only.
+
+Record activation-generation binding for D45 approval as a future prerequisite
+question before public lifecycle control, hot Plugin replacement, credentialed
+Plugin upgrades, or untrusted third-party Plugin support.
+
+**Consequences**
+
+D60 adds no new Plugin capability or external authority. It narrows connector
+routing, documents the trusted-code boundary, quarantines legacy execution
+surfaces, and freezes security regression coverage before further expansion.

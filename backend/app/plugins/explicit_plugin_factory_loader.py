@@ -1,5 +1,9 @@
 """D55 explicit static Plugin factory loader.
 
+D60 security freeze: factories are trusted in-process O-AI application code.
+This exact allowlist is a loading boundary, not a Python or OS sandbox.
+Untrusted third-party Plugin code is outside the supported production model.
+
 This loader intentionally does not scan the filesystem, import a manifest-supplied
 module path, install packages, use version ranges, or fall back to another Plugin.
 """

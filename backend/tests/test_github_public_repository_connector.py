@@ -2,6 +2,8 @@ import json
 import socket
 import unittest
 import urllib.error
+import urllib.request
+from unittest.mock import Mock, patch
 
 from app.connectors.github_public_repository import (
     GITHUB_CONNECTOR_ERROR_HTTP,
@@ -14,6 +16,8 @@ from app.connectors.github_public_repository import (
     GITHUB_PUBLIC_REPOSITORY_MAX_RESPONSE_BYTES,
     GitHubPublicRepositoryClient,
     GitHubPublicRepositoryConnectorError,
+    _NoRedirectHandler,
+    _open_without_redirects,
     validate_repository_reference,
 )
 
@@ -127,6 +131,29 @@ class GitHubPublicRepositoryConnectorTests(unittest.TestCase):
         )
         self.assertEqual(request.get_method(), "GET")
         self.assertEqual(transport.timeouts, [5.0])
+
+    def test_default_transport_disables_environment_proxy_routing(self):
+        request = urllib.request.Request(
+            "https://api.github.com/repos/openai/openai-python",
+            method="GET",
+        )
+        opener = Mock()
+        sentinel = object()
+        opener.open.return_value = sentinel
+
+        with patch(
+            "app.connectors.github_public_repository.urllib.request.build_opener",
+            return_value=opener,
+        ) as build_opener:
+            result = _open_without_redirects(request, 5.0)
+
+        self.assertIs(result, sentinel)
+        handlers = build_opener.call_args.args
+        self.assertEqual(len(handlers), 2)
+        self.assertIsInstance(handlers[0], urllib.request.ProxyHandler)
+        self.assertEqual(handlers[0].proxies, {})
+        self.assertIsInstance(handlers[1], _NoRedirectHandler)
+        opener.open.assert_called_once_with(request, timeout=5.0)
 
     def test_request_headers_contain_no_credentials(self):
         transport = RecordingTransport()

@@ -140,6 +140,7 @@ The following capabilities are implemented in the current codebase but have not 
 - D57 adds default-deny Plugin capability/permission intent binding; only a current active D56 exposure plus an exact O-AI-controlled profile may bind, while AdapterRegistry registration and D44 permission activation remain separate future authority steps.
 - D58 adds controlled process-local Plugin registration and D44 permission activation through coherent immutable runtime snapshots; activation-aware wrappers block stale snapshots after deactivation or upstream invalidation, while D45 approval and D36 authorization remain mandatory execution gates.
 - D59 adds the first production-known read-only external connector as an exact static `github_public_repo` Plugin; it can read only bounded public repository metadata through one fixed unauthenticated GitHub HTTPS GET, while governance, activation, owner approval and authorization remain explicit and default-deny.
+- D60 completes Plugin Engine Integration / Security Review v1: D59 connector egress ignores environment proxy routing, in-process Plugins are explicitly trusted O-AI code rather than sandboxed extensions, legacy Plugin runtime/registrar paths remain quarantined from production authority, and end-to-end D45/D36/stale-state security regressions are frozen.
 
 ## Planned
 
@@ -150,7 +151,7 @@ The following capabilities are implemented in the current codebase but have not 
 ## Future releases
 
 - Gmail and Calendar integrations.
-- Plugin Engine beyond D59 first read-only external connector (credential architecture, authenticated connectors, lifecycle hardening, and additional explicitly approved read/write capabilities).
+- Plugin Engine beyond D60 security review (credential architecture, authenticated connectors, isolation for any untrusted Plugin model, activation-generation approval policy, lifecycle hardening, and additional explicitly approved read/write capabilities).
 - Engineering Assistant, personal finance, factory knowledge, and approved automation capabilities.
 
 Future items are direction, not commitments. Each requires an approved decision record, scoped implementation plan, and release acceptance criteria.

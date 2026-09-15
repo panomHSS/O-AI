@@ -114,7 +114,10 @@ def _open_without_redirects(
     request: urllib.request.Request,
     timeout_seconds: float,
 ):
-    opener = urllib.request.build_opener(_NoRedirectHandler())
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _NoRedirectHandler(),
+    )
     return opener.open(request, timeout=timeout_seconds)
 
 
