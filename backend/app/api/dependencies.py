@@ -51,6 +51,10 @@ from app.services.plugin_projection_catalog import (
     PluginProjectionCatalog,
 )
 from app.services.plugin_candidate_discovery import PluginCandidateDiscovery
+from app.services.plugin_governance import (
+    PluginGovernanceDecisionStore,
+    PluginGovernanceService,
+)
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -363,6 +367,21 @@ def get_plugin_candidate_discovery() -> PluginCandidateDiscovery:
     return PluginCandidateDiscovery(
         discovery=get_plugin_discovery(),
         projection_catalog=get_plugin_projection_catalog(),
+    )
+
+
+@lru_cache
+def get_plugin_governance_store() -> PluginGovernanceDecisionStore:
+    """Compose the bounded process-local D54 governance decision store."""
+    return PluginGovernanceDecisionStore()
+
+
+@lru_cache
+def get_plugin_governance_service() -> PluginGovernanceService:
+    """Compose D54 admission governance without loading or execution authority."""
+    return PluginGovernanceService(
+        candidate_discovery=get_plugin_candidate_discovery(),
+        store=get_plugin_governance_store(),
     )
 
 

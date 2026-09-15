@@ -1213,3 +1213,66 @@ approvals, authorize or execute Plugins, add external connectors, OAuth or
 credential storage, expose a public API/UI, add a database migration,
 dependency, Docker change, frontend change, or frozen execution-contract
 revision. D51 remains the only production Plugin execution bridge.
+
+## ADR-046: Plugin Governance Admission State v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a bounded, process-local `PluginGovernanceDecisionStore` and
+`PluginGovernanceService` between D53 discovery-candidate reconciliation and
+future controlled Plugin loading.
+
+Only an exact current D53 `projected_match` candidate may be admitted or
+rejected. Every decision is bound to the exact Plugin id, exact version, and
+exact projected capability-name tuple. A changed capability tuple for the same
+id/version is a governance-subject mismatch and fails closed.
+
+Governance state is limited to `admitted`, `rejected`, and `revoked`. No record
+means default deny. Admission or rejection resolves D53 exactly once per
+request. Revocation is intentionally independent of discovery availability and
+uses only the previously stored subject.
+
+The store is thread-safe, bounded to 100 decisions by default, process-local,
+and never silently evicts a decision. Process restart therefore clears the
+governance snapshot and safely returns all subjects to default deny.
+
+**Context**
+
+D51 created one fixed Plugin-to-Module execution bridge. D52 introduced
+metadata-only capability projections. D53 added fail-closed discovery-candidate
+reconciliation without loading code. The next architecture boundary must let
+the owner explicitly admit a known exact subject for future loading without
+making discovery, projection, or governance itself an execution authority.
+
+The legacy Plugin lifecycle (`registered`, `initialized`, `ready`, `disabled`,
+`failed`) describes runtime registration state and is not suitable for owner
+governance. D54 therefore defines separate governance terminology. D45
+execution approval is also intentionally separate because it approves one exact
+execution plan rather than Plugin loading eligibility.
+
+**Rationale**
+
+Binding admission to id/version/capabilities prevents an old decision from
+silently covering new capabilities or a new Plugin revision. Default deny and
+non-persistent v1 state reduce the consequence of implementation mistakes while
+the governance model is still being established. Discovery-independent
+revocation ensures loss of discovery availability cannot prevent the owner from
+withdrawing an existing admission.
+
+The explicit transition model distinguishes rejection before admission from
+revocation after admission and prevents ambiguous state changes.
+
+**Consequences**
+
+D55 can require an exact current `admitted` governance subject before any
+controlled Plugin loading attempt. D54 itself grants no loading, registration,
+AdapterRegistry exposure, D44 permission, D45 execution approval, D36
+authorization, Module exposure, or Plugin execution authority.
+
+D54 adds no Plugin loading, filesystem scanning, package import, dynamic
+ModuleAdapter, governance persistence, database migration, public governance
+API/UI, OAuth, credential handling, external connector, Docker change,
+dependency, or frontend change. D51 remains the only production Plugin
+execution bridge.

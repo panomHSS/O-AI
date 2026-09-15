@@ -1064,3 +1064,77 @@ mutation, automatic D44 permission, owner-approval UI, Plugin execution,
 network connector, Gmail/Calendar integration, OAuth, credential storage, AI
 function calling, public Plugin API, database migration, Docker change,
 dependency, frontend change, or frozen execution-contract revision.
+
+## D54 — Plugin Governance Admission State v1
+
+D54 adds a bounded, process-local, default-deny governance boundary between D53
+Plugin discovery candidates and future controlled Plugin loading.
+
+The governance lane is:
+
+`D53 PluginDiscoveryCandidate -> PluginGovernanceService ->
+PluginGovernanceDecisionStore -> admitted/rejected/revoked metadata`
+
+Only an exact current D53 `projected_match` candidate may be admitted or
+rejected. Governance admission is bound to the exact Plugin id, exact Plugin
+version, and exact projected capability-name tuple. A changed capability
+subject fails closed rather than inheriting an older decision.
+
+The governance states are intentionally separate from legacy runtime
+`PluginState` values:
+
+- `admitted`: eligible only for a future controlled loading decision.
+- `rejected`: explicitly denied during governance review.
+- `revoked`: a previously admitted subject whose loading eligibility was
+  withdrawn.
+
+Absence of a governance decision is default deny. Governance revocation uses the
+stored exact subject and does not call discovery, so an admitted subject can be
+revoked even when discovery is unavailable.
+
+The v1 store is thread-safe, bounded to 100 decisions by default, process-local,
+and has no silent eviction. Restarting the process clears governance state and
+therefore returns the system to default deny.
+
+Allowed transitions are:
+
+- none -> admitted
+- none -> rejected
+- admitted -> admitted
+- admitted -> revoked
+- rejected -> rejected
+- rejected -> admitted
+- revoked -> revoked
+- revoked -> admitted
+
+`admitted -> rejected` and `revoked -> rejected` fail closed. Rejection after
+admission must be expressed as revocation so governance meaning remains clear.
+
+D54 preserves:
+
+- `PROJECTED != GOVERNANCE ADMITTED`
+- `GOVERNANCE ADMITTED != LOADED`
+- `LOADED != REGISTERED`
+- `REGISTERED != PERMITTED`
+- `PERMITTED != EXECUTION APPROVED`
+- `EXECUTION APPROVED != AUTHORIZED`
+- `AUTHORIZED != EXECUTED`
+- `NO GOVERNANCE DECISION != ADMITTED`
+- `REJECTED != REVOKED`
+- `GOVERNANCE STATE != PLUGIN RUNTIME STATE`
+- `PLUGIN ADMISSION != D44 PERMISSION`
+- `PLUGIN ADMISSION != D45 EXECUTION APPROVAL`
+- `PLUGIN ADMISSION != D36 AUTHORIZATION`
+- `PLUGIN ADMISSION != MODULE EXPOSURE`
+- `PLUGIN ADMISSION != PLUGIN EXECUTION`
+- `GOVERNANCE FAILURE != FALLBACK`
+- `GOVERNANCE FAILURE != LOAD`
+- `GOVERNANCE FAILURE != REGISTER`
+- `GOVERNANCE FAILURE != EXECUTE`
+
+D54 does not call or modify `PluginLoader`, `DefaultPluginRegistrar`,
+`PluginRegistry`, `AdapterRegistry`, D44 permission policy, D45 execution
+approval, D36 Guard, ModuleRuntime, PluginRuntime, or the fixed D51 Echo bridge.
+It adds no public API, frontend, database migration, persistence, filesystem
+Plugin scanning, package import, dynamic ModuleAdapter generation, OAuth,
+credential handling, external connector, Docker change, or dependency.
