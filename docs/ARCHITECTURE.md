@@ -1565,3 +1565,34 @@ Automatic provider routing is not expanded by this change. The existing
 `automatic` hint continues to use the configured default adapter. Choosing
 between local and cloud AI based on task classification, model judgment, cost,
 privacy, or availability requires a separately approved routing policy.
+
+## Credential access boundary v1
+
+D62 introduces a credential boundary for future authenticated first-party
+connectors without adding any authenticated connector or OAuth flow. An
+immutable O-AI-controlled `CredentialProfileCatalog` binds exactly one
+`(plugin_id, plugin_version, capability_name)` subject to credential metadata
+and an internal fixed `secret_ref`. The public broker surface accepts only that
+Plugin subject; Chat input, model output, Plugin input, command arguments and
+execution plans cannot choose a credential profile, secret reference, token or
+environment variable name.
+
+`CredentialAccessBroker` resolves the exact profile first and only then asks an
+infrastructure-only `CredentialSecretSource` for the profile's fixed secret
+reference. Missing profile, missing secret, malformed subject, invalid secret
+type and source failures fail closed with stable safe reason codes. Source
+exceptions are normalized and their raw messages are not propagated.
+
+Resolved secrets use `SecretStr` and the `ResolvedCredential` projection
+intentionally omits `secret_ref`. Credential availability is data availability
+only and grants no Plugin activation, D45 owner approval, D36 authorization or
+runtime execution authority:
+
+`CREDENTIAL AVAILABLE != PLUGIN ACTIVATED != ACTION APPROVED != AUTHORIZED != EXECUTED`
+
+D62 production profiles are empty and the default source is deny-all. No
+credential is read from environment configuration, persisted to the database,
+written to logs or audit events, placed in Plugin metadata, execution plans,
+approval tickets, Chat messages, prompts or results. D62 adds no network call,
+OAuth callback, refresh-token exchange, token refresh, connector capability,
+database migration, Docker change, frontend change or dependency.

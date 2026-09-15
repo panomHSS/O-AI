@@ -75,6 +75,15 @@ from app.services.plugin_registration_activation import (
     PluginRegistrationActivationStore,
     PluginRuntimeActivationSnapshot,
 )
+from app.contracts.credential import CredentialSecretSource
+from app.services.credential_access_broker import (
+    CredentialAccessBroker,
+    EmptyCredentialSecretSource,
+)
+from app.services.credential_profile_catalog import (
+    PRODUCTION_CREDENTIAL_PROFILES,
+    CredentialProfileCatalog,
+)
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -369,6 +378,27 @@ def get_module_catalog_adapters(
         WorkspaceOverviewModuleAdapter(workspace_root),
         ProjectSnapshotModuleAdapter(project_resolver),
         EchoPluginModuleAdapter(),
+    )
+
+
+@lru_cache
+def get_credential_profile_catalog() -> CredentialProfileCatalog:
+    """Compose the immutable empty/default-deny D62 credential profiles."""
+    return CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES)
+
+
+@lru_cache
+def get_credential_secret_source() -> CredentialSecretSource:
+    """Compose the D62 deny-all production credential source."""
+    return EmptyCredentialSecretSource()
+
+
+@lru_cache
+def get_credential_access_broker() -> CredentialAccessBroker:
+    """Compose D62 credential access without connector or execution authority."""
+    return CredentialAccessBroker(
+        profile_catalog=get_credential_profile_catalog(),
+        secret_source=get_credential_secret_source(),
     )
 
 

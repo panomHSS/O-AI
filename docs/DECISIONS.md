@@ -1597,3 +1597,40 @@ Ollama runtime client, LocalAIAdapter, AIRouter authority model, AI execution
 runtime, Plugin Engine, database, frontend, Docker configuration, dependencies,
 or execution approval semantics. Provider choice remains explicit,
 deterministic, testable, and side-effect free at the decision stage.
+
+## ADR-055: Credential Access Boundary v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce an immutable exact-match credential profile catalog and a fail-closed
+credential access broker for future authenticated first-party Plugin
+connectors. A credential profile is O-AI-controlled metadata bound to one exact
+Plugin id, version and capability. It contains provider/auth metadata, required
+scopes and an internal fixed secret reference.
+
+The broker accepts only the exact Plugin subject. It does not accept a profile
+id, secret reference, token, environment variable name or other caller-selected
+credential identifier. The broker resolves the profile before consulting an
+infrastructure-only secret source, so unknown or mismatched Plugin subjects
+cannot trigger secret lookup.
+
+Resolved secrets must be `SecretStr` values. The internal resolved projection
+does not expose the secret reference, and stable broker errors do not contain
+raw source exceptions or secret values. Production credential profiles are
+empty and the default source is deny-all in D62.
+
+Credential availability is not execution authority. D62 does not change D58
+activation, D45 approval, D36 authorization, ModuleRuntime, Plugin execution or
+Chat action semantics. It adds no authenticated connector, OAuth flow,
+credential persistence, token refresh, network access, database migration,
+Docker change, frontend change or dependency.
+
+**Consequences**
+
+Future authenticated connectors can request credential material only through a
+predeclared exact O-AI subject binding rather than caller-controlled lookup.
+Gmail, Calendar and other authenticated capabilities remain unavailable until
+separately approved milestones add exact profiles, credential lifecycle
+handling and connector-specific authority.

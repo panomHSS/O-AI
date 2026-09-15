@@ -143,6 +143,7 @@ The following capabilities are implemented in the current codebase but have not 
 - D60 completes Plugin Engine Integration / Security Review v1: D59 connector egress ignores environment proxy routing, in-process Plugins are explicitly trusted O-AI code rather than sandboxed extensions, legacy Plugin runtime/registrar paths remain quarantined from production authority, and end-to-end D45/D36/stale-state security regressions are frozen.
 - D61 connects normal Chat to the exact D59 GitHub metadata capability through deterministic intent recognition, config-controlled first-party lifecycle materialization, D45 owner approval, D36 authorization, deterministic Plugin-result composition, and persisted final Chat responses without sending Plugin output back into the AI model.
 - Pre-D62 Natural Local AI Routing v1 expands deterministic explicit Local AI selection to narrow Thai natural-language phrases such as `ใช้ Local AI ตอบ...`, `ให้ Ollama ช่วยตอบ...`, and `ใช้โมเดลในเครื่องตอบ...`; bare mentions, negation, quoted/example text remain non-routing, explicit Local AI unavailability never falls back to cloud AI, and task-based automatic local/cloud selection remains future work.
+- D62 adds Credential Access Boundary v1: an immutable exact Plugin-subject credential profile catalog plus a fail-closed broker whose public surface cannot accept caller-selected profile ids, secret refs or tokens; production profiles remain empty/default-deny and no authenticated connector, OAuth flow, persistence or execution authority is added.
 
 ## Planned
 
