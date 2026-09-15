@@ -1545,3 +1545,23 @@ Frozen invariants include:
 `PROPOSAL ONLY -> ZERO CONNECTOR CALLS`
 
 `NORMAL CHAT != AUTO TOOL EXECUTION`
+
+## Natural Local AI routing v1
+
+O-AI recognizes a narrow deterministic set of explicit English and Thai
+provider-selection phrases before AI routing. Natural Thai requests such as
+`ใช้ Local AI ตอบ...`, `ให้ Ollama ช่วยตอบ...`, and
+`ใช้โมเดลในเครื่องตอบ...` produce the existing `local_ai_explicit` provider
+preference hint. The decision layer remains side-effect free: it does not probe
+Ollama, invoke an adapter, or create execution authority.
+
+General discussion of `Ollama`, `Local AI`, or a local model does not select the
+Local AI route. Negated instructions, quoted routing phrases, and example text
+remain `unspecified` and therefore do not become Local AI selection authority.
+An explicit Local AI request still fails closed when the Local AI route is
+disabled or unavailable; it never falls back to the default cloud adapter.
+
+Automatic provider routing is not expanded by this change. The existing
+`automatic` hint continues to use the configured default adapter. Choosing
+between local and cloud AI based on task classification, model judgment, cost,
+privacy, or availability requires a separately approved routing policy.

@@ -1566,3 +1566,34 @@ O-AI can offer its first live external-data capability from normal Chat while
 retaining explicit owner approval and D36 authorization. D61 does not add a
 second connector, credentials, writes, generic web access, autonomous tool
 calling, public lifecycle controls, authentication, or sandboxing.
+
+## ADR-054: Natural Local AI Routing v1
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the deterministic D23 provider-preference classifier with a narrow set
+of explicit Thai natural-language Local AI selection phrases. Requests such as
+`ใช้ Local AI ตอบ...`, `ให้ Ollama ช่วยตอบ...`, and
+`ใช้โมเดลในเครื่องตอบ...` map to the existing `local_ai_explicit` hint and
+therefore reuse the existing D32/D49 Local AI routing and authorization path.
+
+Do not treat a bare mention of `Ollama`, `Local AI`, or a local model as a
+routing request. Preserve fail-closed guards for negated instructions, quoted
+phrases, and example text, including Thai forms. Preserve the existing behavior
+that an explicit Local AI selection which is disabled or unavailable does not
+fall back to the configured cloud adapter.
+
+Do not implement task-based automatic local/cloud selection in this change.
+The existing `automatic` provider-preference hint continues to select the
+configured default adapter. Any future automatic routing policy requires
+separate approval and deterministic policy boundaries.
+
+**Consequences**
+
+O-AI gains a more natural Thai Local AI user experience without changing the
+Ollama runtime client, LocalAIAdapter, AIRouter authority model, AI execution
+runtime, Plugin Engine, database, frontend, Docker configuration, dependencies,
+or execution approval semantics. Provider choice remains explicit,
+deterministic, testable, and side-effect free at the decision stage.

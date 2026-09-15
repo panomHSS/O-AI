@@ -17,6 +17,16 @@ _LOCAL_AI_ROUTING_PHRASES = (
     "route this chat message to local ai",
     "use local ai for this command",
     "use local ai for this chat message",
+    "ใช้ local ai ตอบ",
+    "ให้ local ai ช่วยตอบ",
+    "ช่วยใช้ local ai ตอบ",
+    "ช่วยใช้ local ai อธิบาย",
+    "ใช้ ollama ตอบ",
+    "ให้ ollama ช่วยตอบ",
+    "ช่วยใช้ ollama ตอบ",
+    "ใช้โมเดลในเครื่องตอบ",
+    "ให้โมเดลในเครื่องช่วยตอบ",
+    "ช่วยใช้โมเดลในเครื่องตอบ",
 )
 _AUTOMATIC_ROUTING_PHRASES = (
     "route this command automatically",
@@ -28,11 +38,17 @@ _NEGATION_PREFIXES = (
     "don't ",
     "do not ",
     "never ",
+    "อย่า",
+    "ไม่ต้อง",
+    "ห้าม",
 )
 _EXAMPLE_PREFIXES = (
     "example: ",
     "for example: ",
     "for example, ",
+    "ตัวอย่าง: ",
+    "ตัวอย่างเช่น: ",
+    "เช่น: ",
 )
 _QUOTED_SEGMENTS = re.compile(
     r'"[^"]*"|“[^”]*”|`[^`]*`|(?<!\w)\'[^\']*\'(?!\w)'

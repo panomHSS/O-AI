@@ -4,8 +4,11 @@ from app.contracts.ai_route import (
     CHATGPT_DEFAULT_ADAPTER_ID,
     LOCAL_AI_ADAPTER_ID,
 )
+from app.contracts.command import CommandRequest
 from app.contracts.command_decision import CommandDecision
 from app.services.ai_router import AIRouter
+from app.services.command_decision_engine import CommandDecisionEngine
+from app.services.command_input_pipeline import CHAT_MESSAGE_COMMAND
 
 
 def decision(
@@ -47,6 +50,30 @@ class AIRouterTests(unittest.TestCase):
         self.assertEqual(route.status, "unavailable")
         self.assertEqual(route.adapter_id, LOCAL_AI_ADAPTER_ID)
         self.assertIsNone(route.selection_source)
+
+    def test_natural_thai_local_ai_request_fails_closed_without_fallback(
+        self,
+    ) -> None:
+        command = CommandRequest(
+            request_id="request-1",
+            command=CHAT_MESSAGE_COMMAND,
+            arguments={
+                "message": "ใช้ Local AI ตอบข้อนี้: อธิบาย recursion",
+            },
+        )
+        decision_result = CommandDecisionEngine().decide(command)
+
+        self.assertEqual(
+            decision_result.provider_preference_hint,
+            "local_ai_explicit",
+        )
+
+        route = AIRouter().route(decision_result)
+
+        self.assertEqual(route.status, "unavailable")
+        self.assertEqual(route.adapter_id, LOCAL_AI_ADAPTER_ID)
+        self.assertIsNone(route.selection_source)
+        self.assertEqual(route.reason_code, "local_ai_unavailable")
 
     def test_available_local_ai_is_selected_without_invocation(self) -> None:
         route = AIRouter(

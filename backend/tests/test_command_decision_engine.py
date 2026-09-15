@@ -46,6 +46,68 @@ class CommandDecisionEngineTests(unittest.TestCase):
         )
         self.assertEqual(decision.disposition, "defer_to_existing_chat")
 
+    def test_natural_thai_local_ai_routing_phrases_are_hints_only(self) -> None:
+        for message in (
+            "ใช้ Local AI ตอบข้อนี้: อธิบาย Python decorators",
+            "ให้ Ollama ช่วยตอบคำถามนี้",
+            "ใช้โมเดลในเครื่องตอบเรื่อง list comprehension",
+            "ช่วยใช้ Local AI อธิบาย recursion",
+        ):
+            with self.subTest(message=message):
+                decision = self.engine.decide(self._chat_command(message))
+                self.assertEqual(
+                    decision.provider_preference_hint,
+                    "local_ai_explicit",
+                )
+                self.assertEqual(
+                    decision.disposition,
+                    "defer_to_existing_chat",
+                )
+
+    def test_thai_provider_mentions_without_routing_instruction_are_unspecified(
+        self,
+    ) -> None:
+        for message in (
+            "Ollama คืออะไร",
+            "Local AI ดีไหม",
+            "ผมติดตั้ง Ollama ไว้ในเครื่อง",
+            "โมเดลในเครื่องมีข้อดีอะไรบ้าง",
+        ):
+            with self.subTest(message=message):
+                decision = self.engine.decide(self._chat_command(message))
+                self.assertEqual(
+                    decision.provider_preference_hint,
+                    "unspecified",
+                )
+
+    def test_thai_negated_local_ai_routing_phrases_are_unspecified(self) -> None:
+        for message in (
+            "อย่าใช้ Local AI ตอบข้อนี้",
+            "ไม่ต้องใช้ Ollama ตอบคำถามนี้",
+            "ห้ามใช้โมเดลในเครื่องตอบเรื่องนี้",
+        ):
+            with self.subTest(message=message):
+                decision = self.engine.decide(self._chat_command(message))
+                self.assertEqual(
+                    decision.provider_preference_hint,
+                    "unspecified",
+                )
+
+    def test_thai_quoted_or_example_local_ai_phrases_are_unspecified(
+        self,
+    ) -> None:
+        for message in (
+            'คำว่า "ใช้ Local AI ตอบข้อนี้" หมายความว่าอะไร',
+            "ตัวอย่าง: ใช้ Local AI ตอบข้อนี้",
+            "`ให้ Ollama ช่วยตอบคำถามนี้` เป็นตัวอย่างข้อความ",
+        ):
+            with self.subTest(message=message):
+                decision = self.engine.decide(self._chat_command(message))
+                self.assertEqual(
+                    decision.provider_preference_hint,
+                    "unspecified",
+                )
+
     def test_explicit_automatic_routing_phrase_is_a_hint_only(self) -> None:
         decision = self.engine.decide(
             self._chat_command(

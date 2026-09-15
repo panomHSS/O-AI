@@ -142,6 +142,7 @@ The following capabilities are implemented in the current codebase but have not 
 - D59 adds the first production-known read-only external connector as an exact static `github_public_repo` Plugin; it can read only bounded public repository metadata through one fixed unauthenticated GitHub HTTPS GET, while governance, activation, owner approval and authorization remain explicit and default-deny.
 - D60 completes Plugin Engine Integration / Security Review v1: D59 connector egress ignores environment proxy routing, in-process Plugins are explicitly trusted O-AI code rather than sandboxed extensions, legacy Plugin runtime/registrar paths remain quarantined from production authority, and end-to-end D45/D36/stale-state security regressions are frozen.
 - D61 connects normal Chat to the exact D59 GitHub metadata capability through deterministic intent recognition, config-controlled first-party lifecycle materialization, D45 owner approval, D36 authorization, deterministic Plugin-result composition, and persisted final Chat responses without sending Plugin output back into the AI model.
+- Pre-D62 Natural Local AI Routing v1 expands deterministic explicit Local AI selection to narrow Thai natural-language phrases such as `ใช้ Local AI ตอบ...`, `ให้ Ollama ช่วยตอบ...`, and `ใช้โมเดลในเครื่องตอบ...`; bare mentions, negation, quoted/example text remain non-routing, explicit Local AI unavailability never falls back to cloud AI, and task-based automatic local/cloud selection remains future work.
 
 ## Planned
 
