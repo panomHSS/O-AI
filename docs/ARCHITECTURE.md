@@ -1341,3 +1341,68 @@ D57 does not mutate `AdapterRegistry`, `CapabilityPermissionPolicy`,
 authorization or runtime execution. It adds no persistence, database migration,
 API/UI, credentials, OAuth, external connector, Docker, dependency or frontend
 change.
+
+## D58 — Controlled Plugin Registration & Permission Activation v1
+
+D58 is the first dynamic Plugin Engine boundary that can materialize a current
+Plugin capability into the normal D31/D44 runtime architecture.
+
+The D58 lane is:
+
+`D56 current active exposure + D57 current active binding -> explicit D58
+activation -> activation-aware ModuleAdapter + exact
+ExecutableCapabilityPermission -> one coherent immutable runtime snapshot ->
+D31 AdapterRegistry + D44 CapabilityPermissionPolicy`
+
+D58 does not mutate D31 or D44 objects. `AdapterRegistry` and
+`CapabilityPermissionPolicy` remain immutable snapshots. Dependency composition
+takes one D58 activation snapshot and uses the same adapter/permission pair to
+build fresh D31/D44 objects.
+
+Activation requires an already-materialized current D56 exposure, an already
+bound current D57 permission intent, the exact internally held D56 ModuleAdapter,
+and no collision with static D31 adapter IDs, static D44 capability IDs/routes,
+or another D58 activation. D58 never auto-loads, auto-exposes or auto-binds.
+
+Each active entry holds metadata, an activation-aware ModuleAdapter wrapper and
+one exact `ExecutableCapabilityPermission`. The wrapper contains an internal
+activation token. Before delegating to D56 it revalidates the D58 activation and
+the current D56/D57 subject. Consequently an old registry snapshot cannot invoke
+a Plugin after deactivation or upstream invalidation.
+
+The internal activation token is not part of public metadata. Deactivate then
+reactivate of the same exact metadata creates a new token, so an old wrapper can
+never resurrect merely because its public record equals the new activation.
+
+D58 supports explicit deactivation independent of current upstream state.
+Deactivation removes the current activation from future snapshots; already-built
+wrappers fail closed with `plugin_registration_inactive`. Upstream staleness also
+invalidates and removes the activation. Re-admission or later upstream recovery
+does not recreate activation automatically; a new explicit `activate` is
+required.
+
+D58 preserves:
+
+- `BOUND != ACTIVATED`
+- `ACTIVATED = REGISTERED + D44 PERMISSION AVAILABLE`
+- `ACTIVATED != D45 APPROVED`
+- `ACTIVATED != D36 AUTHORIZED`
+- `ACTIVATED != EXECUTED`
+- `REGISTRATION != EXECUTION`
+- `PERMISSION ACTIVATION != OWNER APPROVAL`
+- `PERMISSION ACTIVATION != AUTHORIZATION`
+- `DEACTIVATED != GOVERNANCE REVOKED`
+- `DEACTIVATED != UNLOADED`
+- `DEACTIVATED != UNEXPOSED`
+- `STALE ACTIVATION != ACTIVE RUNTIME ROUTE`
+- `OLD REGISTRY SNAPSHOT != EXECUTION AUTHORITY`
+- `PLUGIN CANNOT SELF-REGISTER`
+- `PLUGIN CANNOT SELF-PERMIT`
+
+Production D57 permission profiles remain empty, therefore production D58
+activations, dynamic adapters and dynamic permissions are empty by default. The
+fixed D51 Echo bridge remains unchanged.
+
+D58 adds no D45 approval, D36 authorization, direct execution API, persistence,
+database migration, credentials, OAuth, external connector, Docker, dependency
+or frontend change.

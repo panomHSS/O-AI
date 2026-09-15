@@ -222,6 +222,51 @@ class PluginPermissionBindingService:
     def list_bindings(self) -> tuple[PluginCapabilityPermissionBinding, ...]:
         return self._store.list_bindings()
 
+    def _resolve_active_binding_for_activation(
+        self,
+        plugin_id: str,
+        plugin_version: str,
+        capability_name: str,
+    ) -> PluginCapabilityPermissionBinding | None:
+        """Package-private D58 freshness seam for stored binding metadata."""
+        plugin_id, plugin_version, capability_name = _validated_subject(
+            plugin_id, plugin_version, capability_name
+        )
+        stored = self._store.resolve(plugin_id, plugin_version, capability_name)
+        if stored is None:
+            return None
+        exposure = self._resolve_active_exposure(
+            plugin_id, plugin_version, capability_name
+        )
+        profile = self._resolve_profile(
+            plugin_id, plugin_version, capability_name
+        )
+        if (
+            profile.module_adapter_id != exposure.module_adapter_id
+            or profile.operation != exposure.operation
+        ):
+            raise PluginPermissionBindingError(
+                PLUGIN_PERMISSION_BINDING_ERROR_PROFILE_TARGET_MISMATCH
+            )
+        self._validate_reserved(profile)
+        current = PluginCapabilityPermissionBinding(
+            plugin_id=plugin_id,
+            plugin_version=plugin_version,
+            capability_name=capability_name,
+            projected_capability_names=exposure.projected_capability_names,
+            capability_id=profile.capability_id,
+            module_adapter_id=profile.module_adapter_id,
+            operation=profile.operation,
+            effect=profile.effect,
+            data_class=profile.data_class,
+            owner_approval_required=profile.owner_approval_required,
+        )
+        if current != stored:
+            raise PluginPermissionBindingError(
+                PLUGIN_PERMISSION_BINDING_ERROR_SUBJECT_MISMATCH
+            )
+        return stored
+
     def _resolve_active_exposure(self, plugin_id: str, plugin_version: str, capability_name: str) -> PluginModuleExposureRecord:
         try:
             exposure = self._exposure_service._resolve_active_record_for_binding(plugin_id, plugin_version, capability_name)

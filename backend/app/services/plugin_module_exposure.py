@@ -188,6 +188,31 @@ class PluginModuleExposureService:
             raise PluginModuleExposureError(PLUGIN_MODULE_EXPOSURE_ERROR_SUBJECT_MISMATCH)
         return stored
 
+    def _resolve_active_adapter_for_registration(
+        self,
+        plugin_id: str,
+        plugin_version: str,
+        capability_name: str,
+    ) -> ProjectedPluginModuleAdapter | None:
+        """Package-private D58 seam; never returns a raw Plugin."""
+        record = self._resolve_active_record_for_binding(
+            plugin_id, plugin_version, capability_name
+        )
+        if record is None:
+            return None
+        adapter = self._store._resolve_adapter(
+            plugin_id, plugin_version, capability_name
+        )
+        if (
+            adapter is None
+            or adapter.adapter_id != record.module_adapter_id
+            or adapter.module_name != record.module_name
+        ):
+            raise PluginModuleExposureError(
+                PLUGIN_MODULE_EXPOSURE_ERROR_SUBJECT_MISMATCH
+            )
+        return adapter
+
     def _resolve_current_subject(self, plugin_id: str, plugin_version: str, capability_name: str) -> _CurrentExposureSubject:
         try:
             decision = self._governance.resolve(plugin_id, plugin_version)

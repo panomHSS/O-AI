@@ -1418,3 +1418,44 @@ can apply.
 
 D57 adds no persistence, migration, public Plugin API/UI, credentials, OAuth,
 external connector, Docker, dependency or frontend change.
+
+## ADR-050: Controlled Plugin Registration & Permission Activation v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a bounded process-local Plugin registration activation store and
+service. Only an exact current D56 exposure with an exact current D57 permission
+binding may be explicitly activated.
+
+An activation materializes one activation-aware ModuleAdapter wrapper and one
+exact `ExecutableCapabilityPermission`. D31 `AdapterRegistry` and D44
+`CapabilityPermissionPolicy` remain immutable; runtime dependency composition
+builds fresh snapshots from static O-AI components plus a single coherent D58
+activation snapshot.
+
+D58 checks global static/dynamic adapter-ID uniqueness in addition to D44
+capability-ID and Module route uniqueness. Existing fixed D51/D44 identities
+cannot be silently replaced.
+
+Each wrapper holds an internal per-activation token and checks current D58 plus
+upstream D56/D57 state before delegation. Deactivation or upstream invalidation
+therefore blocks stale registry snapshots before Plugin invocation. A later
+reactivation creates a new token, preventing old snapshots from automatically
+resurrecting.
+
+Explicit deactivation does not require current discovery, governance, loading,
+exposure or binding state. It is not equivalent to governance revocation,
+unloading or unexposure.
+
+**Consequences**
+
+Activation makes an adapter registered and its exact D44 permission available
+in newly composed runtime snapshots, but it creates no D45 owner approval, D36
+authorization or execution authority. The existing Planner -> approval -> Guard
+-> Runtime chain remains authoritative.
+
+Production remains unchanged because D57 production permission profiles are
+empty. D58 adds no persistence, migration, public execution API, credentials,
+OAuth, external connector, Docker, dependency or frontend change.

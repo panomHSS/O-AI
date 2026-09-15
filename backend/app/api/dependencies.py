@@ -70,6 +70,11 @@ from app.services.plugin_permission_binding import (
     PluginPermissionBindingStore,
     PluginPermissionProfileCatalog,
 )
+from app.services.plugin_registration_activation import (
+    PluginRegistrationActivationService,
+    PluginRegistrationActivationStore,
+    PluginRuntimeActivationSnapshot,
+)
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -465,6 +470,39 @@ def get_plugin_permission_binding_service() -> PluginPermissionBindingService:
     )
 
 
+@lru_cache
+def get_plugin_registration_activation_store() -> PluginRegistrationActivationStore:
+    """Compose the bounded process-local D58 activation authority store."""
+    return PluginRegistrationActivationStore()
+
+
+@lru_cache
+def get_plugin_registration_activation_service() -> PluginRegistrationActivationService:
+    """Compose D58 activation without approval, authorization, or execution."""
+    reserved_adapter_ids = frozenset(
+        {
+            CHATGPT_DEFAULT_ADAPTER_ID,
+            LOCAL_AI_ADAPTER_ID,
+            *(
+                permission.adapter_id
+                for permission in PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS
+            ),
+        }
+    )
+    return PluginRegistrationActivationService(
+        binding_service=get_plugin_permission_binding_service(),
+        exposure_service=get_plugin_module_exposure_service(),
+        store=get_plugin_registration_activation_store(),
+        reserved_adapter_ids=reserved_adapter_ids,
+        reserved_permissions=PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
+    )
+
+
+def get_plugin_runtime_activation_snapshot() -> PluginRuntimeActivationSnapshot:
+    """Capture one coherent current D58 adapter/permission snapshot."""
+    return get_plugin_registration_activation_service().runtime_snapshot()
+
+
 def get_adapter_registry(
     conversation_service: ConversationService = Depends(get_conversation_service),
     chat_service: ChatService = Depends(get_chat_service),
@@ -475,8 +513,13 @@ def get_adapter_registry(
         get_safe_write_tool_adapters
     ),
     module_catalog_adapters: tuple[object, ...] = Depends(get_module_catalog_adapters),
+    plugin_activation_snapshot: PluginRuntimeActivationSnapshot = Depends(
+        get_plugin_runtime_activation_snapshot
+    ),
 ) -> AdapterRegistry:
-    """Compose D31 while preserving the D29 default AI adapter seam."""
+    """Compose D31 plus one coherent D58 immutable activation snapshot."""
+    if not isinstance(plugin_activation_snapshot, PluginRuntimeActivationSnapshot):
+        plugin_activation_snapshot = PluginRuntimeActivationSnapshot()
     default_adapter_factory = getattr(
         conversation_service,
         "default_ai_adapter",
@@ -490,6 +533,7 @@ def get_adapter_registry(
             *tool_catalog_adapters,
             *safe_write_tool_adapters,
             *module_catalog_adapters,
+            *plugin_activation_snapshot.adapters,
         )
     )
 
@@ -651,11 +695,19 @@ def get_ai_runtime(
 
 def get_capability_permission_policy(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    plugin_activation_snapshot: PluginRuntimeActivationSnapshot = Depends(
+        get_plugin_runtime_activation_snapshot
+    ),
 ) -> CapabilityPermissionPolicy:
-    """Compose D44 exact-match Tool/Module execution permissions."""
+    """Compose D44 from static permissions plus the same D58 snapshot."""
+    if not isinstance(plugin_activation_snapshot, PluginRuntimeActivationSnapshot):
+        plugin_activation_snapshot = PluginRuntimeActivationSnapshot()
     return CapabilityPermissionPolicy(
         registry=adapter_registry,
-        permissions=PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
+        permissions=(
+            *PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
+            *plugin_activation_snapshot.permissions,
+        ),
     )
 
 
