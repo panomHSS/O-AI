@@ -27,6 +27,7 @@ from app.adapters.system_info_tool import SystemInfoToolAdapter
 from app.services.tool_filesystem_boundary import ToolFilesystemBoundary
 from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
+from app.plugins.default_plugin_discovery import DefaultPluginDiscovery
 from app.readers import create_document_reader_registry
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
@@ -49,6 +50,7 @@ from app.services.plugin_projection_catalog import (
     PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS,
     PluginProjectionCatalog,
 )
+from app.services.plugin_candidate_discovery import PluginCandidateDiscovery
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -346,6 +348,21 @@ def get_plugin_projection_catalog() -> PluginProjectionCatalog:
     """Compose the immutable, metadata-only D52 Plugin projection snapshot."""
     return PluginProjectionCatalog(
         PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS
+    )
+
+
+@lru_cache
+def get_plugin_discovery() -> DefaultPluginDiscovery:
+    """Compose the legacy metadata-only Plugin discovery source for D53."""
+    return DefaultPluginDiscovery()
+
+
+@lru_cache
+def get_plugin_candidate_discovery() -> PluginCandidateDiscovery:
+    """Compose D53 reconciliation without Plugin loading or execution."""
+    return PluginCandidateDiscovery(
+        discovery=get_plugin_discovery(),
+        projection_catalog=get_plugin_projection_catalog(),
     )
 
 

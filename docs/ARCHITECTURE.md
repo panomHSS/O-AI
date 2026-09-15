@@ -999,3 +999,68 @@ credential storage, external connector, network/filesystem/process/write
 Plugin, AI-selected Plugin execution, public Plugin API, database migration,
 Docker change, dependency, frontend change, or frozen execution-contract
 revision. D51 remains the only production Plugin execution bridge.
+
+## D53 — Plugin Discovery Candidate Reconciliation v1
+
+D53 adds a fail-closed, read-only reconciliation boundary between legacy
+`PluginDiscovery` manifest metadata and the D52 Plugin Capability Projection
+Catalog. It does not load, register, permit, approve, authorize, or execute a
+Plugin.
+
+The metadata lane is:
+
+`PluginDiscovery -> PluginManifest -> PluginCandidateDiscovery -> D52
+PluginProjectionCatalog -> PluginDiscoveryCandidate`
+
+Each discovery call is attempted exactly once. The returned snapshot must be a
+list of valid `PluginManifest` values with one non-empty trimmed Plugin id and
+one non-empty trimmed version per Plugin id. Duplicate ids, including two
+different versions of the same Plugin in one discovery snapshot, fail closed.
+
+Candidate status is closed to three values:
+
+- `projected_match`: the discovered Plugin id and version exactly match one or
+  more D52 projections. The candidate contains only the deterministically
+  sorted capability names for those exact-version projections.
+- `unprojected`: the Plugin id has no D52 projection.
+- `version_mismatch`: the Plugin id is known to D52 but the discovered version
+  has no exact projection match.
+
+Version comparison is exact string equality in v1. There is no semantic-version
+range interpretation, compatibility inference, latest-version selection, retry,
+or fallback.
+
+D53 preserves:
+
+- `PLUGIN DISCOVERED != PLUGIN CANDIDATE`
+- `PLUGIN CANDIDATE != PLUGIN PROJECTED`
+- `PLUGIN PROJECTED != MODULE REGISTERED`
+- `PLUGIN CANDIDATE != PLUGIN LOADED`
+- `PLUGIN CANDIDATE != PLUGIN REGISTERED`
+- `PLUGIN CANDIDATE != CAPABILITY PERMITTED`
+- `PLUGIN CANDIDATE != OWNER APPROVED`
+- `PLUGIN CANDIDATE != AUTHORIZED`
+- `PLUGIN CANDIDATE != EXECUTED`
+- `DISCOVERY METADATA != EXECUTION AUTHORITY`
+- `DISCOVERY RESULT != ADAPTER REGISTRATION`
+- `DISCOVERY RESULT != D44 PERMISSION`
+- `PROJECTION MATCH != MODULE EXPOSURE`
+- `PROJECTION MATCH != PLUGIN LOAD`
+- `VERSION MISMATCH != FALLBACK`
+- `DISCOVERY FAILURE != RETRY`
+- `DISCOVERY FAILURE != LOAD ATTEMPT`
+- `DISCOVERY FAILURE != EXECUTION ATTEMPT`
+- `ONE DISCOVERY SNAPSHOT == AT MOST ONE VERSION PER PLUGIN ID`
+
+Production composition uses the existing `DefaultPluginDiscovery`, which still
+returns no manifests, plus the immutable D52 catalog. Therefore production D53
+currently returns an empty candidate snapshot. `DefaultPluginLoader` remains
+unmodified and is not a D53 dependency.
+
+D53 adds no filesystem Plugin scanning, package import, dynamic code loading,
+installation/uninstallation, signature/hash verification, marketplace,
+enable/disable persistence, dynamic ModuleAdapter generation, AdapterRegistry
+mutation, automatic D44 permission, owner-approval UI, Plugin execution,
+network connector, Gmail/Calendar integration, OAuth, credential storage, AI
+function calling, public Plugin API, database migration, Docker change,
+dependency, frontend change, or frozen execution-contract revision.

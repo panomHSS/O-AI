@@ -1155,3 +1155,61 @@ API/UI, install/uninstall Plugins, add OAuth/credentials, external connectors,
 write/process/network authority, database migrations, dependencies, Docker
 changes, frontend changes, or frozen execution-contract changes. D51 remains
 the only production Plugin execution bridge.
+
+## ADR-045: Plugin Discovery Candidate Reconciliation v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a read-only `PluginCandidateDiscovery` service that calls the existing
+`PluginDiscovery` boundary once per reconciliation request, validates the
+returned manifest snapshot, and compares each discovered Plugin id/version with
+the immutable D52 Plugin Capability Projection Catalog.
+
+The result is descriptive metadata only. A candidate is `projected_match` only
+when the discovered Plugin id and version exactly match at least one projection;
+`unprojected` means no projection exists for the id; `version_mismatch` means
+the id is known but no projection exists for the discovered version. Exact
+matches expose only sorted capability names from matching D52 projections.
+
+**Context**
+
+D51 established one fixed, owner-approved Plugin-to-Module execution bridge.
+D52 then introduced a metadata-only projection catalog without connecting
+legacy Plugin discovery or loading to execution. The older Plugin subsystem
+already defines `PluginDiscovery` and `PluginManifest`, while production
+`DefaultPluginDiscovery` currently returns no manifests and
+`DefaultPluginLoader` remains intentionally unimplemented.
+
+The Plugin Engine roadmap now needs a safe boundary between discovery metadata
+and future governance/installation work. Directly turning discovered manifests
+into loaded Plugins, ModuleAdapters, registry entries, or capability
+permissions would collapse the authority separations established by D31-D52.
+
+**Rationale**
+
+Candidate reconciliation makes discovery useful without making discovery
+authoritative. Exact version binding avoids silently treating an unknown Plugin
+revision as compatible with an approved projection. Rejecting duplicate Plugin
+ids in one snapshot avoids ambiguous multi-version selection. Normalizing
+discovery failures to stable reason codes prevents raw loader/discovery errors
+from becoming control flow or public metadata.
+
+The service depends only on `PluginDiscovery` and the D52 projection catalog. It
+has no PluginLoader, PluginRegistry, AdapterRegistry, permission-policy,
+approval, Guard, Runtime, or execution dependency.
+
+**Consequences**
+
+O-AI can deterministically classify discovered Plugin manifests as exact
+projection matches, unprojected candidates, or version mismatches without
+loading code. Production currently discovers no candidates because the default
+discovery source remains empty.
+
+D53 does not scan the filesystem, import packages, load code, install/uninstall
+Plugins, generate adapters, mutate AdapterRegistry or D44 policy, create owner
+approvals, authorize or execute Plugins, add external connectors, OAuth or
+credential storage, expose a public API/UI, add a database migration,
+dependency, Docker change, frontend change, or frozen execution-contract
+revision. D51 remains the only production Plugin execution bridge.
