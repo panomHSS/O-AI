@@ -216,5 +216,134 @@ class ExecutionPlannerTests(unittest.TestCase):
         self.assertEqual(self.ai.generate_calls, 0)
 
 
+
+# D49 regression: preserve safe AI route reason codes while retaining the
+# exact D35 AI plan shape.
+import unittest as _d49_unittest
+
+from app.contracts.ai import (
+    AI_ADAPTER_CONTRACT_VERSION as _D49_AI_ADAPTER_CONTRACT_VERSION,
+    AIRequest as _D49_AIRequest,
+    AIResult as _D49_AIResult,
+)
+from app.contracts.ai_discovery import (
+    AI_CAPABILITY_TEXT_GENERATION as _D49_AI_CAPABILITY_TEXT_GENERATION,
+)
+from app.contracts.command import CommandRequest as _D49_CommandRequest
+from app.services.adapter_registry import AdapterRegistry as _D49_AdapterRegistry
+from app.services.ai_provider_routing import (
+    AIProviderRoutingPolicy as _D49_AIProviderRoutingPolicy,
+)
+from app.services.ai_router import AIRouter as _D49_AIRouter
+from app.services.command_decision_engine import (
+    CommandDecisionEngine as _D49_CommandDecisionEngine,
+)
+from app.services.execution_planner import ExecutionPlanner as _D49_ExecutionPlanner
+
+
+class _D49RecordingAI:
+    contract_version = _D49_AI_ADAPTER_CONTRACT_VERSION
+
+    def __init__(self, adapter_id: str) -> None:
+        self.adapter_id = adapter_id
+
+    def generate(self, request: _D49_AIRequest) -> _D49_AIResult:
+        return _D49_AIResult(content="unused")
+
+
+class _D49Discovery:
+    def discover(self, adapter_id: str):
+        class Discovery:
+            status = "available"
+            capability_ids = (_D49_AI_CAPABILITY_TEXT_GENERATION,)
+            configured_model_id = "configured-model"
+
+        return Discovery()
+
+
+class D49ExecutionPlannerRegressionTests(_d49_unittest.TestCase):
+    @staticmethod
+    def _request(message: str) -> _D49_CommandRequest:
+        return _D49_CommandRequest(
+            "request-d49",
+            "chat.message",
+            {
+                "message": message,
+                "conversation_id": None,
+                "project_id": None,
+            },
+        )
+
+    @staticmethod
+    def _planner(
+        *,
+        include_chatgpt: bool = True,
+        local_enabled: bool = False,
+    ) -> _D49_ExecutionPlanner:
+        adapters = []
+        if include_chatgpt:
+            adapters.append(_D49RecordingAI("chatgpt.default"))
+        adapters.append(_D49RecordingAI("local_ai.default"))
+        registry = _D49_AdapterRegistry(tuple(adapters))
+        enabled = {"chatgpt.default"}
+        if local_enabled:
+            enabled.add("local_ai.default")
+        router = _D49_AIRouter(
+            registry=registry,
+            policy=_D49_AIProviderRoutingPolicy(
+                default_adapter_id="chatgpt.default",
+                enabled_adapter_ids=frozenset(enabled),
+            ),
+        )
+        return _D49_ExecutionPlanner(
+            registry=registry,
+            decision_engine=_D49_CommandDecisionEngine(),
+            ai_router=router,
+            ai_discovery=_D49Discovery(),
+            permission_policy=object(),
+        )
+
+    def test_local_ai_unavailable_reason_is_preserved(self) -> None:
+        outcome = self._planner().plan(
+            self._request("Use local AI for this command")
+        )
+
+        self.assertEqual(outcome.status, "unavailable")
+        self.assertEqual(
+            outcome.reason_code,
+            "local_ai_unavailable",
+        )
+
+    def test_default_adapter_unavailable_reason_is_preserved(self) -> None:
+        outcome = self._planner(
+            include_chatgpt=False
+        ).plan(self._request("hello"))
+
+        self.assertEqual(outcome.status, "unavailable")
+        self.assertEqual(
+            outcome.reason_code,
+            "default_adapter_unavailable",
+        )
+
+    def test_successful_ai_plan_retains_exact_shape(self) -> None:
+        outcome = self._planner().plan(self._request("hello"))
+
+        self.assertEqual(outcome.status, "planned")
+        self.assertEqual(outcome.target_kind, "ai")
+        assert outcome.plan is not None
+        self.assertFalse(outcome.plan.owner_approval_required)
+        self.assertEqual(len(outcome.plan.steps), 1)
+        step = outcome.plan.steps[0]
+        self.assertEqual(step.sequence, 1)
+        self.assertEqual(step.operation, "ai.generate_text")
+        self.assertEqual(
+            dict(step.parameters),
+            {
+                "capability_id": _D49_AI_CAPABILITY_TEXT_GENERATION,
+                "model_id": "configured-model",
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

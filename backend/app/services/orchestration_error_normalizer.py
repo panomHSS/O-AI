@@ -6,6 +6,7 @@ from app.adapters.local_ai import LocalAIResponseError, LocalAIUnavailableError
 from app.contracts.ai_route import AIRouteDecision, LOCAL_AI_ADAPTER_ID
 from app.contracts.command import Result
 from app.contracts.execution_authorization import ExecutionAuthorization
+from app.contracts.execution_planning import ExecutionPlanningOutcome
 from app.contracts.response_composition import NormalizedError
 from app.contracts.tool_module_route import ToolModuleRouteDecision
 from app.providers.base import ChatConfigurationError, ChatProviderError
@@ -30,6 +31,34 @@ class OrchestrationErrorNormalizer:
             )
             return NormalizedError(route.request_id, code, "failed")
         return self._internal(route.request_id)
+
+    def normalize_execution_planning(
+        self,
+        planning: object,
+    ) -> NormalizedError | None:
+        """Normalize D35 normal-chat planning without exposing provider detail."""
+        if not isinstance(planning, ExecutionPlanningOutcome):
+            return self._internal(getattr(planning, "request_id", ""))
+        if planning.status == "planned":
+            return None
+        if planning.status == "rejected":
+            return NormalizedError(
+                planning.request_id,
+                "AI_ROUTE_REJECTED",
+                "failed",
+            )
+        if planning.status == "unavailable":
+            code = (
+                "LOCAL_AI_UNAVAILABLE"
+                if planning.reason_code == "local_ai_unavailable"
+                else "AI_ROUTE_UNAVAILABLE"
+            )
+            return NormalizedError(
+                planning.request_id,
+                code,
+                "failed",
+            )
+        return self._internal(planning.request_id)
 
     def normalize_tool_route(self, route: object) -> NormalizedError | None:
         """Normalize a terminal D27 route result, or return none when selected."""

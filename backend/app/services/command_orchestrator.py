@@ -1,17 +1,18 @@
-"""D29 coordination of selected AI turns and guarded Tool/Module execution."""
+"""D49 normal-chat orchestration over the unified AI execution boundary."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.contracts.ai import AIResult
 from app.contracts.command import CommandRequest, Response
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
-from app.services.ai_adapter_registry import AIAdapterRegistry
-from app.services.ai_router import AIRouter
-from app.services.command_decision_engine import CommandDecisionEngine
+from app.services.ai_runtime import AIRuntime
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ChatTurnResult, ConversationService
+from app.services.execution_guard import ExecutionGuard
+from app.services.execution_planner import ExecutionPlanner
 from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
 from app.services.response_composer import ResponseComposer
 from app.services.tool_runtime import ToolRuntime
@@ -19,7 +20,7 @@ from app.services.tool_runtime import ToolRuntime
 
 @dataclass(frozen=True, slots=True)
 class CommandOrchestrationOutcome:
-    """One D29 response and its chat turn when a chat command succeeded."""
+    """One safe response and its chat turn when normal chat succeeded."""
 
     response: Response
     chat_turn: ChatTurnResult | None = None
@@ -34,53 +35,66 @@ class CommandOrchestrationFailure(Exception):
 
 
 class CommandOrchestrator:
-    """Coordinate D21-D28 contracts without embedding provider-specific logic."""
+    """Coordinate normal chat without owning AI routing or execution authority."""
 
     def __init__(
         self,
         *,
         conversation_service: ConversationService,
-        decision_engine: CommandDecisionEngine,
-        ai_router: AIRouter,
-        ai_adapters: AIAdapterRegistry,
+        planner: ExecutionPlanner,
+        guard: ExecutionGuard,
+        ai_runtime: AIRuntime,
         error_normalizer: OrchestrationErrorNormalizer,
         response_composer: ResponseComposer,
         tool_runtime: ToolRuntime,
     ) -> None:
         self._conversation_service = conversation_service
-        self._decision_engine = decision_engine
-        self._ai_router = ai_router
-        self._ai_adapters = ai_adapters
+        self._planner = planner
+        self._guard = guard
+        self._ai_runtime = ai_runtime
         self._error_normalizer = error_normalizer
         self._response_composer = response_composer
         self._tool_runtime = tool_runtime
 
     def process_chat(self, command: CommandRequest) -> CommandOrchestrationOutcome:
-        """Run one validated chat command through its selected AI adapter once."""
+        """Plan, authorize, bind, and execute one normal AI chat turn."""
         try:
             message, conversation_id, project_id = (
                 CommandInputPipeline.validated_chat_arguments(command)
             )
             if command.command != "chat.message":
                 return self._error("AI_ROUTE_REJECTED", command.request_id)
-            decision = self._decision_engine.decide(command)
-            route = self._ai_router.route(decision)
-            route_error = self._error_normalizer.normalize_ai_route(route)
-            if route_error is not None:
-                return self._normalized(route_error)
-            adapter = self._ai_adapters.resolve(route.adapter_id or "")
-            if adapter is None:
-                return self._error("AI_ROUTE_UNAVAILABLE", command.request_id)
+
+            planning = self._planner.plan(command)
+            planning_error = (
+                self._error_normalizer.normalize_execution_planning(planning)
+            )
+            if planning_error is not None:
+                return self._normalized(planning_error)
+
+            authorization = self._guard.authorize(command, planning)
+            authorization_error = (
+                self._error_normalizer.normalize_execution_authorization(
+                    authorization
+                )
+            )
+            if authorization_error is not None:
+                return self._normalized(authorization_error)
+
+            authorized_adapter = self._ai_runtime.bind(
+                command,
+                authorization,
+            )
             turn = self._conversation_service.send_message(
                 message,
                 conversation_id,
                 project_id,
-                ai_adapter=adapter,
+                ai_adapter=authorized_adapter,
             )
             return CommandOrchestrationOutcome(
                 response=self._response_composer.compose_ai_success(
                     command.request_id,
-                    self._to_ai_result(turn.reply),
+                    AIResult(content=turn.reply),
                 ),
                 chat_turn=turn,
             )
@@ -88,7 +102,10 @@ class CommandOrchestrator:
             raise
         except Exception as error:
             return self._normalized(
-                self._error_normalizer.normalize_exception(command.request_id, error)
+                self._error_normalizer.normalize_exception(
+                    command.request_id,
+                    error,
+                )
             )
 
     def execute_tool(
@@ -96,7 +113,7 @@ class CommandOrchestrator:
         request: CommandRequest,
         authorization: ExecutionAuthorization,
     ) -> Response:
-        """Execute one Tool only through the D38 runtime boundary."""
+        """Execute one Tool only through the existing D38 runtime boundary."""
         authorization_error = (
             self._error_normalizer.normalize_execution_authorization(
                 authorization
@@ -110,23 +127,30 @@ class CommandOrchestrator:
             authorization,
         )
         return self._response_composer.compose_tool_result(result)
-    def _normalized(self, error: NormalizedError) -> CommandOrchestrationOutcome:
-        return CommandOrchestrationOutcome(self._response_composer.compose_error(error))
 
-    def _error(self, code: str, request_id: str) -> CommandOrchestrationOutcome:
+    def _normalized(
+        self,
+        error: NormalizedError,
+    ) -> CommandOrchestrationOutcome:
+        return CommandOrchestrationOutcome(
+            self._response_composer.compose_error(error)
+        )
+
+    def _error(
+        self,
+        code: str,
+        request_id: str,
+    ) -> CommandOrchestrationOutcome:
         return self._normalized(
-            NormalizedError(request_id, code, "failed")  # type: ignore[arg-type]
+            NormalizedError(
+                request_id,
+                code,  # type: ignore[arg-type]
+                "failed",
+            )
         )
 
     @staticmethod
-    def _to_ai_result(content: str):
-        from app.contracts.ai import AIResult
-
-        return AIResult(content=content)
-
-    @staticmethod
     def _preserved_domain_errors():
-        """Keep existing conversation/project API semantics outside D28 outcomes."""
         from app.services.conversations import (
             ConversationAssociationError,
             ConversationNotFoundError,

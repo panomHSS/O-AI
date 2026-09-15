@@ -952,3 +952,51 @@ automatic backup, automatic retry, Chat `/action` write grammar, AI tool
 selection, frontend change, database schema/migration, Docker change, or new
 dependency. The managed database revision remains
 `0009_execution_audit_events`.
+
+## ADR-041: Unified authorization-gated AI execution runtime v1
+
+**Status:** Accepted
+
+D49 routes normal live AI chat through the existing D35 planning and D36
+authorization boundaries before any provider invocation. A dedicated
+`AIRuntime` binds one authorized AI plan to a one-shot AI Adapter Contract v1
+proxy. `ConversationService` and `ChatService` continue to build and persist the
+normal chat turn; the proxy forwards the final formatted `AIRequest` into
+`AIRuntime`, which revalidates the plan digest immediately before invoking the
+registered real AI adapter.
+
+This keeps routing, planning, authorization and execution as distinct states
+and removes direct real-adapter resolution from normal-chat orchestration. One
+binding permits at most one generation attempt. Failures do not retry and an
+explicit Local AI route never falls back to cloud AI.
+
+D49 does not introduce AI function calling, Tool/Module selection, owner
+approval, D48 write authority, streaming, retry, fallback, a new AI adapter
+contract, frontend/API schema changes, dependencies, Docker changes, or a
+database migration. The D40 Tool/Module coordinator remains frozen. Knowledge
+Answer AI invocation is intentionally deferred to D50.
+
+Execution audit remains non-authoritative and allowlisted. Prompts, history,
+Memory/Project context, AI output and raw provider errors are not persisted in
+execution audit events.
+
+The configured model id remains plan-bound metadata describing the configured
+adapter selected through D34/D35; D49 does not add a per-request model override
+to AI Adapter Contract v1.
+
+### ADR-041 refinement: preserve injected provider composition without weakening production configuration
+
+D49 retains the existing test/application composition seam in which a
+conversation service may supply a non-production AI adapter or may own provider
+behavior itself. Because AI Adapter Contract v1 has no model-discovery method,
+such an injected provider can lack a globally configured model id while still
+being a valid configured provider.
+
+When that explicit non-production seam is active and `OPENAI_MODEL` is absent,
+dependency composition uses the opaque plan metadata value `provider-managed`.
+This value participates only in the authorized D35/D36 plan digest and is not
+sent to the provider as a model override.
+
+The production cached ChatGPT adapter is deliberately excluded from this
+compatibility path. Production OpenAI with no `OPENAI_MODEL` continues to be
+reported unavailable by D34 and cannot reach `AIRuntime` execution.

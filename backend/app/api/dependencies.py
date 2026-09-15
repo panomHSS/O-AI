@@ -73,6 +73,7 @@ from app.services.execution_audit_persistence import (
 )
 from app.services.module_runtime import ModuleRuntime
 from app.services.tool_runtime import ToolRuntime
+from app.services.ai_runtime import AIRuntime
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -393,11 +394,37 @@ def get_response_composer(
     return ResponseComposer(normalizer)
 
 
-def get_chatgpt_model_discovery_source() -> ChatGPTConfiguredModelDiscoverySource:
-    """Describe only the configured ChatGPT model; no provider network call."""
+_D49_PROVIDER_MANAGED_MODEL_ID = "provider-managed"
+
+
+def get_chatgpt_model_discovery_source(
+    conversation_service: ConversationService = Depends(get_conversation_service),
+) -> ChatGPTConfiguredModelDiscoverySource:
+    """Describe the active ChatGPT-compatible model binding without probing.
+
+    Production OpenAI continues to require its explicit OPENAI_MODEL setting.
+    Legacy/injected conversation-provider seams that do not expose model
+    discovery receive an opaque provider-managed binding used only as D49
+    authorization metadata; it is never forwarded as a provider model override.
+    """
     settings = get_settings()
+    configured_model_id = settings.openai_model
+
+    if configured_model_id is None:
+        adapter_factory = getattr(
+            conversation_service,
+            "default_ai_adapter",
+            None,
+        )
+        if not callable(adapter_factory):
+            configured_model_id = _D49_PROVIDER_MANAGED_MODEL_ID
+        else:
+            selected_adapter = adapter_factory()
+            if selected_adapter is not get_chatgpt_adapter():
+                configured_model_id = _D49_PROVIDER_MANAGED_MODEL_ID
+
     return ChatGPTConfiguredModelDiscoverySource(
-        configured_model_id=settings.openai_model,
+        configured_model_id=configured_model_id,
     )
 
 
@@ -478,6 +505,17 @@ def get_module_runtime(
 ) -> ModuleRuntime:
     """Compose D37 Module runtime with D39 observation."""
     return ModuleRuntime(registry=adapter_registry, audit=audit)
+
+
+def get_ai_runtime(
+    adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
+) -> AIRuntime:
+    """Compose D49 AI runtime over the shared registry and D47 audit."""
+    return AIRuntime(
+        registry=adapter_registry,
+        audit=audit,
+    )
 
 
 def get_capability_permission_policy(
@@ -586,21 +624,21 @@ def get_chat_action_bridge(
 
 def get_command_orchestrator(
     conversation_service: ConversationService = Depends(get_conversation_service),
-    decision_engine: CommandDecisionEngine = Depends(get_command_decision_engine),
-    ai_router: AIRouter = Depends(get_ai_router),
-    ai_adapters: AIAdapterRegistry = Depends(get_ai_adapter_registry),
+    planner: ExecutionPlanner = Depends(get_execution_planner),
+    guard: ExecutionGuard = Depends(get_execution_guard),
+    ai_runtime: AIRuntime = Depends(get_ai_runtime),
     error_normalizer: OrchestrationErrorNormalizer = Depends(
         get_orchestration_error_normalizer
     ),
     response_composer: ResponseComposer = Depends(get_response_composer),
     tool_runtime: ToolRuntime = Depends(get_tool_runtime),
 ) -> CommandOrchestrator:
-    """Compose D29 only at the existing chat input boundary."""
+    """Compose D49 normal chat through Planner, Guard and AIRuntime."""
     return CommandOrchestrator(
         conversation_service=conversation_service,
-        decision_engine=decision_engine,
-        ai_router=ai_router,
-        ai_adapters=ai_adapters,
+        planner=planner,
+        guard=guard,
+        ai_runtime=ai_runtime,
         error_normalizer=error_normalizer,
         response_composer=response_composer,
         tool_runtime=tool_runtime,

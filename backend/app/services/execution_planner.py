@@ -96,7 +96,13 @@ class ExecutionPlanner:
 
         route = self._ai_router.route(decision)
         if route.status == "unavailable":
-            return self._unavailable("ai_route_unavailable", request.request_id)
+            safe_reason = (
+                route.reason_code
+                if route.reason_code
+                in {"local_ai_unavailable", "default_adapter_unavailable"}
+                else "ai_route_unavailable"
+            )
+            return self._unavailable(safe_reason, request.request_id)
         if route.status != "selected" or not route.adapter_id:
             return self._rejected("ai_route_rejected", request.request_id)
 

@@ -760,3 +760,77 @@ retry, automatic backup, Chat `/action` write grammar, AI tool selection,
 frontend changes, database migrations, Docker changes, or dependencies. D47
 durable audit remains non-authoritative and persists no command arguments,
 write parameters, or file content.
+
+## D49 — Unified AI Execution Runtime v1
+
+D49 migrates normal live chat onto the frozen execution authority pattern
+without granting AI any Tool, Module, approval, or filesystem-write authority.
+
+The normal-chat lane is:
+
+`CommandRequest -> ExecutionPlanner -> ExecutionGuard -> AI authorization ->
+AIRuntime.bind() -> one-shot authorized AI adapter -> ConversationService ->
+ChatService -> AIRuntime.execute() -> registered AI adapter`
+
+`ConversationService` and `ChatService` remain responsible for conversation
+persistence, bounded history, Memory, Reasoning, Planning, Decision, Goal and
+Project context, and final provider-input formatting. D49 does not move those
+responsibilities into the runtime.
+
+`AIRuntime` is execution-only. It does not route, discover, plan, approve, or
+authorize. At bind time and again immediately before provider invocation it
+validates request/authorization/plan identity, AI target kind, exact one-step
+`ai.generate_text` shape, configured capability/model metadata, registered AI
+adapter availability, and the D36 source plan digest. The one-shot binding is
+consumed before its first generation attempt, so provider failure does not
+create an implicit retry or reusable authorization.
+
+The configured model id in the D35 plan is authorization-bound metadata for the
+selected configured adapter. AI Adapter Contract v1 does not add a per-call
+model override in D49.
+
+AI execution emits only allowlisted D47 execution audit metadata. User text,
+formatted provider prompts, conversation history, Memory values, Project
+context, AI output, credentials and raw provider exceptions are not audit
+payloads.
+
+The D40 Tool/Module coordinator remains frozen and continues to reject AI via
+its existing chat-lane compatibility result. `/action`, D45 owner approval,
+D46 Chat Action Bridge and D48 Safe Write Tools are unchanged. Grounded
+Knowledge Answer remains outside the D49 v1 migration and is deferred to D50
+integration review.
+
+D49 invariants include:
+
+- `AI ROUTED != AI PLANNED != AI AUTHORIZED != AI EXECUTED`
+- `AI AUTHORIZATION != TOOL/MODULE AUTHORIZATION`
+- `AI PLAN != PROVIDER PROMPT`
+- `PROVIDER PROMPT != AUDIT RECORD`
+- `AI RESULT != TOOL CALL`
+- `AI RESULT != EXECUTION AUTHORITY`
+- `ONE AUTHORIZED AI BINDING == AT MOST ONE GENERATION ATTEMPT`
+- `AI FAILURE != RETRY`
+- `LOCAL AI FAILURE != CLOUD FALLBACK`
+- `AI PLAN DIGEST AT AUTHORIZATION == AI PLAN DIGEST AT EXECUTION`
+- `AUDIT != EXECUTION AUTHORITY`
+
+### D49 provider-managed discovery compatibility seam
+
+Normal-chat dependency composition preserves the pre-D49 injected
+`ConversationService` / provider seam. If the active conversation service does
+not expose a default AI adapter, or exposes a default adapter other than the
+production cached ChatGPT adapter, and no global ChatGPT model is configured,
+D49 binds the plan to the opaque model metadata value `provider-managed`.
+
+`provider-managed` is authorization metadata only. It is not a provider model
+override and is never copied into the provider prompt. The selected registered
+adapter remains the execution authority target. Production OpenAI composition
+does not receive this compatibility marker: without `OPENAI_MODEL`, D34 remains
+unavailable and execution stays fail-closed.
+
+This seam preserves:
+
+- `AI PLAN != PROVIDER PROMPT`
+- `MODEL BINDING METADATA != PROVIDER MODEL OVERRIDE`
+- `INJECTED PROVIDER != PRODUCTION OPENAI CONFIGURATION`
+- `MISSING PRODUCTION MODEL == NO PRODUCTION AI EXECUTION`
