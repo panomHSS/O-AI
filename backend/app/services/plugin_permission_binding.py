@@ -61,7 +61,21 @@ def _validated_subject(plugin_id: object, plugin_version: object, capability_nam
     return plugin_id, plugin_version, capability_name
 
 
-PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES: tuple[PluginCapabilityPermissionProfile, ...] = ()
+PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES: tuple[
+    PluginCapabilityPermissionProfile, ...
+] = (
+    PluginCapabilityPermissionProfile(
+        plugin_id="github_public_repo",
+        plugin_version="1.0.0",
+        capability_name="repository_metadata",
+        capability_id="exec.plugin.github_public_repo.repository_metadata",
+        module_adapter_id="module.plugin.github_public_repo",
+        operation="get_repository_metadata",
+        effect="read",
+        data_class="external_data",
+        owner_approval_required=True,
+    ),
+)
 
 
 class PluginPermissionProfileCatalog:

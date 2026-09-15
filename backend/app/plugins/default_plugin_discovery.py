@@ -15,4 +15,9 @@ class DefaultPluginDiscovery(
     def discover(
         self,
     ) -> list[PluginManifest]:
-        return []
+        return [
+            PluginManifest(
+                plugin_id="github_public_repo",
+                version="1.0.0",
+            )
+        ]

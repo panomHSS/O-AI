@@ -44,19 +44,39 @@ class PluginProjectionCatalogTests(unittest.TestCase):
             operation=operation,
         )
 
-    def test_production_catalog_contains_only_fixed_echo_projection(self) -> None:
+    def test_production_catalog_contains_fixed_echo_and_d59_connector(self) -> None:
         catalog = get_plugin_projection_catalog()
 
         self.assertEqual(
             catalog.projections,
             PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS,
         )
-        self.assertEqual(catalog.identities, (("echo", "echo"),))
+        self.assertEqual(
+            catalog.identities,
+            (
+                ("echo", "echo"),
+                ("github_public_repo", "repository_metadata"),
+            ),
+        )
 
-        projection = catalog.resolve("echo", "echo")
-        self.assertEqual(projection.plugin_version, "1.0.0")
-        self.assertEqual(projection.module_adapter_id, "module.plugin.echo")
-        self.assertEqual(projection.operation, "echo")
+        echo = catalog.resolve("echo", "echo")
+        self.assertEqual(echo.plugin_version, "1.0.0")
+        self.assertEqual(echo.module_adapter_id, "module.plugin.echo")
+        self.assertEqual(echo.operation, "echo")
+
+        connector = catalog.resolve(
+            "github_public_repo",
+            "repository_metadata",
+        )
+        self.assertEqual(connector.plugin_version, "1.0.0")
+        self.assertEqual(
+            connector.module_adapter_id,
+            "module.plugin.github_public_repo",
+        )
+        self.assertEqual(
+            connector.operation,
+            "get_repository_metadata",
+        )
 
     def test_catalog_returns_deterministic_order(self) -> None:
         catalog = PluginProjectionCatalog(

@@ -120,15 +120,44 @@ class PluginPermissionBindingTests(unittest.TestCase):
         )
         return service, exposure_service, catalog, store
 
-    def test_production_defaults_empty_and_deny(self):
+    def test_production_d59_profile_is_known_but_binding_remains_default_deny(self):
         get_plugin_permission_binding_store().clear()
         get_plugin_module_exposure_store().clear()
-        self.assertEqual(PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES, ())
-        self.assertEqual(get_plugin_permission_profile_catalog().profiles, ())
-        self.assertEqual(get_plugin_permission_binding_service().list_bindings(), ())
+        self.assertEqual(
+            get_plugin_permission_profile_catalog().profiles,
+            PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES,
+        )
+        self.assertEqual(len(PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES), 1)
+        profile = PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES[0]
+        self.assertEqual(profile.plugin_id, "github_public_repo")
+        self.assertEqual(profile.plugin_version, "1.0.0")
+        self.assertEqual(profile.capability_name, "repository_metadata")
+        self.assertEqual(
+            profile.capability_id,
+            "exec.plugin.github_public_repo.repository_metadata",
+        )
+        self.assertEqual(
+            profile.module_adapter_id,
+            "module.plugin.github_public_repo",
+        )
+        self.assertEqual(profile.operation, "get_repository_metadata")
+        self.assertEqual(profile.effect, "read")
+        self.assertEqual(profile.data_class, "external_data")
+        self.assertTrue(profile.owner_approval_required)
+        self.assertEqual(
+            get_plugin_permission_binding_service().list_bindings(),
+            (),
+        )
         with self.assertRaises(PluginPermissionBindingError) as caught:
-            get_plugin_permission_binding_service().bind("echo", "1.0.0", "echo")
-        self.assertEqual(caught.exception.code, PLUGIN_PERMISSION_BINDING_ERROR_EXPOSURE_NOT_FOUND)
+            get_plugin_permission_binding_service().bind(
+                "github_public_repo",
+                "1.0.0",
+                "repository_metadata",
+            )
+        self.assertEqual(
+            caught.exception.code,
+            PLUGIN_PERMISSION_BINDING_ERROR_EXPOSURE_NOT_FOUND,
+        )
 
     def test_exact_active_exposure_and_profile_bind(self):
         service, exposure_service, _, store = self.service()

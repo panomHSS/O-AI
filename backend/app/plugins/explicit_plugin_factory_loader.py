@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from app.plugins.base import Plugin
 from app.plugins.echo import EchoPlugin
+from app.plugins.github_public_repository import GitHubPublicRepositoryPlugin
 from app.plugins.plugin_loader import PluginLoader
 from app.plugins.plugin_manifest import PluginManifest
 
@@ -38,7 +39,10 @@ class ExplicitPluginFactoryLoader(PluginLoader):
         factories: dict[tuple[str, str], PluginFactory] | None = None,
     ) -> None:
         source = (
-            {("echo", "1.0.0"): EchoPlugin}
+            {
+                ("echo", "1.0.0"): EchoPlugin,
+                ("github_public_repo", "1.0.0"): GitHubPublicRepositoryPlugin,
+            }
             if factories is None
             else dict(factories)
         )

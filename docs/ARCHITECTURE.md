@@ -1406,3 +1406,56 @@ fixed D51 Echo bridge remains unchanged.
 D58 adds no D45 approval, D36 authorization, direct execution API, persistence,
 database migration, credentials, OAuth, external connector, Docker, dependency
 or frontend change.
+
+## D59 — First Read-only External Connector v1
+
+D59 introduces O-AI's first production-known external connector as an exact
+static Plugin: `github_public_repo` version `1.0.0`, capability
+`repository_metadata`.
+
+The connector reads only bounded metadata for one public GitHub repository. Its
+request surface remains the existing Plugin Contract v1: `PluginRequest.content`
+must contain exactly one validated `owner/repository` identifier. Callers cannot
+supply a URL, scheme, host, port, method, headers, redirect target, credential,
+proxy target or retry policy.
+
+The network boundary is fixed to one HTTPS GET attempt against
+`https://api.github.com/repos/{owner}/{repository}`. Redirect following is
+disabled, retries and fallback are absent, credentials are absent, the timeout
+is five seconds, and the response body is bounded to 64 KiB before JSON parsing.
+
+External JSON is treated as untrusted data. D59 accepts only a JSON object,
+requires `private == False`, validates selected field types and sizes, verifies
+the returned `full_name` matches the requested subject case-insensitively, and
+constructs the public GitHub HTML URL locally instead of trusting an external
+URL field. Only an O-AI-selected metadata subset is serialized into canonical
+JSON for `PluginResult.content`; the existing D56 16 KiB output boundary remains
+in force.
+
+D59 changes production posture from "no discoverable dynamic Plugin" to
+"connector known but default-deny":
+
+`static manifest + D52 projection + D55 exact factory + D57 permission profile`
+does not create governance admission, loading, exposure, binding, activation,
+approval, authorization, execution or network access.
+
+The production permission profile is exact:
+
+- plugin: `github_public_repo` `1.0.0`
+- capability: `repository_metadata`
+- adapter: `module.plugin.github_public_repo`
+- operation: `get_repository_metadata`
+- capability id: `exec.plugin.github_public_repo.repository_metadata`
+- effect: `read`
+- data class: `external_data`
+- owner approval required: `True`
+
+The authority lane remains:
+
+`KNOWN != ADMITTED != LOADED != EXPOSED != BOUND != ACTIVATED != APPROVED !=
+AUTHORIZED != EXECUTED`
+
+D51 Echo remains the fixed reference Plugin bridge. D59 does not add generic
+HTTP access, private repositories, credentials, OAuth, pagination, search,
+repository content reads, issues/PR reads, writes, webhooks, caching,
+persistence, database migration, UI/API lifecycle controls or background sync.

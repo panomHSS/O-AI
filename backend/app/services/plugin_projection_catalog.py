@@ -33,6 +33,14 @@ PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS = (
         module_adapter_id="module.plugin.echo",
         operation="echo",
     ),
+    PluginCapabilityProjection(
+        plugin_id="github_public_repo",
+        plugin_version="1.0.0",
+        capability_name="repository_metadata",
+        description="Read bounded metadata for one public GitHub repository.",
+        module_adapter_id="module.plugin.github_public_repo",
+        operation="get_repository_metadata",
+    ),
 )
 
 

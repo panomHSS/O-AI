@@ -1459,3 +1459,36 @@ authorization or execution authority. The existing Planner -> approval -> Guard
 Production remains unchanged because D57 production permission profiles are
 empty. D58 adds no persistence, migration, public execution API, credentials,
 OAuth, external connector, Docker, dependency or frontend change.
+
+## ADR-051: First Read-only External Connector v1
+
+**Status:** Accepted
+
+**Decision**
+
+Add `github_public_repo` version `1.0.0` as O-AI's first production-known
+external Plugin connector. It exposes only `repository_metadata` through the
+existing Plugin Contract v1 and accepts only a validated `owner/repository`
+identifier.
+
+The connector may make at most one unauthenticated HTTPS GET attempt to the
+fixed GitHub REST repository endpoint. It cannot follow redirects, retry, fall
+back, accept caller-controlled URLs/headers/methods, or send credentials.
+Response bytes, normalized string fields and final Plugin output are bounded.
+External response data is type-checked and remains data rather than authority.
+
+D59 adds exact static discovery, D52 projection, D55 factory allowlisting and
+D57 O-AI-controlled permission-profile metadata. These are knowledge and
+eligibility inputs only. No lifecycle stage is advanced automatically and no
+network call occurs during boot, discovery, governance, loading, exposure,
+binding or activation.
+
+The existing D54-D58 Plugin lifecycle remains mandatory before registration and
+permission availability. D35/D45 owner approval requirements and D36
+authorization remain mandatory before normal ModuleRuntime execution.
+
+**Consequences**
+
+Production now knows one dynamic external connector while remaining default
+deny. The first external capability is intentionally narrow and read-only, so
+D59 does not establish generic web-fetch authority or a credential architecture.

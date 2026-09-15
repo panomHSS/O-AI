@@ -91,7 +91,7 @@ class PluginCandidateDiscoveryTests(unittest.TestCase):
             discovery,
         )
 
-    def test_production_composition_discovers_no_candidates(self) -> None:
+    def test_production_composition_discovers_d59_connector_candidate(self) -> None:
         service = get_plugin_candidate_discovery()
 
         self.assertIs(service, get_plugin_candidate_discovery())
@@ -100,7 +100,23 @@ class PluginCandidateDiscoveryTests(unittest.TestCase):
             get_plugin_projection_catalog(),
             get_plugin_projection_catalog(),
         )
-        self.assertEqual(service.discover_candidates(), ())
+        candidates = service.discover_candidates()
+        self.assertEqual(len(candidates), 1)
+        candidate = candidates[0]
+        self.assertEqual(candidate.plugin_id, "github_public_repo")
+        self.assertEqual(candidate.plugin_version, "1.0.0")
+        self.assertEqual(
+            candidate.status,
+            PLUGIN_CANDIDATE_STATUS_PROJECTED_MATCH,
+        )
+        self.assertEqual(
+            candidate.projected_capability_names,
+            ("repository_metadata",),
+        )
+        self.assertEqual(
+            candidate.reason_code,
+            PLUGIN_CANDIDATE_REASON_PROJECTION_MATCH,
+        )
 
     def test_exact_projection_version_is_projected_match(self) -> None:
         service, discovery = self.service(
