@@ -111,6 +111,16 @@ class GoogleOAuthRuntimeConfig:
             )
         return value
 
+    @property
+    def configuration_present(self) -> bool:
+        """Report deployment provisioning without reading secret values."""
+        return (
+            isinstance(self.client_id, str)
+            and bool(self.client_id.strip())
+            and isinstance(self.client_secret, SecretStr)
+            and isinstance(self.token_encryption_key, SecretStr)
+        )
+
     def require_ready(self) -> None:
         self.require_client_id()
         self.require_client_secret()

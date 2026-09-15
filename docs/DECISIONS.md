@@ -1753,3 +1753,38 @@ ChatGPT or Local AI.
 D65 adds no Calendar write capability, arbitrary date range, multiple-calendar
 selection, Gmail integration, scheduling, auto-approval, AI tool selection,
 credential selection, background action, or OAuth authority change.
+
+## ADR-059: Google Calendar Connection Control Surface v1
+
+**Status:** Accepted
+
+**Decision**
+
+Add a local owner-facing Integrations page for the existing Google Calendar
+read-only OAuth lifecycle. The UI may display safe connection metadata, start or
+restart the D64 authorization flow, refresh status and explicitly disconnect.
+It does not select OAuth scopes, credentials, Plugin capabilities or execution
+plans.
+
+Extend the safe OAuth status schema with connector enablement, configuration
+presence and owner timezone. Configuration presence checks only whether the
+required deployment objects are provisioned; it does not call
+`SecretStr.get_secret_value`, decrypt a refresh token, refresh an access token
+or contact Google.
+
+Replace the successful OAuth callback JSON response with a fixed redirect to
+`/settings/integrations` on a deployment-controlled loopback UI origin. Expected
+callback failures redirect to the same fixed UI with one stable O-AI reason
+code. Never forward authorization codes, provider error text, tokens, state
+values or secret metadata to the frontend URL. Delete the callback state cookie
+on both success and handled failure.
+
+Keep the owner-UI redirect boundary separate from `GoogleOAuthRuntimeConfig` so
+frontend configuration cannot become a dependency of the execution-time token
+manager. Accept only explicit loopback HTTP origins with a port and reject
+paths, userinfo, query strings, fragments and non-loopback hosts.
+
+Keep disconnect explicit and local-owner marked. D64 remains responsible for
+Google revocation and encrypted credential deletion. D66 adds no new scope,
+Calendar write authority, Gmail capability, migration, dependency, background
+refresh, public authentication or AI-controlled OAuth action.

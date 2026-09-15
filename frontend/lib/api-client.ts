@@ -16,6 +16,7 @@ import type {
   UpdateProjectDetailsRequest,
 } from "../types/projects";
 import type { ApiResponse } from "../types/api";
+import type { GoogleCalendarIntegrationStatus } from "../types/integrations";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_CHAT_TIMEOUT_MS = 130_000;
@@ -130,6 +131,27 @@ export function denyExecutionApproval(approvalId: string, planDigest: string): P
       method: "POST",
       headers: { "X-OAI-Local-Request": "1" },
       body: { plan_digest: planDigest },
+    },
+  );
+}
+
+export function getGoogleCalendarOAuthStartUrl(): string {
+  return `${API_BASE_URL}/oauth/google-calendar/start`;
+}
+
+export function getGoogleCalendarIntegrationStatus(): Promise<GoogleCalendarIntegrationStatus> {
+  return apiRequest<GoogleCalendarIntegrationStatus>(
+    "/oauth/google-calendar/status",
+    { method: "GET" },
+  );
+}
+
+export function disconnectGoogleCalendar(): Promise<GoogleCalendarIntegrationStatus> {
+  return apiRequest<GoogleCalendarIntegrationStatus>(
+    "/oauth/google-calendar/disconnect",
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
     },
   );
 }

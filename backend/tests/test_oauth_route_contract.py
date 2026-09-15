@@ -27,11 +27,29 @@ class OAuthRouteContractTests(unittest.TestCase):
             routes,
         )
 
-    def test_status_schema_has_no_secret_fields(self):
+    def test_status_schema_has_only_non_secret_control_surface_fields(self):
         fields = set(OAuthConnectionStatusResponse.model_fields)
         self.assertEqual(
             fields,
-            {"connected", "status", "scope"},
+            {
+                "connector_enabled",
+                "configuration_present",
+                "connected",
+                "status",
+                "scope",
+                "owner_timezone",
+            },
+        )
+        self.assertTrue(
+            {
+                "access_token",
+                "refresh_token",
+                "client_secret",
+                "encryption_key",
+                "ciphertext",
+                "nonce",
+                "authorization_code",
+            }.isdisjoint(fields)
         )
 
 

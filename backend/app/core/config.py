@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     oai_github_public_repo_connector_enabled: bool = False
     oai_google_calendar_connector_enabled: bool = False
     oai_owner_timezone: str = "Asia/Bangkok"
+    oai_owner_ui_base_url: str = "http://localhost:3000"
     oai_google_oauth_client_id: str | None = None
     oai_google_oauth_client_secret: SecretStr | None = None
     oai_google_oauth_redirect_uri: str = (

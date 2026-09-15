@@ -90,6 +90,7 @@ from app.services.google_oauth_connection_status import (
 )
 from app.services.google_oauth_token_manager import GoogleOAuthTokenManager
 from app.services.oauth_flow_state import OAuthFlowStateStore
+from app.services.owner_ui_redirect import OwnerUIRedirectConfig
 from app.services.credential_profile_catalog import (
     PRODUCTION_CREDENTIAL_PROFILES,
     CredentialProfileCatalog,
@@ -409,6 +410,11 @@ def get_google_oauth_runtime_config() -> GoogleOAuthRuntimeConfig:
         redirect_uri=settings.oai_google_oauth_redirect_uri,
         token_encryption_key=settings.oai_oauth_token_encryption_key,
     )
+
+
+def get_owner_ui_redirect_config() -> OwnerUIRedirectConfig:
+    """Compose the D66 fixed loopback owner-UI redirect boundary."""
+    return OwnerUIRedirectConfig(get_settings().oai_owner_ui_base_url)
 
 
 @lru_cache

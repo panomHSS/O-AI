@@ -1728,3 +1728,49 @@ Frozen invariants:
 `DISABLED/DISCONNECTED/REAUTHORIZATION PREFLIGHT -> ZERO TOKEN READS`
 
 `AUTHORIZED EXECUTION -> D63 -> D62 -> D64 -> GOOGLE`
+
+## Google Calendar connection control surface v1
+
+D66 exposes the existing D64 Google Calendar OAuth lifecycle through a local
+owner UI without changing Plugin or execution authority. The frontend
+`/settings/integrations` page can read a non-secret connection status, start
+the existing Google OAuth flow, explicitly reconnect, refresh displayed status,
+and explicitly disconnect.
+
+The OAuth status response contains only connector enablement, safe deployment
+configuration presence, connection state, the fixed read-only scope, and the
+owner timezone. Status inspection reads no access token, refresh token,
+ciphertext, nonce, client secret or encryption-key value and performs no Google
+network request or token refresh.
+
+The OAuth callback no longer returns authorization data as API JSON. After the
+D64 state/cookie validation and authorization-code exchange it redirects to one
+deployment-controlled loopback owner-UI origin. Success carries only
+`google_calendar=connected`. Expected failures carry only
+`google_calendar=error` plus one stable O-AI reason code. Authorization codes,
+provider error text and OAuth tokens are never forwarded to the frontend URL.
+The callback state cookie is deleted on both success and handled failure paths.
+
+`OAI_OWNER_UI_BASE_URL` is a non-secret UI setting validated independently of
+the D64 token-manager configuration. Only explicit `http://localhost:<port>` or
+`http://127.0.0.1:<port>` origins are accepted; credentials, paths, queries,
+fragments, non-loopback hosts and HTTPS origins are rejected. Invalid owner-UI
+configuration cannot become an open redirect and does not expand credential or
+execution authority.
+
+Disconnect remains an explicit local-owner POST carrying the existing
+`X-OAI-Local-Request: 1` marker. D64 still revokes the Google grant before
+deleting local encrypted credential material, and revocation failure continues
+to preserve the local credential for explicit owner follow-up.
+
+Frozen invariants:
+
+`UI CONNECT CLICK != OAUTH CONNECTED != ACTION APPROVED != AUTHORIZED != EXECUTED`
+
+`UI STATUS -> ZERO SECRET READS -> ZERO TOKEN REFRESH -> ZERO GOOGLE NETWORK`
+
+`FRONTEND != CREDENTIAL HOLDER != TOKEN MANAGER`
+
+`CALLBACK RESULT != EXECUTION AUTHORITY`
+
+`D66 UI CONTROL SURFACE -> D64 OAUTH LIFECYCLE ONLY`
