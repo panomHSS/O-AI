@@ -25,7 +25,7 @@ from app.adapters.filesystem_write_tools import (
 from app.adapters.system_health_tool import SystemHealthToolAdapter
 from app.adapters.system_info_tool import SystemInfoToolAdapter
 from app.services.tool_filesystem_boundary import ToolFilesystemBoundary
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.plugins.default_plugin_discovery import DefaultPluginDiscovery
 from app.plugins.explicit_plugin_factory_loader import ExplicitPluginFactoryLoader
@@ -34,6 +34,7 @@ from app.readers import create_document_reader_registry
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.memories import MemoryRepository
+from app.repositories.oauth_credentials import OAuthCredentialRepository
 from app.repositories.message_citations import MessageCitationRepository
 from app.repositories.project_action_execution_proposals import (
     ProjectActionExecutionProposalRepository,
@@ -81,6 +82,11 @@ from app.services.credential_access_broker import (
     CredentialAccessBroker,
     LazyCredentialSecretSource,
 )
+from app.connectors.google_oauth import GoogleOAuthClient
+from app.services.google_oauth_config import GoogleOAuthRuntimeConfig
+from app.services.google_oauth_lifecycle import GoogleOAuthLifecycleService
+from app.services.google_oauth_token_manager import GoogleOAuthTokenManager
+from app.services.oauth_flow_state import OAuthFlowStateStore
 from app.services.credential_profile_catalog import (
     PRODUCTION_CREDENTIAL_PROFILES,
     CredentialProfileCatalog,
@@ -387,19 +393,65 @@ def get_module_catalog_adapters(
 
 @lru_cache
 def get_credential_profile_catalog() -> CredentialProfileCatalog:
-    """Compose immutable D62/D63 exact credential profiles."""
+    """Compose immutable D62-D64 exact credential profiles."""
     return CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES)
+
+
+def get_google_oauth_runtime_config() -> GoogleOAuthRuntimeConfig:
+    """Translate deployment secrets into non-authoritative D64 OAuth config."""
+    settings = get_settings()
+    return GoogleOAuthRuntimeConfig(
+        client_id=settings.oai_google_oauth_client_id,
+        client_secret=settings.oai_google_oauth_client_secret,
+        redirect_uri=settings.oai_google_oauth_redirect_uri,
+        token_encryption_key=settings.oai_oauth_token_encryption_key,
+    )
+
+
+@lru_cache
+def get_google_oauth_client() -> GoogleOAuthClient:
+    """Compose the bounded no-proxy/no-redirect Google OAuth transport."""
+    return GoogleOAuthClient()
+
+
+@lru_cache
+def get_google_oauth_flow_state_store() -> OAuthFlowStateStore:
+    """Compose bounded process-local single-use OAuth state."""
+    return OAuthFlowStateStore()
+
+
+@lru_cache
+def get_google_oauth_token_manager() -> GoogleOAuthTokenManager:
+    """Compose execution-time access-token refresh with durable ciphertext."""
+    return GoogleOAuthTokenManager(
+        session_factory=SessionLocal,
+        config=get_google_oauth_runtime_config(),
+        client=get_google_oauth_client(),
+    )
 
 
 @lru_cache
 def get_credential_secret_source() -> CredentialSecretSource:
-    """Compose lazy exact-ref credential access without eager secret reads."""
+    """Resolve D64 managed access tokens only when D62 requests the exact ref."""
     return LazyCredentialSecretSource(
         {
             GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF: (
-                lambda: get_settings().oai_google_calendar_access_token
+                lambda: get_google_oauth_token_manager().resolve_access_token()
             )
         }
+    )
+
+
+def get_google_oauth_lifecycle_service(
+    database_session: Session = Depends(get_db),
+) -> GoogleOAuthLifecycleService:
+    """Compose explicit owner OAuth lifecycle without execution authority."""
+    return GoogleOAuthLifecycleService(
+        repository=OAuthCredentialRepository(database_session),
+        config=get_google_oauth_runtime_config(),
+        client=get_google_oauth_client(),
+        flow_state_store=get_google_oauth_flow_state_store(),
+        token_manager=get_google_oauth_token_manager(),
     )
 
 

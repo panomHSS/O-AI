@@ -1638,3 +1638,48 @@ Frozen secret-access invariant:
 `DISCOVERY/GOVERNANCE/LOADING/EXPOSURE/BINDING/ACTIVATION/PROPOSAL/DENIAL -> ZERO SECRET READS`
 
 `AUTHORIZED EXECUTION -> D62 CREDENTIAL RESOLVE -> ONE FIXED CALENDAR GET`
+
+## Managed Google OAuth token lifecycle v1
+
+D64 replaces the D63 manually provisioned access-token path with one managed
+OAuth 2.0 web-server lifecycle for the exact Google Calendar credential profile.
+The owner explicitly starts consent through the local OAuth control API. O-AI
+uses one exact `calendar.events.readonly` scope, `access_type=offline`,
+`prompt=consent`, an exact loopback callback URI, a cryptographically random
+single-use state value with a ten-minute TTL, and an HttpOnly SameSite=Lax
+callback cookie binding.
+
+Authorization codes are never persisted. Refresh tokens are encrypted before
+durable storage using AES-256-GCM with a deployment-held 32-byte key that is not
+stored in the database. Ciphertext is authenticated against the exact O-AI
+credential subject. Access tokens are process-memory only. The credential table
+contains no access-token, plaintext refresh-token, client-secret or
+authorization-code columns.
+
+Execution authority remains unchanged. D53-D58 lifecycle materialization and
+D45 proposal/denial paths do not resolve OAuth credentials. Only execution-time
+D62 resolution of the exact `google_calendar/1.0.0/upcoming_events` secret ref
+may enter the token manager. A valid cached access token is returned when more
+than sixty seconds remain; otherwise the manager decrypts the refresh token and
+performs one fixed Google token POST. No background refresh job is introduced.
+
+Google OAuth token and revocation egress uses fixed HTTPS endpoints, environment
+proxy routing disabled, redirects rejected, no automatic retry, a five-second
+timeout and a 64 KiB response limit. `invalid_grant`, refresh-token expiration,
+scope drift and stored-subject drift fail closed into
+`reauthorization_required`. Disconnect is an explicit owner POST; local
+ciphertext is deleted only after successful Google revocation.
+
+D64 remains a trusted local single-owner feature. The OAuth endpoints are not an
+O-AI login system and are not represented as safe for public or LAN deployment
+without a future authentication layer.
+
+Frozen invariants:
+
+`OAUTH CONNECTED != PLUGIN ACTIVATED != ACTION APPROVED != AUTHORIZED != EXECUTED`
+
+`AUTHORIZATION CODE / REFRESH TOKEN / ACCESS TOKEN != EXECUTION AUTHORITY`
+
+`DISCOVERY/GOVERNANCE/LOADING/EXPOSURE/BINDING/ACTIVATION/PROPOSAL/DENIAL -> ZERO TOKEN READS`
+
+`AUTHORIZED EXECUTION -> D62 EXACT RESOLUTION -> ACCESS TOKEN MANAGER -> D63 CALENDAR GET`

@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0009_execution_audit_events"
+REVISION = "0010_oauth_credentials"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -36,6 +36,7 @@ EXPECTED_TABLES = {
     "project_revisions",
     "project_action_execution_proposals",
     "execution_audit_events",
+    "oauth_credentials",
 }
 
 EXPECTED_INDEXES = {
@@ -158,6 +159,44 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
                 "ix_execution_audit_events_request_id",
                 "ix_execution_audit_events_occurred_at",
             },
+        )
+
+        oauth_columns = {
+            column["name"]
+            for column in inspector.get_columns("oauth_credentials")
+        }
+        self.assertEqual(
+            oauth_columns,
+            {
+                "profile_id",
+                "provider_id",
+                "plugin_id",
+                "plugin_version",
+                "capability_name",
+                "encrypted_refresh_token",
+                "encryption_nonce",
+                "cipher_version",
+                "granted_scopes",
+                "status",
+                "refresh_token_expires_at",
+                "created_at",
+                "updated_at",
+            },
+        )
+        self.assertTrue(
+            {
+                "access_token",
+                "refresh_token",
+                "client_secret",
+                "authorization_code",
+            }.isdisjoint(oauth_columns)
+        )
+        self.assertEqual(
+            {
+                index["name"]
+                for index in inspector.get_indexes("oauth_credentials")
+            },
+            set(),
         )
 
         with self.engine.connect() as connection:

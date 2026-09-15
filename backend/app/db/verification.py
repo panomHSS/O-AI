@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0009_execution_audit_events"
+TARGET_REVISION = "0010_oauth_credentials"
 EXPECTED_TABLES = {
     "alembic_version",
     "conversations",
@@ -26,6 +26,7 @@ EXPECTED_TABLES = {
     "project_update_proposals",
     "project_action_execution_proposals",
     "execution_audit_events",
+    "oauth_credentials",
 }
 EXPECTED_COLUMNS = {
     "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0)],
@@ -74,6 +75,21 @@ EXPECTED_COLUMNS = {
         ("reason_code", "TEXT", 0),
         ("plan_digest", "VARCHAR(64)", 0),
     ],
+    "oauth_credentials": [
+        ("profile_id", "TEXT", 1),
+        ("provider_id", "TEXT", 0),
+        ("plugin_id", "TEXT", 0),
+        ("plugin_version", "TEXT", 0),
+        ("capability_name", "TEXT", 0),
+        ("encrypted_refresh_token", "BLOB", 0),
+        ("encryption_nonce", "BLOB", 0),
+        ("cipher_version", "VARCHAR(32)", 0),
+        ("granted_scopes", "TEXT", 0),
+        ("status", "VARCHAR(32)", 0),
+        ("refresh_token_expires_at", "DATETIME", 0),
+        ("created_at", "DATETIME", 0),
+        ("updated_at", "DATETIME", 0),
+    ],
 }
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False)},
@@ -98,6 +114,7 @@ EXPECTED_INDEXES = {
         "ix_execution_audit_events_request_id": (["request_id"], False),
         "ix_execution_audit_events_occurred_at": (["occurred_at"], False),
     },
+    "oauth_credentials": {},
 }
 EXPECTED_FOREIGN_KEYS = {
     "messages": {("conversation_id", "conversations", "id", "CASCADE")},
@@ -111,6 +128,7 @@ EXPECTED_FOREIGN_KEYS = {
         ("conversation_id", "conversations", "id", "NO ACTION"),
     },
     "execution_audit_events": set(),
+    "oauth_credentials": set(),
 }
 NULLABLE_COLUMNS = {
     "documents": {"error_message", "indexed_at"},
@@ -135,6 +153,9 @@ NULLABLE_COLUMNS = {
         "adapter_id",
         "reason_code",
         "plan_digest",
+    },
+    "oauth_credentials": {
+        "refresh_token_expires_at",
     },
 }
 

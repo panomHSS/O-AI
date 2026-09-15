@@ -54,7 +54,12 @@ class Settings(BaseSettings):
     oai_local_ai_context_length: int = Field(default=4096, ge=256, le=32768)
     oai_github_public_repo_connector_enabled: bool = False
     oai_google_calendar_connector_enabled: bool = False
-    oai_google_calendar_access_token: SecretStr | None = None
+    oai_google_oauth_client_id: str | None = None
+    oai_google_oauth_client_secret: SecretStr | None = None
+    oai_google_oauth_redirect_uri: str = (
+        "http://localhost:8000/api/v1/oauth/google-calendar/callback"
+    )
+    oai_oauth_token_encryption_key: SecretStr | None = None
 
     @model_validator(mode="after")
     def validate_chunk_settings(self) -> "Settings":

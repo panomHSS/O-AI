@@ -18,10 +18,20 @@ class RaisingTokenSettings:
     oai_google_calendar_connector_enabled = True
 
     @property
-    def oai_google_calendar_access_token(self):
-        raise AssertionError(
-            "D63 lifecycle must not read the access token."
-        )
+    def oai_google_oauth_client_id(self):
+        raise AssertionError("Plugin lifecycle must not read OAuth config.")
+
+    @property
+    def oai_google_oauth_client_secret(self):
+        raise AssertionError("Plugin lifecycle must not read OAuth secrets.")
+
+    @property
+    def oai_google_oauth_redirect_uri(self):
+        raise AssertionError("Plugin lifecycle must not read OAuth config.")
+
+    @property
+    def oai_oauth_token_encryption_key(self):
+        raise AssertionError("Plugin lifecycle must not read encryption keys.")
 
 
 class GoogleCalendarD63IntegrationTests(unittest.TestCase):

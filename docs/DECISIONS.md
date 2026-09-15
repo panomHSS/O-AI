@@ -1680,3 +1680,38 @@ longer empty after D62, but credential knowledge and credential availability
 remain non-authoritative. The current short-lived owner-provisioned bearer token
 is suitable for validating the authenticated connector boundary; durable OAuth
 token lifecycle management remains future work.
+
+## ADR-057: Google OAuth Token Lifecycle Hardening v1
+
+**Status:** Accepted
+
+**Decision**
+
+Replace the D63 `OAI_GOOGLE_CALENDAR_ACCESS_TOKEN` production path with a
+single managed OAuth 2.0 web-server lifecycle. Use the exact Google Calendar
+`calendar.events.readonly` scope, offline access, explicit consent, one exact
+loopback redirect URI, bounded single-use state, and browser-cookie state
+binding. The OAuth control surface is connect/callback/status/disconnect only
+and does not create Plugin or execution authority.
+
+Persist only an AES-256-GCM encrypted refresh token plus non-secret exact
+credential metadata. The encryption key remains deployment configuration and is
+never stored beside ciphertext. Access tokens remain memory-only, authorization
+codes are never persisted, and missing/wrong encryption keys fail closed.
+
+Refresh occurs on demand only when D62 resolves the exact Calendar credential
+during execution. A sixty-second expiry skew prevents returning nearly expired
+tokens, and a process lock prevents concurrent refresh duplication. Google
+`invalid_grant`, exact-scope drift, refresh-token expiry or stored-subject drift
+marks the credential `reauthorization_required` rather than retrying
+indefinitely.
+
+Use fixed HTTPS POSTs to `oauth2.googleapis.com/token` and
+`oauth2.googleapis.com/revoke`, with proxy environment ignored, redirects
+rejected, no retry/fallback, bounded responses and safe normalized errors.
+Explicit disconnect revokes Google access before deleting local ciphertext.
+
+Add `cryptography` solely for the AES-GCM primitive and add migration
+`0010_oauth_credentials`. D64 does not add Gmail, Calendar writes, Chat routing,
+multiple Google accounts, service accounts, DPoP, RISC/Cross-Account Protection,
+background refresh or public-deployment authentication.
