@@ -109,6 +109,7 @@ class ModuleCatalogTests(unittest.TestCase):
             (
                 "module.workspace.overview",
                 "module.project.snapshot",
+                "module.plugin.echo",
             ),
         )
 

@@ -7,6 +7,7 @@ from app.adapters.filesystem_tools import (
     FilesystemStatToolAdapter,
 )
 from app.adapters.local_ai import LocalAIAdapter
+from app.adapters.plugin_echo_module import EchoPluginModuleAdapter
 from app.adapters.project_snapshot_module import ProjectSnapshotModuleAdapter
 from app.adapters.standard_tool import StandardToolAdapter
 from app.adapters.system_health_tool import SystemHealthToolAdapter
@@ -19,6 +20,7 @@ __all__ = [
     "FilesystemReadTextToolAdapter",
     "FilesystemStatToolAdapter",
     "LocalAIAdapter",
+    "EchoPluginModuleAdapter",
     "ProjectSnapshotModuleAdapter",
     "StandardToolAdapter",
     "SystemHealthToolAdapter",

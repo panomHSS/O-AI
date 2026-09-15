@@ -207,6 +207,7 @@ class CapabilityPermissionPolicyTests(unittest.TestCase):
             "exec.workspace.replace_text",
             "exec.workspace.overview",
             "exec.project.snapshot.read",
+            "exec.plugin.echo",
         }
         self.assertEqual(
             {
@@ -217,7 +218,7 @@ class CapabilityPermissionPolicyTests(unittest.TestCase):
         )
         self.assertEqual(
             len(PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS),
-            10,
+            11,
         )
         self.assertTrue(
             all(
@@ -247,6 +248,9 @@ class CapabilityPermissionPolicyTests(unittest.TestCase):
             by_id["exec.project.snapshot.read"].data_class,
             "owner_data",
         )
+        self.assertEqual(by_id["exec.plugin.echo"].effect, "none")
+        self.assertEqual(by_id["exec.plugin.echo"].data_class, "owner_data")
+        self.assertTrue(by_id["exec.plugin.echo"].owner_approval_required)
 
 
 if __name__ == "__main__":

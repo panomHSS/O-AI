@@ -131,6 +131,7 @@ The following capabilities are implemented in the current codebase but have not 
 - Normal Chat and Grounded Knowledge AI generation use the shared Planner -> Guard -> Runtime authority pattern.
 - Grounded evidence, provider prompts and AI output remain data rather than execution authority.
 - D50 records implementation reconciliation only; it does not assign a new retrospective release number or Git tag.
+- D51 adds an explicit owner-approved `PluginModuleAdapter` reference bridge for the fixed `EchoPlugin`; Plugin discovery/registration still does not imply executable exposure.
 
 ## Planned
 
@@ -141,7 +142,7 @@ The following capabilities are implemented in the current codebase but have not 
 ## Future releases
 
 - Gmail and Calendar integrations.
-- Plugin Engine.
+- Plugin Engine beyond the D51 fixed reference bridge (dynamic capability projection, installation/governance, and approved external connectors).
 - Engineering Assistant, personal finance, factory knowledge, and approved automation capabilities.
 
 Future items are direction, not commitments. Each requires an approved decision record, scoped implementation plan, and release acceptance criteria.

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
 from app.adapters.local_ai import LocalAIAdapter
+from app.adapters.plugin_echo_module import EchoPluginModuleAdapter
 from app.adapters.project_snapshot_module import ProjectSnapshotModuleAdapter
 from app.adapters.workspace_overview_module import WorkspaceOverviewModuleAdapter
 from app.adapters.standard_tool import StandardToolAdapter
@@ -324,7 +325,7 @@ def get_safe_write_tool_adapters() -> tuple[object, ...]:
 def get_module_catalog_adapters(
     database_session: Session = Depends(get_db),
 ) -> tuple[object, ...]:
-    """Compose the bounded D43 read-only Module Catalog."""
+    """Compose D43 modules plus the explicit D51 Plugin bridge."""
     workspace_root = Path(__file__).resolve().parents[3]
     project_resolver = ProjectContextResolver(
         ProjectContextReader(database_session)
@@ -332,6 +333,7 @@ def get_module_catalog_adapters(
     return (
         WorkspaceOverviewModuleAdapter(workspace_root),
         ProjectSnapshotModuleAdapter(project_resolver),
+        EchoPluginModuleAdapter(),
     )
 
 def get_adapter_registry(

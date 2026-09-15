@@ -891,3 +891,54 @@ D50 does not modify the frozen D40 Tool/Module coordinator, D45 approval
 semantics, D46 Chat Action Bridge, D48 Safe Write Tools, AI Adapter Contract v1,
 database schema, migrations, dependencies, Docker configuration, frontend
 contracts, or `ARCHITECTURE_FREEZE_V1.md`.
+
+## D51 — PluginModuleAdapter Bridge v1
+
+D51 introduces one explicit reference bridge from the pre-existing Plugin
+subsystem into the frozen O-AI Module execution boundary. It does not make
+Plugin discovery, Plugin registration, or PluginRuntime a new execution
+authority.
+
+The reference lane is:
+
+`Owner/O-AI -> CommandRequest -> AdapterRegistry -> CapabilityPermissionPolicy
+-> ExecutionPlanner -> ExecutionGuard -> ModuleRuntime ->
+EchoPluginModuleAdapter -> PluginRuntime -> EchoPlugin`
+
+The bridge is intentionally concrete rather than generic:
+
+- Module adapter id: `module.plugin.echo`
+- operation: `echo`
+- plugin id: `echo`
+- Plugin id is hard-bound by the adapter and cannot be supplied by owner/AI
+  parameters.
+- D44 grants one exact `module.plugin.echo / echo` capability with
+  `effect=none`, `data_class=owner_data`, and
+  `owner_approval_required=True`.
+- One authorized Module invocation makes at most one Plugin execution attempt.
+- Plugin errors are normalized to stable safe reason codes; there is no retry
+  or fallback.
+- Plugin input/output through this reference bridge is bounded to 16 KiB UTF-8.
+- A fresh legacy PluginRuntime/registry is composed for each bridge attempt so
+  the existing Plugin lifecycle state machine does not become shared execution
+  authority or an implicit retry mechanism.
+
+D51 preserves:
+
+- `PLUGIN DISCOVERED != PLUGIN LOADED != PLUGIN REGISTERED != MODULE EXPOSED`
+- `MODULE EXPOSED != CAPABILITY PERMITTED != OWNER APPROVED != AUTHORIZED`
+- `AUTHORIZED != PLUGIN EXECUTED`
+- `PLUGIN METADATA != EXECUTION PERMISSION`
+- `PLUGIN REGISTRY != ADAPTER REGISTRY`
+- `PLUGIN RUNTIME != EXECUTION AUTHORITY`
+- `MODULE BRIDGE != DYNAMIC PLUGIN PROXY`
+- `PLUGIN FAILURE != RETRY`
+- `PLUGIN FAILURE != FALLBACK`
+- `ONE AUTHORIZED MODULE INVOCATION == AT MOST ONE PLUGIN EXECUTION ATTEMPT`
+
+D51 adds no dynamic adapter generation from Plugin discovery, plugin
+self-registration into `AdapterRegistry`, AI function calling, Gmail/Calendar
+connector, OAuth or credential store, install/uninstall UI, write Plugin,
+filesystem/process/network authority, multi-step execution graph, public Plugin
+execution API, database migration, Docker change, dependency, frontend change,
+or frozen contract revision.

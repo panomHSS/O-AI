@@ -99,6 +99,15 @@ PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS = (
         data_class="owner_data",
         owner_approval_required=True,
     ),
+    ExecutableCapabilityPermission(
+        capability_id="exec.plugin.echo",
+        target_kind="module",
+        adapter_id="module.plugin.echo",
+        operation="echo",
+        effect="none",
+        data_class="owner_data",
+        owner_approval_required=True,
+    ),
 )
 
 

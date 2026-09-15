@@ -1038,3 +1038,60 @@ expansion. It adds no function/tool calling, autonomous action, owner-approval
 shortcut, Tool/Module authority, Safe Write authority, retry/fallback, database
 migration, dependency, Docker, frontend schema or Architecture Freeze v1
 change.
+
+## ADR-043: Explicit PluginModuleAdapter bridge v1
+
+**Status:** Accepted
+
+**Decision**
+
+Bridge approved Plugin functionality into O-AI only through an explicitly
+registered `ModuleAdapter`. D51 adds the concrete `module.plugin.echo` reference
+adapter bound permanently to the existing `echo` Plugin and its `echo`
+operation. The Plugin id is implementation composition and is never accepted
+from command/plan parameters.
+
+Execution remains under the existing authority chain:
+
+`AdapterRegistry -> CapabilityPermissionPolicy -> ExecutionPlanner ->
+ExecutionGuard -> ModuleRuntime -> PluginModuleAdapter -> PluginRuntime`
+
+The exact D44 permission for the reference bridge is approval-gated,
+`effect=none`, and `data_class=owner_data`. Plugin discovery and PluginRegistry
+state do not create an AdapterRegistry entry or a capability permission.
+
+**Context**
+
+Architecture Freeze v1 keeps `Plugin` separate from `ModuleAdapter` and permits
+a future bridge that wraps Plugin functionality behind the frozen Module
+contract. D35-D48 now provide deterministic planning, exact capability policy,
+one-time owner approval, authorization, ModuleRuntime execution and durable
+non-authoritative audit. The existing Plugin runtime, by contrast, accepts a
+Plugin id directly and does not own D35/D36 authorization.
+
+The legacy Plugin lifecycle also transitions a registered Plugin through
+INITIALIZED to READY during execution. D51 therefore composes a fresh bounded
+legacy runtime for each reference bridge attempt rather than changing the
+Plugin subsystem lifecycle contract.
+
+**Rationale**
+
+A concrete fixed bridge proves interoperability without turning Plugin
+discovery into execution discovery or creating a generic arbitrary-Plugin
+proxy. Hard-binding the Plugin id prevents one reviewed Module capability from
+becoming an executor for every registered Plugin. Reusing ModuleRuntime keeps
+owner approval and audit semantics in the already-reviewed authority layer.
+
+**Consequences**
+
+One valid owner-approved Module authorization can make at most one Plugin
+execution attempt. Plugin exceptions are normalized and do not trigger retry or
+fallback. Echo input/output is bounded to 16 KiB UTF-8. D47 observes the Module
+execution metadata only; Plugin payload, output and raw exceptions are not
+added to execution audit.
+
+D51 does not add dynamic Plugin capability projection, external connectors,
+OAuth, credential storage, installation UX, AI tool/function calling, public
+PluginRuntime APIs, write/process/network authority, multi-step plans,
+database/migration changes, Docker changes, dependencies, frontend changes, or
+a frozen contract revision.
