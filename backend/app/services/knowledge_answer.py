@@ -4,6 +4,13 @@ from uuid import UUID
 from app.repositories.knowledge import KnowledgeRepository
 from app.schemas.knowledge_answer import CitationResponse, ConflictResponse, KnowledgeAnswerResponse, RetrievalSummaryResponse
 from app.services.chat import ChatService
+from app.contracts.command import CommandRequest
+from app.services.ai_runtime import AIRuntime
+from app.services.command_orchestrator import CommandOrchestrationFailure
+from app.services.execution_guard import ExecutionGuard
+from app.services.execution_planner import ExecutionPlanner
+from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
+from app.services.response_composer import ResponseComposer
 from app.services.conversations import ConversationService
 from app.services.memory_resolver import MemoryResolver
 from app.services.reasoning import ReasoningService
@@ -60,6 +67,11 @@ class KnowledgeAnswerService:
         goal_service: GoalService | None = None,
         orchestrator: KnowledgeOrchestrator | None = None,
         retrieval_pipeline: RetrievalPipeline | None = None,
+        execution_planner: ExecutionPlanner | None = None,
+        execution_guard: ExecutionGuard | None = None,
+        ai_runtime: AIRuntime | None = None,
+        error_normalizer: OrchestrationErrorNormalizer | None = None,
+        response_composer: ResponseComposer | None = None,
     ) -> None:
 
         self._repository = repository
@@ -89,9 +101,32 @@ class KnowledgeAnswerService:
         self._orchestrator = orchestrator
         self._retrieval_pipeline = retrieval_pipeline
 
+        execution_presence = (
+            execution_planner is not None,
+            execution_guard is not None,
+            ai_runtime is not None,
+        )
+        if any(execution_presence) and not all(execution_presence):
+            raise ValueError(
+                "Grounded AI execution requires planner, guard, and runtime together."
+            )
+
+        self._execution_planner = execution_planner
+        self._execution_guard = execution_guard
+        self._ai_runtime = ai_runtime
+        self._normalize_ai_execution_failures = all(execution_presence)
+        self._error_normalizer = (
+            error_normalizer or OrchestrationErrorNormalizer()
+        )
+        self._response_composer = (
+            response_composer
+            or ResponseComposer(self._error_normalizer)
+        )
+
     def _create_execution_context(
         self,
         *,
+        request_id: str,
         question: str,
         conversation,
         history,
@@ -99,7 +134,7 @@ class KnowledgeAnswerService:
     ) -> ExecutionContext:
         return ExecutionContext(
             request=RequestContext(
-                request_id=str(uuid4()),
+                request_id=request_id,
                 question=question,
                 conversation_id=UUID(conversation.id),
                 project_id=conversation.project_id,
@@ -246,15 +281,28 @@ class KnowledgeAnswerService:
             goal_analysis=goal_analysis,
         )
 
-    def answer(self, question: str, conversation_id: UUID | None, project_id: UUID | None = None) -> KnowledgeAnswerResponse:
-        conversation, history = self._conversations.begin_turn(question, conversation_id, project_id)
+    def answer(
+        self,
+        question: str,
+        conversation_id: UUID | None,
+        project_id: UUID | None = None,
+        *,
+        request_id: str | None = None,
+    ) -> KnowledgeAnswerResponse:
+        correlation_id = request_id or str(uuid4())
+        conversation, history = self._conversations.begin_turn(
+            question,
+            conversation_id,
+            project_id,
+        )
         project_context = self._conversations.resolve_project_context(conversation)
         execution_context = self._create_execution_context(
+            request_id=correlation_id,
             question=question,
             conversation=conversation,
             history=history,
             project_context=project_context,
-        ) 
+        )
         if self._orchestrator is not None:
 
             self._orchestrator.execute(
@@ -478,6 +526,8 @@ class KnowledgeAnswerService:
             execution_context,
         )            
         answer = self._generate_chat_response(
+            execution_context=execution_context,
+            question=question,
             intent=intent,
             context=context,
             conflicts=conflicts,
@@ -517,6 +567,8 @@ class KnowledgeAnswerService:
     def _generate_chat_response(
         self,
         *,
+        execution_context: ExecutionContext,
+        question: str,
         intent,
         context,
         conflicts,
@@ -528,19 +580,151 @@ class KnowledgeAnswerService:
         goal_analysis,
         project_context,
     ) -> str:
-        return self._chat.send_message(
-            self._prompt.build(
-                intent.question,
-                context,
-                conflicts,
+        self._ensure_ai_execution_boundary()
+
+        assert self._execution_planner is not None
+        assert self._execution_guard is not None
+        assert self._ai_runtime is not None
+
+        command = CommandRequest(
+            request_id=execution_context.request.request_id,
+            command="chat.message",
+            arguments={
+                "message": question,
+                "conversation_id": execution_context.request.conversation_id,
+                "project_id": execution_context.request.project_id,
+            },
+        )
+
+        try:
+            planning = self._execution_planner.plan(command)
+            planning_error = (
+                self._error_normalizer.normalize_execution_planning(
+                    planning
+                )
+            )
+            if planning_error is not None:
+                raise CommandOrchestrationFailure(
+                    self._response_composer.compose_error(
+                        planning_error
+                    )
+                )
+
+            authorization = self._execution_guard.authorize(
+                command,
+                planning,
+            )
+            authorization_error = (
+                self._error_normalizer.normalize_execution_authorization(
+                    authorization
+                )
+            )
+            if authorization_error is not None:
+                raise CommandOrchestrationFailure(
+                    self._response_composer.compose_error(
+                        authorization_error
+                    )
+                )
+
+            authorized_adapter = self._ai_runtime.bind(
+                command,
+                authorization,
+            )
+            return self._chat.send_message(
+                self._prompt.build(
+                    intent.question,
+                    context,
+                    conflicts,
+                ),
+                history,
+                memories,
+                reasoning_plan,
+                planning_plan,
+                decision_analysis,
+                goal_analysis,
+                project_context,
+                ai_adapter=authorized_adapter,
+            )
+        except CommandOrchestrationFailure:
+            raise
+        except Exception as error:
+            if not self._normalize_ai_execution_failures:
+                raise
+            normalized = self._error_normalizer.normalize_exception(
+                command.request_id,
+                error,
+            )
+            raise CommandOrchestrationFailure(
+                self._response_composer.compose_error(
+                    normalized
+                )
+            ) from error
+
+    def _ensure_ai_execution_boundary(self) -> None:
+        if (
+            self._execution_planner is not None
+            and self._execution_guard is not None
+            and self._ai_runtime is not None
+        ):
+            return
+
+        from app.services.adapter_registry import AdapterRegistry
+        from app.services.ai_capability_model_discovery import (
+            AICapabilityModelDiscovery,
+        )
+        from app.services.ai_discovery_sources import (
+            ChatGPTConfiguredModelDiscoverySource,
+        )
+        from app.services.ai_provider_routing import (
+            AIProviderRoutingPolicy,
+        )
+        from app.services.ai_router import AIRouter
+        from app.services.capability_permission_policy import (
+            CapabilityPermissionPolicy,
+        )
+        from app.services.command_decision_engine import (
+            CommandDecisionEngine,
+        )
+
+        default_adapter = self._chat.default_ai_adapter()
+        registry = AdapterRegistry((default_adapter,))
+        policy = AIProviderRoutingPolicy(
+            default_adapter_id=default_adapter.adapter_id,
+            enabled_adapter_ids=frozenset(
+                {default_adapter.adapter_id}
             ),
-            history,
-            memories,
-            reasoning_plan,
-            planning_plan,
-            decision_analysis,
-            goal_analysis,
-            project_context,
+        )
+        router = AIRouter(
+            registry=registry,
+            policy=policy,
+        )
+        discovery = AICapabilityModelDiscovery(
+            registry=registry,
+            sources=(
+                ChatGPTConfiguredModelDiscoverySource(
+                    configured_model_id="provider-managed",
+                    adapter_id=default_adapter.adapter_id,
+                ),
+            ),
+        )
+        permission_policy = CapabilityPermissionPolicy(
+            registry=registry,
+            permissions=(),
+        )
+
+        self._execution_planner = ExecutionPlanner(
+            registry=registry,
+            decision_engine=CommandDecisionEngine(),
+            ai_router=router,
+            ai_discovery=discovery,
+            permission_policy=permission_policy,
+        )
+        self._execution_guard = ExecutionGuard(
+            registry=registry,
+            permission_policy=permission_policy,
+        )
+        self._ai_runtime = AIRuntime(
+            registry=registry,
         )
 
     def _validate_grounding(

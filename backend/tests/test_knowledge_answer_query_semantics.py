@@ -98,6 +98,20 @@ class FakeConfidence:
         return "insufficient"
 
 
+class NeverAIExecution:
+    def plan(self, request):
+        _ = request
+        raise AssertionError("No-evidence path must not plan AI execution.")
+
+    def authorize(self, request, planning):
+        _ = (request, planning)
+        raise AssertionError("No-evidence path must not authorize AI execution.")
+
+    def bind(self, request, authorization):
+        _ = (request, authorization)
+        raise AssertionError("No-evidence path must not bind AI execution.")
+
+
 class KnowledgeAnswerQuerySemanticsTests(
     unittest.TestCase
 ):
@@ -175,6 +189,38 @@ class KnowledgeAnswerQuerySemanticsTests(
             response.citations,
             [],
         )
+
+    def test_no_evidence_never_enters_ai_authority_chain(self) -> None:
+        repository = RecordingRepository()
+        never = NeverAIExecution()
+        service = KnowledgeAnswerService(
+            repository=repository,
+            conversations=FakeConversations(),
+            chat=SimpleNamespace(),
+            analyzer=FakeAnalyzer(),
+            planner=FakePlanner(),
+            ranker=EmptyRanker(),
+            conflict_detector=EmptyConflicts(),
+            context_builder=EmptyContext(),
+            prompt_builder=SimpleNamespace(),
+            citations=SimpleNamespace(),
+            confidence=FakeConfidence(),
+            candidates_per_query=10,
+            selected_limit=5,
+            execution_planner=never,  # type: ignore[arg-type]
+            execution_guard=never,  # type: ignore[arg-type]
+            ai_runtime=never,  # type: ignore[arg-type]
+        )
+        response = service.answer(
+            "How do I solve a pump pressure problem?",
+            None,
+            request_id="no-evidence-1",
+        )
+        self.assertEqual(
+            response.answer,
+            "Sufficient supporting evidence was not found in local documents.",
+        )
+        self.assertEqual(response.evidence_quality, "insufficient")
 
 
 if __name__ == "__main__":

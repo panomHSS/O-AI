@@ -783,6 +783,21 @@ def get_knowledge_answer_service(
     chat_service: ChatService = Depends(
         get_chat_service
     ),
+    execution_planner: ExecutionPlanner = Depends(
+        get_execution_planner
+    ),
+    execution_guard: ExecutionGuard = Depends(
+        get_execution_guard
+    ),
+    ai_runtime: AIRuntime = Depends(
+        get_ai_runtime
+    ),
+    error_normalizer: OrchestrationErrorNormalizer = Depends(
+        get_orchestration_error_normalizer
+    ),
+    response_composer: ResponseComposer = Depends(
+        get_response_composer
+    ),
 ) -> KnowledgeAnswerService:
     settings = get_settings()
 
@@ -924,4 +939,9 @@ def get_knowledge_answer_service(
         GoalService(),
         orchestrator,
         retrieval_pipeline,
+        execution_planner=execution_planner,
+        execution_guard=execution_guard,
+        ai_runtime=ai_runtime,
+        error_normalizer=error_normalizer,
+        response_composer=response_composer,
     )

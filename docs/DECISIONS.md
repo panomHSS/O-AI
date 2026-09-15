@@ -1000,3 +1000,41 @@ sent to the provider as a model override.
 The production cached ChatGPT adapter is deliberately excluded from this
 compatibility path. Production OpenAI with no `OPENAI_MODEL` continues to be
 reported unavailable by D34 and cannot reach `AIRuntime` execution.
+
+## ADR-042: Grounded Knowledge AI execution integration and O-AI v2 reconciliation
+
+**Status:** Accepted
+
+D50 routes Grounded Knowledge Answer provider generation through the same
+authorization-gated AI execution pattern established by D35, D36 and D49 while
+preserving Knowledge Answer as the owner of retrieval, evidence selection,
+reasoning metadata, citation validation and conversation persistence.
+
+The original owner question is the `chat.message` command used for provider
+routing and AI execution planning. Retrieved evidence and the final grounded
+provider prompt are data supplied after authorization; neither can select an AI
+provider or grant execution authority.
+
+When grounded context is empty, no AI plan is created and no provider is
+invoked. When grounded context exists, the service must obtain a planned AI
+execution, D36 authorization and a one-shot D49 `AIRuntime` binding before
+`ChatService` may invoke the selected adapter. Explicit Local AI failure never
+falls back to cloud AI.
+
+The middleware request id is propagated into the Knowledge execution context
+and the AI authority chain so planning, authorization, execution and durable
+audit share one correlation id. D47 remains observational: prompts, retrieved
+evidence, Memory/Project content, AI output and raw provider errors are not
+execution-audit payloads.
+
+Production composition reuses the shared D35/D36/D49 components. Existing
+direct/internal Knowledge Answer construction is retained by lazily composing
+the same authority sequence around the ChatService default adapter. This
+compatibility path uses `provider-managed` only as plan-bound model metadata and
+does not introduce a provider model override or direct AI fallback.
+
+D50 is an integration/reconciliation milestone, not a new execution-authority
+expansion. It adds no function/tool calling, autonomous action, owner-approval
+shortcut, Tool/Module authority, Safe Write authority, retry/fallback, database
+migration, dependency, Docker, frontend schema or Architecture Freeze v1
+change.

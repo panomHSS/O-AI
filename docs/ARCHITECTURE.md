@@ -834,3 +834,60 @@ This seam preserves:
 - `MODEL BINDING METADATA != PROVIDER MODEL OVERRIDE`
 - `INJECTED PROVIDER != PRODUCTION OPENAI CONFIGURATION`
 - `MISSING PRODUCTION MODEL == NO PRODUCTION AI EXECUTION`
+
+## D50 O-AI v2 Integration / Review — Grounded Knowledge AI authority
+
+D50 closes the remaining live AI execution gap without moving Knowledge domain
+ownership into the normal-chat orchestrator. Grounded Knowledge Answer retains
+its existing conversation, retrieval, evidence, Memory, reasoning, planning,
+decision, goal, citation-validation and persistence lifecycle. Only the final
+provider generation is moved behind the shared D35/D36/D49 AI authority
+boundary.
+
+When grounded evidence exists, the execution lane is:
+
+`Knowledge Answer -> CommandRequest(chat.message) -> ExecutionPlanner ->
+ExecutionGuard -> AIRuntime.bind() -> one-shot AIAdapter proxy -> ChatService ->
+registered AI adapter`.
+
+The `CommandRequest` carries the original owner question for routing and
+planning. The grounded prompt built from evidence is provider input only and
+never becomes routing or execution authority. If no grounded context survives
+retrieval/ranking, Knowledge Answer returns its deterministic insufficient-
+evidence response and does not create an AI plan, authorization or execution.
+
+The HTTP request correlation id is propagated into Knowledge
+`ExecutionContext`, the AI `CommandRequest`, D35 plan, D36 authorization and D47
+AI audit events. Direct/internal callers without an HTTP request retain a
+generated correlation id.
+
+Production dependency composition reuses the same D35 planner, D36 guard and
+D49 runtime used by normal chat. Older direct/internal `KnowledgeAnswerService`
+constructors are preserved through a lazy compatibility composition that still
+builds Planner -> Guard -> AIRuntime around the configured ChatService default
+adapter. It is not a direct-provider fallback. Its opaque `provider-managed`
+model id is authorization metadata only.
+
+D50 preserves these invariants:
+
+- `KNOWLEDGE EVIDENCE != EXECUTION AUTHORITY`
+- `GROUNDED QUESTION == ROUTING AUTHORITY`
+- `GROUNDED PROMPT != ROUTING AUTHORITY`
+- `GROUNDED PROMPT != EXECUTION PLAN`
+- `NO GROUNDED CONTEXT == NO AI EXECUTION`
+- `AI AUTHORIZATION != TOOL/MODULE AUTHORIZATION`
+- `AI OUTPUT != TOOL CALL`
+- `AI OUTPUT != SAFE WRITE`
+- `AI OUTPUT != OWNER APPROVAL`
+- `LOCAL AI FAILURE != CLOUD FALLBACK`
+- `PROMPT != AUDIT RECORD`
+- `EVIDENCE != AUDIT RECORD`
+- `AI OUTPUT != AUDIT RECORD`
+- `AUDIT != EXECUTION AUTHORITY`
+- `API REQUEST ID == AI AUTHORITY CORRELATION ID`
+- `ONE AUTHORIZED AI BINDING == AT MOST ONE GENERATION ATTEMPT`
+
+D50 does not modify the frozen D40 Tool/Module coordinator, D45 approval
+semantics, D46 Chat Action Bridge, D48 Safe Write Tools, AI Adapter Contract v1,
+database schema, migrations, dependencies, Docker configuration, frontend
+contracts, or `ARCHITECTURE_FREEZE_V1.md`.

@@ -122,6 +122,16 @@ The following capabilities are implemented in the current codebase but have not 
 - Project association is established at conversation creation and cannot later be switched.
 - Subsequent conversation turns use the persisted association rather than resubmitting a Project selection.
 
+
+### O-AI v2 Execution Integration Checkpoint
+
+- Adapter registry, provider routing and capability/model discovery boundaries.
+- Authorization-gated Tool, Module and AI runtimes with durable non-authoritative audit.
+- Explicit owner approval, Chat Action Bridge and bounded Safe Write execution paths.
+- Normal Chat and Grounded Knowledge AI generation use the shared Planner -> Guard -> Runtime authority pattern.
+- Grounded evidence, provider prompts and AI output remain data rather than execution authority.
+- D50 records implementation reconciliation only; it does not assign a new retrospective release number or Git tag.
+
 ## Planned
 
 ### 0.6.2 - OCR Foundation

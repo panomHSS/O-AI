@@ -440,3 +440,37 @@ The defining invariant of O-AI Architecture v2 is:
 > but only the O-AI Sovereign Core may exercise O-AI authority.
 
 This invariant must remain true across future architecture changes.
+
+## 19. D50 Implementation Reconciliation Checkpoint
+
+The historical Architecture v2 baseline above records the point at which the v2
+direction was accepted. D50 does not replace that historical record. It records
+the implementation reconciliation reached after D31-D49 and Grounded Knowledge
+AI integration.
+
+By D50, the Sovereign Core principles are concretely represented by:
+
+- explicit Adapter Registry and provider routing boundaries;
+- capability/model discovery separated from routing and execution;
+- deterministic execution planning;
+- authorization separated from planning;
+- dedicated Tool, Module and AI runtimes;
+- owner-controlled capability permission and approval paths;
+- explicit Chat Action and bounded Safe Write paths;
+- durable, non-authoritative execution audit;
+- authorization-gated normal Chat and Grounded Knowledge AI generation.
+
+Normal Chat and Grounded Knowledge may use cloud or Local AI capabilities, but
+the provider receives no O-AI authority. Retrieved documents, Memory content,
+provider prompts and model output likewise remain data rather than execution
+authority.
+
+The implementation therefore preserves the defining Architecture v2 invariant:
+
+> External systems may extend O-AI capability, but only the O-AI Sovereign Core
+> may exercise O-AI authority.
+
+D50 does not claim that every future Architecture v2 technology direction is
+implemented. PostgreSQL/pgvector migration, optional external workflow/browser
+capabilities, OCR, future connectors and other planned integrations remain
+separate owner-approved milestones.
