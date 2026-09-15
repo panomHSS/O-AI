@@ -132,6 +132,7 @@ The following capabilities are implemented in the current codebase but have not 
 - Grounded evidence, provider prompts and AI output remain data rather than execution authority.
 - D50 records implementation reconciliation only; it does not assign a new retrospective release number or Git tag.
 - D51 adds an explicit owner-approved `PluginModuleAdapter` reference bridge for the fixed `EchoPlugin`; Plugin discovery/registration still does not imply executable exposure.
+- D52 adds an immutable metadata-only Plugin Capability Projection Catalog; projection does not imply adapter registration, permission, approval, authorization, loading, or execution.
 
 ## Planned
 
@@ -142,7 +143,7 @@ The following capabilities are implemented in the current codebase but have not 
 ## Future releases
 
 - Gmail and Calendar integrations.
-- Plugin Engine beyond the D51 fixed reference bridge (dynamic capability projection, installation/governance, and approved external connectors).
+- Plugin Engine beyond the D52 read-only projection catalog (dynamic discovery-to-candidate projection, installation/governance, and approved external connectors).
 - Engineering Assistant, personal finance, factory knowledge, and approved automation capabilities.
 
 Future items are direction, not commitments. Each requires an approved decision record, scoped implementation plan, and release acceptance criteria.

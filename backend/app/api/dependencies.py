@@ -45,6 +45,10 @@ from app.services.capability_permission_policy import (
     CapabilityPermissionPolicy,
     PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
 )
+from app.services.plugin_projection_catalog import (
+    PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS,
+    PluginProjectionCatalog,
+)
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -335,6 +339,15 @@ def get_module_catalog_adapters(
         ProjectSnapshotModuleAdapter(project_resolver),
         EchoPluginModuleAdapter(),
     )
+
+
+@lru_cache
+def get_plugin_projection_catalog() -> PluginProjectionCatalog:
+    """Compose the immutable, metadata-only D52 Plugin projection snapshot."""
+    return PluginProjectionCatalog(
+        PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS
+    )
+
 
 def get_adapter_registry(
     conversation_service: ConversationService = Depends(get_conversation_service),

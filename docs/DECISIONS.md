@@ -1095,3 +1095,63 @@ OAuth, credential storage, installation UX, AI tool/function calling, public
 PluginRuntime APIs, write/process/network authority, multi-step plans,
 database/migration changes, Docker changes, dependencies, frontend changes, or
 a frozen contract revision.
+
+## ADR-044: Plugin Capability Projection Catalog v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce an immutable, metadata-only `PluginProjectionCatalog` that records
+explicit Plugin/capability to ModuleAdapter/operation projection relationships.
+A projection is descriptive only. It cannot register an adapter, create a D44
+permission, request owner approval, construct an authorization, load a Plugin,
+or invoke PluginRuntime.
+
+The production v1 catalog contains exactly the existing D51 Echo relationship:
+`echo / echo -> module.plugin.echo / echo`. This records the relationship that
+already exists in code without turning Plugin discovery or metadata into
+execution discovery.
+
+**Context**
+
+D51 proved a safe Plugin integration pattern by hard-binding the existing Echo
+Plugin behind one concrete ModuleAdapter and retaining the frozen
+AdapterRegistry -> CapabilityPermissionPolicy -> Planner -> Guard ->
+ModuleRuntime authority chain. The older Plugin subsystem already contains
+manifest, discovery, loader, registrar and capability-metadata abstractions,
+but default discovery returns no manifests and default loading remains
+unimplemented. None of those metadata surfaces owns O-AI execution authority.
+
+The roadmap calls for a future Plugin Engine with dynamic capability projection,
+installation/governance and approved external connectors. A bounded metadata
+catalog is the next safe layer because it can describe possible exposure
+relationships without coupling discovery directly to execution.
+
+**Rationale**
+
+Keeping projection separate from registration and permission prevents an
+installed or discovered Plugin from silently becoming executable. An immutable
+catalog gives future governance work a deterministic input while preserving
+D31 structural registration, D44 exact permission policy, D45 owner approval
+and D36/D37 authorization/runtime as separate authorities.
+
+Explicit composition also avoids treating legacy Plugin metadata as trusted
+policy. Duplicate source identities and duplicate Module/operation targets are
+rejected at construction so a projection cannot ambiguously describe two
+execution surfaces.
+
+**Consequences**
+
+O-AI can inspect one deterministic snapshot of known Plugin projection
+metadata, beginning with the D51 Echo bridge. Catalog lookup has no side
+effects and cannot execute a Plugin. Registering a Plugin in PluginRegistry does
+not create a projection; creating a projection does not register a
+ModuleAdapter or capability permission.
+
+D52 does not connect production Plugin discovery/loading, generate adapters,
+mutate AdapterRegistry or CapabilityPermissionPolicy, expose a public Plugin
+API/UI, install/uninstall Plugins, add OAuth/credentials, external connectors,
+write/process/network authority, database migrations, dependencies, Docker
+changes, frontend changes, or frozen execution-contract changes. D51 remains
+the only production Plugin execution bridge.

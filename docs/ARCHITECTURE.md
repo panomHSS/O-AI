@@ -942,3 +942,60 @@ connector, OAuth or credential store, install/uninstall UI, write Plugin,
 filesystem/process/network authority, multi-step execution graph, public Plugin
 execution API, database migration, Docker change, dependency, frontend change,
 or frozen contract revision.
+
+## D52 — Plugin Capability Projection Catalog v1
+
+D52 adds an immutable, metadata-only catalog describing explicitly approved
+Plugin-to-Module projection relationships. It does not generalize the D51
+execution bridge and it grants no registration, permission, approval,
+authorization, loading, or execution authority.
+
+The metadata lane is:
+
+`Explicit Plugin Projection Definitions -> PluginProjectionCatalog -> read-only
+lookup/inspection`
+
+The production v1 catalog contains exactly one reference projection:
+
+- Plugin id: `echo`
+- Plugin version: `1.0.0`
+- capability: `echo`
+- Module adapter id: `module.plugin.echo`
+- operation: `echo`
+
+The projection describes the already-existing D51 relationship only.
+`CapabilityPermissionPolicy` remains the sole source of executable Tool/Module
+permission, `AdapterRegistry` remains the sole structural adapter registry, and
+D36/D37 remain the authorization/execution authority. The D52 catalog has no
+references to `PluginRuntime`, no adapter-registration method, no permission
+mutation method, and no execution method.
+
+D52 preserves:
+
+- `PLUGIN DISCOVERED != PLUGIN PROJECTED`
+- `PLUGIN PROJECTED != MODULE REGISTERED`
+- `PLUGIN PROJECTED != CAPABILITY PERMITTED`
+- `PLUGIN PROJECTED != OWNER APPROVED`
+- `PLUGIN PROJECTED != AUTHORIZED`
+- `PLUGIN PROJECTED != EXECUTED`
+- `PLUGIN PROJECTION != ADAPTER FACTORY`
+- `PLUGIN PROJECTION != D44 POLICY ENTRY`
+- `PLUGIN PROJECTION != EXECUTION PLAN`
+- `PLUGIN PROJECTION != EXECUTION AUTHORITY`
+- `CATALOG LOOKUP != PLUGIN LOAD`
+- `CATALOG LOOKUP != PLUGIN EXECUTION`
+- `PLUGIN REGISTRY != ADAPTER REGISTRY`
+- `PLUGIN RUNTIME != EXECUTION AUTHORITY`
+- `MODULE BRIDGE != DYNAMIC PLUGIN PROXY`
+
+Catalog composition is explicit and immutable. Duplicate Plugin/capability
+identities and duplicate Module/operation targets fail closed. Unknown lookups
+return only stable internal reason codes. D52 does not connect the legacy
+`DefaultPluginDiscovery` or `DefaultPluginLoader` to production composition.
+
+D52 adds no dynamic Plugin discovery/loading, dynamic ModuleAdapter generation,
+automatic capability permission, Plugin installation or enablement, OAuth,
+credential storage, external connector, network/filesystem/process/write
+Plugin, AI-selected Plugin execution, public Plugin API, database migration,
+Docker change, dependency, frontend change, or frozen execution-contract
+revision. D51 remains the only production Plugin execution bridge.
