@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from pydantic import SecretStr
 
@@ -56,6 +56,37 @@ class EmptyCredentialSecretSource:
 
     def resolve(self, secret_ref: str) -> SecretStr | None:
         return None
+
+
+CredentialSecretResolver = Callable[[], SecretStr | None]
+
+
+class LazyCredentialSecretSource:
+    """Resolve only exact O-AI-controlled refs and only when requested."""
+
+    __slots__ = ("_resolvers",)
+
+    def __init__(
+        self,
+        resolvers: Mapping[str, CredentialSecretResolver] | None = None,
+    ) -> None:
+        validated: dict[str, CredentialSecretResolver] = {}
+        for secret_ref, resolver in (resolvers or {}).items():
+            if (
+                not isinstance(secret_ref, str)
+                or not secret_ref
+                or secret_ref != secret_ref.strip()
+                or not callable(resolver)
+            ):
+                raise ValueError("invalid_lazy_credential_resolver")
+            validated[secret_ref] = resolver
+        self._resolvers = validated
+
+    def resolve(self, secret_ref: str) -> SecretStr | None:
+        resolver = self._resolvers.get(secret_ref)
+        if resolver is None:
+            return None
+        return resolver()
 
 
 class StaticCredentialSecretSource:

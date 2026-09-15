@@ -15,6 +15,15 @@ from collections.abc import Callable
 from app.plugins.base import Plugin
 from app.plugins.echo import EchoPlugin
 from app.plugins.github_public_repository import GitHubPublicRepositoryPlugin
+from app.plugins.google_calendar import GoogleCalendarPlugin
+from app.services.credential_access_broker import (
+    CredentialAccessBroker,
+    EmptyCredentialSecretSource,
+)
+from app.services.credential_profile_catalog import (
+    PRODUCTION_CREDENTIAL_PROFILES,
+    CredentialProfileCatalog,
+)
 from app.plugins.plugin_loader import PluginLoader
 from app.plugins.plugin_manifest import PluginManifest
 
@@ -35,21 +44,45 @@ class ExplicitPluginFactoryLoaderError(ValueError):
 PluginFactory = Callable[[], Plugin]
 
 
+def _default_google_calendar_factory() -> Plugin:
+    """Safe default factory: known identity, no configured credential."""
+    return GoogleCalendarPlugin(
+        credential_broker=CredentialAccessBroker(
+            profile_catalog=CredentialProfileCatalog(
+                PRODUCTION_CREDENTIAL_PROFILES
+            ),
+            secret_source=EmptyCredentialSecretSource(),
+        )
+    )
+
+
 class ExplicitPluginFactoryLoader(PluginLoader):
     """Load only exact id/version pairs from an explicit in-process allowlist."""
 
     def __init__(
         self,
         factories: dict[tuple[str, str], PluginFactory] | None = None,
+        *,
+        google_calendar_factory: PluginFactory | None = None,
     ) -> None:
-        source = (
-            {
+        if factories is not None and google_calendar_factory is not None:
+            raise ValueError(
+                "Custom factories cannot be combined with the fixed "
+                "Google Calendar factory seam."
+            )
+        if factories is None:
+            calendar_factory = (
+                _default_google_calendar_factory
+                if google_calendar_factory is None
+                else google_calendar_factory
+            )
+            source = {
                 ("echo", "1.0.0"): EchoPlugin,
                 ("github_public_repo", "1.0.0"): GitHubPublicRepositoryPlugin,
+                ("google_calendar", "1.0.0"): calendar_factory,
             }
-            if factories is None
-            else dict(factories)
-        )
+        else:
+            source = dict(factories)
         validated: dict[tuple[str, str], PluginFactory] = {}
         for key, factory in source.items():
             if (

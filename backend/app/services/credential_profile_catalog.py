@@ -5,6 +5,16 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from app.contracts.credential import CredentialProfile
+from app.contracts.google_calendar import (
+    GOOGLE_CALENDAR_CAPABILITY_NAME,
+    GOOGLE_CALENDAR_CREDENTIAL_AUTH_SCHEME,
+    GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
+    GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID,
+    GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
+    GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF,
+    GOOGLE_CALENDAR_PLUGIN_ID,
+    GOOGLE_CALENDAR_PLUGIN_VERSION,
+)
 
 CREDENTIAL_PROFILE_ERROR_NOT_FOUND = "credential_profile_not_found"
 CREDENTIAL_PROFILE_ERROR_DUPLICATE_PROFILE_ID = (
@@ -21,7 +31,18 @@ class CredentialProfileCatalogError(ValueError):
         super().__init__(code)
 
 
-PRODUCTION_CREDENTIAL_PROFILES: tuple[CredentialProfile, ...] = ()
+PRODUCTION_CREDENTIAL_PROFILES: tuple[CredentialProfile, ...] = (
+    CredentialProfile(
+        profile_id=GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
+        plugin_id=GOOGLE_CALENDAR_PLUGIN_ID,
+        plugin_version=GOOGLE_CALENDAR_PLUGIN_VERSION,
+        capability_name=GOOGLE_CALENDAR_CAPABILITY_NAME,
+        provider_id=GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID,
+        auth_scheme=GOOGLE_CALENDAR_CREDENTIAL_AUTH_SCHEME,
+        required_scopes=(GOOGLE_CALENDAR_CREDENTIAL_SCOPE,),
+        secret_ref=GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF,
+    ),
+)
 
 
 class CredentialProfileCatalog:

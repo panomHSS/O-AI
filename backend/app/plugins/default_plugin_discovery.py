@@ -19,5 +19,9 @@ class DefaultPluginDiscovery(
             PluginManifest(
                 plugin_id="github_public_repo",
                 version="1.0.0",
-            )
+            ),
+            PluginManifest(
+                plugin_id="google_calendar",
+                version="1.0.0",
+            ),
         ]

@@ -150,11 +150,15 @@ class D59ExternalConnectorLifecycleTests(unittest.TestCase):
     def test_production_connector_is_known_but_default_deny(self):
         reader, candidate_discovery, governance, loading, exposure, binding, activation = self.compose()
         candidates = candidate_discovery.discover_candidates()
-        self.assertEqual(len(candidates), 1)
-        self.assertEqual(candidates[0].plugin_id, "github_public_repo")
-        self.assertEqual(candidates[0].status, "projected_match")
+        self.assertEqual(len(candidates), 2)
+        github = next(
+            candidate
+            for candidate in candidates
+            if candidate.plugin_id == "github_public_repo"
+        )
+        self.assertEqual(github.status, "projected_match")
         self.assertEqual(
-            candidates[0].projected_capability_names,
+            github.projected_capability_names,
             ("repository_metadata",),
         )
         self.assertIsNone(governance.resolve("github_public_repo", "1.0.0"))

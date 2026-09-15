@@ -6,6 +6,14 @@ import threading
 from collections.abc import Iterable
 
 from app.contracts.capability_permission import ExecutableCapabilityPermission
+from app.contracts.google_calendar import (
+    GOOGLE_CALENDAR_ADAPTER_ID,
+    GOOGLE_CALENDAR_CAPABILITY_ID,
+    GOOGLE_CALENDAR_CAPABILITY_NAME,
+    GOOGLE_CALENDAR_OPERATION,
+    GOOGLE_CALENDAR_PLUGIN_ID,
+    GOOGLE_CALENDAR_PLUGIN_VERSION,
+)
 from app.contracts.plugin_module_exposure import PluginModuleExposureRecord
 from app.contracts.plugin_permission_binding import (
     PluginCapabilityPermissionBinding,
@@ -73,6 +81,17 @@ PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES: tuple[
         operation="get_repository_metadata",
         effect="read",
         data_class="external_data",
+        owner_approval_required=True,
+    ),
+    PluginCapabilityPermissionProfile(
+        plugin_id=GOOGLE_CALENDAR_PLUGIN_ID,
+        plugin_version=GOOGLE_CALENDAR_PLUGIN_VERSION,
+        capability_name=GOOGLE_CALENDAR_CAPABILITY_NAME,
+        capability_id=GOOGLE_CALENDAR_CAPABILITY_ID,
+        module_adapter_id=GOOGLE_CALENDAR_ADAPTER_ID,
+        operation=GOOGLE_CALENDAR_OPERATION,
+        effect="read",
+        data_class="owner_data",
         owner_approval_required=True,
     ),
 )

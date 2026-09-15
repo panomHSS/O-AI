@@ -1596,3 +1596,45 @@ written to logs or audit events, placed in Plugin metadata, execution plans,
 approval tickets, Chat messages, prompts or results. D62 adds no network call,
 OAuth callback, refresh-token exchange, token refresh, connector capability,
 database migration, Docker change, frontend change or dependency.
+
+## Google Calendar authenticated read connector v1
+
+D63 adds the first authenticated external-data connector as the exact trusted
+`google_calendar/1.0.0` Plugin with one `upcoming_events` capability. The
+capability reads at most ten events from the authenticated owner's primary
+calendar, starting at execution time and ending seven days later. The Calendar
+ID, HTTPS host, API path, query shape, maximum result count, response byte
+budget, method and OAuth scope are fixed by O-AI and cannot be selected by Chat,
+model output, Plugin input or command arguments.
+
+The connector uses the D62 credential boundary. Production now contains one
+exact credential profile bound to `google_calendar/1.0.0/upcoming_events` with
+the least-privilege `calendar.events.readonly` OAuth scope and one fixed internal
+secret reference. The production secret source is lazy: lifecycle discovery,
+governance, loading, exposure, permission binding, activation, action proposal
+and denial do not read the bearer token. Credential resolution occurs only
+inside Plugin execution after the existing D45/D36 authority gates.
+
+The bearer access token is sent only in the HTTPS `Authorization` header. The
+connector disables environment proxy routing, rejects redirects, performs at
+most one GET with a five-second timeout, does not retry or fall back, and bounds
+the raw response to 64 KiB. Google response data is untrusted and normalized to
+only `summary`, `status`, `start`, `end` and `all_day`; Plugin output remains
+bounded by the existing 16 KiB Plugin contract.
+
+D63 is disabled by default through
+`OAI_GOOGLE_CALENDAR_CONNECTOR_ENABLED=false`. The access token is an
+owner-provisioned `SecretStr` configuration value and is never committed to
+source control. D63 does not add OAuth consent, authorization-code exchange,
+refresh-token persistence, automatic refresh, Chat intent routing, Gmail,
+writes, database migrations, Docker changes or frontend changes.
+
+Frozen authority invariant:
+
+`CREDENTIAL AVAILABLE != PLUGIN ACTIVATED != ACTION APPROVED != AUTHORIZED != EXECUTED`
+
+Frozen secret-access invariant:
+
+`DISCOVERY/GOVERNANCE/LOADING/EXPOSURE/BINDING/ACTIVATION/PROPOSAL/DENIAL -> ZERO SECRET READS`
+
+`AUTHORIZED EXECUTION -> D62 CREDENTIAL RESOLVE -> ONE FIXED CALENDAR GET`

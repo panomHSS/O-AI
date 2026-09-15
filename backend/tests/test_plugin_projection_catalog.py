@@ -56,6 +56,7 @@ class PluginProjectionCatalogTests(unittest.TestCase):
             (
                 ("echo", "echo"),
                 ("github_public_repo", "repository_metadata"),
+                ("google_calendar", "upcoming_events"),
             ),
         )
 
@@ -76,6 +77,20 @@ class PluginProjectionCatalogTests(unittest.TestCase):
         self.assertEqual(
             connector.operation,
             "get_repository_metadata",
+        )
+
+        calendar = catalog.resolve(
+            "google_calendar",
+            "upcoming_events",
+        )
+        self.assertEqual(calendar.plugin_version, "1.0.0")
+        self.assertEqual(
+            calendar.module_adapter_id,
+            "module.plugin.google_calendar",
+        )
+        self.assertEqual(
+            calendar.operation,
+            "list_upcoming_events",
         )
 
     def test_catalog_returns_deterministic_order(self) -> None:

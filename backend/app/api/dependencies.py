@@ -29,6 +29,7 @@ from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.plugins.default_plugin_discovery import DefaultPluginDiscovery
 from app.plugins.explicit_plugin_factory_loader import ExplicitPluginFactoryLoader
+from app.plugins.google_calendar import GoogleCalendarPlugin
 from app.readers import create_document_reader_registry
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
@@ -78,11 +79,14 @@ from app.services.plugin_registration_activation import (
 from app.contracts.credential import CredentialSecretSource
 from app.services.credential_access_broker import (
     CredentialAccessBroker,
-    EmptyCredentialSecretSource,
+    LazyCredentialSecretSource,
 )
 from app.services.credential_profile_catalog import (
     PRODUCTION_CREDENTIAL_PROFILES,
     CredentialProfileCatalog,
+)
+from app.contracts.google_calendar import (
+    GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF,
 )
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
@@ -383,14 +387,20 @@ def get_module_catalog_adapters(
 
 @lru_cache
 def get_credential_profile_catalog() -> CredentialProfileCatalog:
-    """Compose the immutable empty/default-deny D62 credential profiles."""
+    """Compose immutable D62/D63 exact credential profiles."""
     return CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES)
 
 
 @lru_cache
 def get_credential_secret_source() -> CredentialSecretSource:
-    """Compose the D62 deny-all production credential source."""
-    return EmptyCredentialSecretSource()
+    """Compose lazy exact-ref credential access without eager secret reads."""
+    return LazyCredentialSecretSource(
+        {
+            GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF: (
+                lambda: get_settings().oai_google_calendar_access_token
+            )
+        }
+    )
 
 
 @lru_cache
@@ -442,8 +452,14 @@ def get_plugin_governance_service() -> PluginGovernanceService:
 
 @lru_cache
 def get_controlled_plugin_loader() -> ExplicitPluginFactoryLoader:
-    """Compose the exact static D55 Plugin factory allowlist."""
-    return ExplicitPluginFactoryLoader()
+    """Compose the exact static D55 allowlist with D63 credential injection."""
+    return ExplicitPluginFactoryLoader(
+        google_calendar_factory=(
+            lambda: GoogleCalendarPlugin(
+                credential_broker=get_credential_access_broker()
+            )
+        )
+    )
 
 
 @lru_cache
@@ -548,8 +564,12 @@ def get_first_party_plugin_enablement_service() -> FirstPartyPluginEnablementSer
 def get_plugin_runtime_activation_snapshot() -> PluginRuntimeActivationSnapshot:
     """Materialize configured first-party Plugins, then capture one D58 snapshot."""
     settings = get_settings()
-    get_first_party_plugin_enablement_service().ensure_github_public_repository_enabled(
+    enablement = get_first_party_plugin_enablement_service()
+    enablement.ensure_github_public_repository_enabled(
         settings.oai_github_public_repo_connector_enabled
+    )
+    enablement.ensure_google_calendar_enabled(
+        settings.oai_google_calendar_connector_enabled
     )
     return get_plugin_registration_activation_service().runtime_snapshot()
 

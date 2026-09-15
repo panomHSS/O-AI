@@ -1634,3 +1634,49 @@ predeclared exact O-AI subject binding rather than caller-controlled lookup.
 Gmail, Calendar and other authenticated capabilities remain unavailable until
 separately approved milestones add exact profiles, credential lifecycle
 handling and connector-specific authority.
+
+## ADR-056: Google Calendar Authenticated Read Connector v1
+
+**Status:** Accepted
+
+**Decision**
+
+Add `google_calendar/1.0.0` as the first authenticated production-known Plugin
+connector. Its only capability is `upcoming_events`, mapped to
+`module.plugin.google_calendar / list_upcoming_events` and
+`exec.plugin.google_calendar.upcoming_events`. The permission effect is `read`,
+the data class is `owner_data`, and owner approval remains mandatory.
+
+Use the D62 credential access broker with one exact O-AI-controlled credential
+profile: provider `google`, auth scheme `oauth2_bearer`, scope
+`https://www.googleapis.com/auth/calendar.events.readonly`, and fixed secret
+reference `google_calendar.access_token`. Neither callers nor Plugin requests
+may select a credential profile, secret reference, scope, token, calendar ID,
+host, path or HTTP method.
+
+The connector reads only the authenticated primary calendar. It requests from
+execution time through seven days later, at most ten expanded events, ordered
+by start time, with deleted events excluded and a fixed partial-response field
+set. Network egress is one HTTPS GET to `www.googleapis.com`, with environment
+proxy routing disabled, redirects rejected, no retry/fallback, a five-second
+timeout and a 64 KiB raw response limit. The bearer token is header-only.
+
+Credential access is lazy. D53-D58 lifecycle materialization and D45 proposal
+creation must not read the token. The Plugin resolves the D62 credential only
+when its execute method is reached through the existing authorized ModuleRuntime
+path. Missing, invalid or rejected credentials fail closed with safe reason
+codes and no secret values in errors or results.
+
+D63 intentionally does not implement OAuth consent/login, authorization-code
+exchange, client-secret handling, refresh-token persistence, token refresh,
+revocation, natural-language Chat routing, Gmail, write capabilities or
+automation. Those require later separately approved milestones.
+
+**Consequences**
+
+O-AI gains a bounded authenticated read capability without weakening the
+existing Plugin Engine authority chain. Production credential metadata is no
+longer empty after D62, but credential knowledge and credential availability
+remain non-authoritative. The current short-lived owner-provisioned bearer token
+is suitable for validating the authenticated connector boundary; durable OAuth
+token lifecycle management remains future work.

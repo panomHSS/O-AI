@@ -36,13 +36,31 @@ class CredentialProfileCatalogTests(unittest.TestCase):
             secret_ref=secret_ref,
         )
 
-    def test_production_catalog_is_empty_default_deny(self) -> None:
-        self.assertEqual(PRODUCTION_CREDENTIAL_PROFILES, ())
+    def test_production_catalog_contains_exact_d63_google_profile(self) -> None:
+        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 1)
+        profile = PRODUCTION_CREDENTIAL_PROFILES[0]
+        self.assertEqual(profile.profile_id, "google_calendar.events.readonly")
+        self.assertEqual(profile.plugin_id, "google_calendar")
+        self.assertEqual(profile.plugin_version, "1.0.0")
+        self.assertEqual(profile.capability_name, "upcoming_events")
+        self.assertEqual(profile.provider_id, "google")
+        self.assertEqual(profile.auth_scheme, "oauth2_bearer")
+        self.assertEqual(
+            profile.required_scopes,
+            (
+                "https://www.googleapis.com/auth/"
+                "calendar.events.readonly",
+            ),
+        )
+        self.assertEqual(
+            profile.secret_ref,
+            "google_calendar.access_token",
+        )
         self.assertEqual(
             CredentialProfileCatalog(
                 PRODUCTION_CREDENTIAL_PROFILES
             ).profiles,
-            (),
+            PRODUCTION_CREDENTIAL_PROFILES,
         )
 
     def test_exact_subject_resolves_profile(self) -> None:

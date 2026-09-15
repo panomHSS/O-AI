@@ -120,44 +120,73 @@ class PluginPermissionBindingTests(unittest.TestCase):
         )
         return service, exposure_service, catalog, store
 
-    def test_production_d59_profile_is_known_but_binding_remains_default_deny(self):
+    def test_production_connector_profiles_are_known_but_default_deny(self):
         get_plugin_permission_binding_store().clear()
         get_plugin_module_exposure_store().clear()
+        profiles = get_plugin_permission_profile_catalog().profiles
         self.assertEqual(
-            get_plugin_permission_profile_catalog().profiles,
+            profiles,
             PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES,
         )
-        self.assertEqual(len(PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES), 1)
-        profile = PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES[0]
-        self.assertEqual(profile.plugin_id, "github_public_repo")
-        self.assertEqual(profile.plugin_version, "1.0.0")
-        self.assertEqual(profile.capability_name, "repository_metadata")
+        self.assertEqual(len(profiles), 2)
+
+        github = next(
+            profile
+            for profile in profiles
+            if profile.plugin_id == "github_public_repo"
+        )
+        self.assertEqual(github.plugin_version, "1.0.0")
+        self.assertEqual(github.capability_name, "repository_metadata")
         self.assertEqual(
-            profile.capability_id,
+            github.capability_id,
             "exec.plugin.github_public_repo.repository_metadata",
         )
         self.assertEqual(
-            profile.module_adapter_id,
+            github.module_adapter_id,
             "module.plugin.github_public_repo",
         )
-        self.assertEqual(profile.operation, "get_repository_metadata")
-        self.assertEqual(profile.effect, "read")
-        self.assertEqual(profile.data_class, "external_data")
-        self.assertTrue(profile.owner_approval_required)
+        self.assertEqual(github.operation, "get_repository_metadata")
+        self.assertEqual(github.effect, "read")
+        self.assertEqual(github.data_class, "external_data")
+        self.assertTrue(github.owner_approval_required)
+
+        calendar = next(
+            profile
+            for profile in profiles
+            if profile.plugin_id == "google_calendar"
+        )
+        self.assertEqual(calendar.plugin_version, "1.0.0")
+        self.assertEqual(calendar.capability_name, "upcoming_events")
+        self.assertEqual(
+            calendar.capability_id,
+            "exec.plugin.google_calendar.upcoming_events",
+        )
+        self.assertEqual(
+            calendar.module_adapter_id,
+            "module.plugin.google_calendar",
+        )
+        self.assertEqual(calendar.operation, "list_upcoming_events")
+        self.assertEqual(calendar.effect, "read")
+        self.assertEqual(calendar.data_class, "owner_data")
+        self.assertTrue(calendar.owner_approval_required)
+
         self.assertEqual(
             get_plugin_permission_binding_service().list_bindings(),
             (),
         )
-        with self.assertRaises(PluginPermissionBindingError) as caught:
-            get_plugin_permission_binding_service().bind(
-                "github_public_repo",
-                "1.0.0",
-                "repository_metadata",
-            )
-        self.assertEqual(
-            caught.exception.code,
-            PLUGIN_PERMISSION_BINDING_ERROR_EXPOSURE_NOT_FOUND,
-        )
+        for subject in (
+            ("github_public_repo", "1.0.0", "repository_metadata"),
+            ("google_calendar", "1.0.0", "upcoming_events"),
+        ):
+            with self.subTest(subject=subject):
+                with self.assertRaises(
+                    PluginPermissionBindingError
+                ) as caught:
+                    get_plugin_permission_binding_service().bind(*subject)
+                self.assertEqual(
+                    caught.exception.code,
+                    PLUGIN_PERMISSION_BINDING_ERROR_EXPOSURE_NOT_FOUND,
+                )
 
     def test_exact_active_exposure_and_profile_bind(self):
         service, exposure_service, _, store = self.service()

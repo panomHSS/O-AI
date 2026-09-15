@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from app.contracts.google_calendar import (
+    GOOGLE_CALENDAR_ADAPTER_ID,
+    GOOGLE_CALENDAR_CAPABILITY_NAME,
+    GOOGLE_CALENDAR_OPERATION,
+    GOOGLE_CALENDAR_PLUGIN_ID,
+    GOOGLE_CALENDAR_PLUGIN_VERSION,
+)
 from app.contracts.plugin_projection import (
     PLUGIN_PROJECTION_ERROR_INVALID_CAPABILITY_NAME,
     PLUGIN_PROJECTION_ERROR_INVALID_PLUGIN_ID,
@@ -40,6 +47,17 @@ PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS = (
         description="Read bounded metadata for one public GitHub repository.",
         module_adapter_id="module.plugin.github_public_repo",
         operation="get_repository_metadata",
+    ),
+    PluginCapabilityProjection(
+        plugin_id=GOOGLE_CALENDAR_PLUGIN_ID,
+        plugin_version=GOOGLE_CALENDAR_PLUGIN_VERSION,
+        capability_name=GOOGLE_CALENDAR_CAPABILITY_NAME,
+        description=(
+            "Read the next bounded event window from the owner's primary "
+            "Google Calendar."
+        ),
+        module_adapter_id=GOOGLE_CALENDAR_ADAPTER_ID,
+        operation=GOOGLE_CALENDAR_OPERATION,
     ),
 )
 

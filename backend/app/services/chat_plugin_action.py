@@ -9,6 +9,11 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 
 from app.connectors.github_public_repository import validate_repository_reference
+from app.contracts.google_calendar import (
+    GOOGLE_CALENDAR_CAPABILITY_NAME,
+    GOOGLE_CALENDAR_PLUGIN_ID,
+    GOOGLE_CALENDAR_PLUGIN_VERSION,
+)
 from app.contracts.chat_plugin_action import (
     ChatPluginActionBinding,
     ChatPluginActionCompletion,
@@ -230,6 +235,40 @@ class FirstPartyPluginEnablementService:
             GITHUB_PUBLIC_REPO_PLUGIN_ID,
             GITHUB_PUBLIC_REPO_PLUGIN_VERSION,
             GITHUB_PUBLIC_REPO_CAPABILITY_NAME,
+        )
+
+    def ensure_google_calendar_enabled(
+        self,
+        enabled: bool,
+    ) -> None:
+        """Materialize D63 lifecycle metadata without reading credentials."""
+        if type(enabled) is not bool:
+            raise TypeError("enabled must be an exact bool.")
+        if not enabled:
+            return
+
+        self._governance.admit(
+            GOOGLE_CALENDAR_PLUGIN_ID,
+            GOOGLE_CALENDAR_PLUGIN_VERSION,
+        )
+        self._loading.load(
+            GOOGLE_CALENDAR_PLUGIN_ID,
+            GOOGLE_CALENDAR_PLUGIN_VERSION,
+        )
+        self._exposure.expose(
+            GOOGLE_CALENDAR_PLUGIN_ID,
+            GOOGLE_CALENDAR_PLUGIN_VERSION,
+            GOOGLE_CALENDAR_CAPABILITY_NAME,
+        )
+        self._binding.bind(
+            GOOGLE_CALENDAR_PLUGIN_ID,
+            GOOGLE_CALENDAR_PLUGIN_VERSION,
+            GOOGLE_CALENDAR_CAPABILITY_NAME,
+        )
+        self._activation.activate(
+            GOOGLE_CALENDAR_PLUGIN_ID,
+            GOOGLE_CALENDAR_PLUGIN_VERSION,
+            GOOGLE_CALENDAR_CAPABILITY_NAME,
         )
 
 
