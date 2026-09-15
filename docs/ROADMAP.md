@@ -137,6 +137,7 @@ The following capabilities are implemented in the current codebase but have not 
 - D54 adds bounded process-local default-deny Plugin governance admission; decisions bind exact Plugin id/version/capabilities and grant only future loading eligibility, never execution authority.
 - D55 adds fail-closed controlled Plugin loading through an exact static factory allowlist; only current D53 + D54 exact subjects may load, and loaded objects remain internal metadata-only holdings with no registration or execution authority.
 - D56 adds bounded governed Plugin Module exposure; only exact current D52/D53/D54 subjects already loaded by D55 may materialize internal capability-specific ModuleAdapters, without AdapterRegistry registration, permission, approval, authorization, or execution authority.
+- D57 adds default-deny Plugin capability/permission intent binding; only a current active D56 exposure plus an exact O-AI-controlled profile may bind, while AdapterRegistry registration and D44 permission activation remain separate future authority steps.
 
 ## Planned
 
@@ -147,7 +148,7 @@ The following capabilities are implemented in the current codebase but have not 
 ## Future releases
 
 - Gmail and Calendar integrations.
-- Plugin Engine beyond D56 governed Module exposure (capability/permission binding, controlled registration, and approved external connectors).
+- Plugin Engine beyond D57 permission-intent binding (controlled Plugin registration, D44 permission activation, and approved external connectors).
 - Engineering Assistant, personal finance, factory knowledge, and approved automation capabilities.
 
 Future items are direction, not commitments. Each requires an approved decision record, scoped implementation plan, and release acceptance criteria.

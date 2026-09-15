@@ -1278,3 +1278,66 @@ D56 adds no dynamic registry mutation, automatic routing, permission creation,
 automatic loading, filesystem/package import, persistence, migration, public
 Plugin API/UI, credentials, OAuth, external connector, Docker change,
 dependency, or frontend change.
+
+## D57 — Plugin Capability / Permission Binding v1
+
+D57 adds an explicit, fail-closed permission-intent binding boundary after D56
+governed Module exposure.
+
+The D57 lane is:
+
+`D56 current active exposure + exact O-AI-controlled permission profile ->
+PluginPermissionBindingService -> immutable PluginCapabilityPermissionBinding`
+
+A D57 binding is metadata only. It is deliberately not an
+`ExecutableCapabilityPermission` activated in D44. D44
+`CapabilityPermissionPolicy` requires its target adapter to already exist in
+the D31 `AdapterRegistry`; D56 exposures are intentionally not registered.
+D57 therefore preserves the separate future registration/activation step.
+
+Permission profiles are immutable O-AI-controlled metadata. Plugins, manifests,
+projection metadata, AI output and requests cannot create or alter profile
+authority. Every v1 Plugin permission profile requires
+`owner_approval_required=True`. Production D57 starts with
+`PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES = ()`, so the dynamic Plugin
+lane remains default deny.
+
+Before binding, D57 requires an already-materialized D56 exposure and uses a
+package-private D56 metadata-only seam to revalidate current D52 projection,
+D53 candidate, D54 governance and D55 loaded state. D57 never auto-exposes or
+auto-loads.
+
+D57 snapshots existing D44 production capability IDs and registered Module
+routes as reserved identities. A dynamic binding cannot reuse an existing
+capability ID or existing Module adapter/operation route. In particular, the
+fixed D51 `exec.plugin.echo -> module.plugin.echo / echo` permission cannot be
+silently reused or replaced by the dynamic Plugin lane.
+
+Bindings are held in a bounded, thread-safe, process-local metadata store.
+Source identity is exact Plugin id/version/capability. Capability IDs and Module
+adapter/operation routes are unique. Exact duplicate binding is idempotent only
+after current exposure/profile/reservation revalidation. There is no silent
+eviction.
+
+D57 preserves:
+
+- `EXPOSED != PERMISSION PROFILED`
+- `PERMISSION PROFILED != PERMISSION BOUND`
+- `PERMISSION BOUND != REGISTERED`
+- `PERMISSION BOUND != D44 PERMITTED`
+- `PROFILE != AUTHORITY`
+- `BINDING != REGISTRATION`
+- `BINDING != PERMISSION ACTIVATION`
+- `BINDING != OWNER APPROVAL`
+- `BINDING != AUTHORIZATION`
+- `BINDING != EXECUTION`
+- `PLUGIN != PERMISSION AUTHORITY`
+- `PLUGIN METADATA != PERMISSION PROFILE`
+- `PLUGIN CANNOT SELF-GRANT`
+- `D51 FIXED PERMISSION != D57 DYNAMIC BINDING`
+
+D57 does not mutate `AdapterRegistry`, `CapabilityPermissionPolicy`,
+`PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS`, D45 approvals, D36
+authorization or runtime execution. It adds no persistence, database migration,
+API/UI, credentials, OAuth, external connector, Docker, dependency or frontend
+change.

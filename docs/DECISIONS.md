@@ -1381,3 +1381,40 @@ before any dynamic Plugin Module can enter the normal execution authority chain.
 D56 adds no persistence, database migration, filesystem scanning, package
 installation/import, public Plugin API/UI, OAuth, credentials, external
 connector, Docker change, dependency, or frontend change.
+
+## ADR-049: Plugin Capability / Permission Binding v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce immutable `PluginCapabilityPermissionProfile` metadata, an immutable
+profile catalog, `PluginCapabilityPermissionBinding` records, a bounded
+process-local binding store and `PluginPermissionBindingService`.
+
+Only an already-materialized and currently active D56 exposure with an exact
+O-AI-controlled profile may create a binding. D57 uses a package-private D56
+metadata-only revalidation seam and never auto-loads or auto-exposes.
+
+All v1 Plugin permission profiles require owner approval. Production profile
+configuration is empty by default. Plugins, manifests, projection metadata, AI
+output and request data cannot self-grant permission profiles.
+
+Existing D44 production capability IDs and Module adapter/operation routes are
+reserved against D57 bindings. The D51 fixed Echo permission therefore remains
+separate and cannot be silently reused or replaced.
+
+A D57 binding is permission intent, not an active D44 permission. D57 does not
+construct a new live `CapabilityPermissionPolicy`, register a D56 adapter,
+create a D45 approval, grant D36 authorization or execute a Plugin.
+
+**Consequences**
+
+`PERMISSION BOUND != REGISTERED` and `PERMISSION BOUND != D44 PERMITTED` become
+explicit Plugin Engine authority boundaries. A later controlled-registration
+milestone must deliberately register a still-current exposed adapter and
+activate a still-current binding before the normal D44/D45/D36 execution chain
+can apply.
+
+D57 adds no persistence, migration, public Plugin API/UI, credentials, OAuth,
+external connector, Docker, dependency or frontend change.

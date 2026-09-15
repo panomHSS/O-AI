@@ -64,6 +64,12 @@ from app.services.plugin_module_exposure import (
     PluginModuleExposureService,
     PluginModuleExposureStore,
 )
+from app.services.plugin_permission_binding import (
+    PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES,
+    PluginPermissionBindingService,
+    PluginPermissionBindingStore,
+    PluginPermissionProfileCatalog,
+)
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -433,6 +439,29 @@ def get_plugin_module_exposure_service() -> PluginModuleExposureService:
         loading=get_plugin_loading_service(),
         loaded_store=get_loaded_plugin_store(),
         exposure_store=get_plugin_module_exposure_store(),
+    )
+
+
+@lru_cache
+def get_plugin_permission_profile_catalog() -> PluginPermissionProfileCatalog:
+    """Compose the immutable default-deny D57 Plugin permission profiles."""
+    return PluginPermissionProfileCatalog(PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES)
+
+
+@lru_cache
+def get_plugin_permission_binding_store() -> PluginPermissionBindingStore:
+    """Compose the bounded process-local D57 permission binding store."""
+    return PluginPermissionBindingStore()
+
+
+@lru_cache
+def get_plugin_permission_binding_service() -> PluginPermissionBindingService:
+    """Compose D57 permission intent without registration or D44 activation."""
+    return PluginPermissionBindingService(
+        exposure_service=get_plugin_module_exposure_service(),
+        profile_catalog=get_plugin_permission_profile_catalog(),
+        store=get_plugin_permission_binding_store(),
+        reserved_permissions=PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
     )
 
 

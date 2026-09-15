@@ -170,6 +170,24 @@ class PluginModuleExposureService:
 
     def list_exposures(self) -> tuple[PluginModuleExposureRecord, ...]:
         return self._store.list_records()
+    def _resolve_active_record_for_binding(
+        self,
+        plugin_id: str,
+        plugin_version: str,
+        capability_name: str,
+    ) -> PluginModuleExposureRecord | None:
+        """Package-private metadata-only freshness seam for D57."""
+        plugin_id, plugin_version, capability_name = _validated_subject(
+            plugin_id, plugin_version, capability_name
+        )
+        stored = self._store.resolve_record(plugin_id, plugin_version, capability_name)
+        if stored is None:
+            return None
+        current = self._resolve_current_subject(plugin_id, plugin_version, capability_name)
+        if stored != current.record:
+            raise PluginModuleExposureError(PLUGIN_MODULE_EXPOSURE_ERROR_SUBJECT_MISMATCH)
+        return stored
+
     def _resolve_current_subject(self, plugin_id: str, plugin_version: str, capability_name: str) -> _CurrentExposureSubject:
         try:
             decision = self._governance.resolve(plugin_id, plugin_version)
