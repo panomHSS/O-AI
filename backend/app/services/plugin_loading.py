@@ -13,6 +13,9 @@ from app.contracts.plugin_governance import (
 )
 from app.contracts.plugin_loading import LoadedPluginRecord
 from app.plugins.base import Plugin
+from app.plugins.context import PluginExecutionContext
+from app.plugins.request import PluginRequest
+from app.plugins.response import PluginResult
 from app.plugins.explicit_plugin_factory_loader import (
     PLUGIN_FACTORY_LOADER_ERROR_UNSUPPORTED_MANIFEST,
     ExplicitPluginFactoryLoaderError,
@@ -44,6 +47,7 @@ PLUGIN_LOADING_ERROR_LOAD_FAILED = "plugin_load_failed"
 PLUGIN_LOADING_ERROR_PLUGIN_INVALID = "loaded_plugin_invalid"
 PLUGIN_LOADING_ERROR_IDENTITY_MISMATCH = "loaded_plugin_identity_mismatch"
 PLUGIN_LOADING_ERROR_STORE_FULL = "plugin_load_store_full"
+PLUGIN_LOADING_ERROR_PLUGIN_NOT_FOUND = "loaded_plugin_not_found"
 
 
 class PluginLoadingError(ValueError):
@@ -161,6 +165,26 @@ class LoadedPluginStore:
                 plugin=plugin,
             )
             return record
+
+    def _invoke_loaded_for_module(
+        self,
+        *,
+        plugin_id: str,
+        plugin_version: str,
+        projected_capability_names: tuple[str, ...],
+        context: PluginExecutionContext,
+        request: PluginRequest,
+    ) -> PluginResult:
+        """Package-private exact-subject invocation seam for D56."""
+        key = (plugin_id, plugin_version)
+        with self._lock:
+            entry = self._items.get(key)
+            if entry is None:
+                raise PluginLoadingError(PLUGIN_LOADING_ERROR_PLUGIN_NOT_FOUND)
+            if entry.record.projected_capability_names != projected_capability_names:
+                raise PluginLoadingError(PLUGIN_LOADING_ERROR_SUBJECT_MISMATCH)
+            plugin = entry.plugin
+        return plugin.execute(context, request)
 
     def clear(self) -> None:
         with self._lock:

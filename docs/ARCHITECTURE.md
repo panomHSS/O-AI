@@ -1207,3 +1207,74 @@ package installation, signature/hash verification, persistent loaded state,
 database migration, dynamic ModuleAdapter generation, public Plugin API/UI,
 OAuth, credential handling, external connector, Docker change, dependency, or
 frontend change.
+
+## D56 — Governed Plugin Module Exposure v1
+
+D56 adds a bounded, process-local Module exposure boundary after D55 controlled
+Plugin loading. Exposure is explicit and capability-specific.
+
+The D56 lane is:
+
+`D52 exact projection + D53 current candidate + D54 admitted governance +
+D55 already loaded -> PluginModuleExposureService ->
+ProjectedPluginModuleAdapter -> internal PluginModuleExposureStore ->
+immutable PluginModuleExposureRecord`
+
+Exposure requires an exact current D53 `projected_match` candidate, an exact
+D54 `admitted` decision, an already-loaded D55 subject with the same exact
+capability tuple, and an exact D52 projection whose Plugin version matches.
+D56 never auto-loads a Plugin.
+
+Each exposure materializes one `ProjectedPluginModuleAdapter` bound to one exact
+Plugin id/version/capability, adapter id and operation. Request data cannot
+choose or replace those bindings. The v1 adapter accepts exactly one `content`
+string parameter and applies the same 16 KiB UTF-8 input/output bounds as the
+fixed D51 reference bridge.
+
+Raw Plugin objects remain internal. D55 still exposes only
+`LoadedPluginRecord` metadata publicly. D56 adds only a package-private loaded
+store invocation seam that validates the exact loaded capability subject and
+returns a Plugin result without returning the Plugin object itself.
+
+Materialized adapters are held only in `PluginModuleExposureStore`. Public D56
+service methods expose immutable `PluginModuleExposureRecord` metadata only.
+The store is thread-safe, process-local, bounded to 100 entries by default,
+deterministically listed, and never silently evicts. Source identity is exact
+Plugin id/version/capability; target identity is exact Module adapter
+id/operation.
+
+A materialized adapter revalidates D52 projection, D53 current candidate, D54
+governance and D55 loaded metadata before every Plugin invocation. A later
+revocation, discovery/capability drift, missing loaded subject, or changed
+projection therefore makes the materialized exposure inactive before Plugin
+execution.
+
+D56 does not add its adapters to the immutable D31 `AdapterRegistry`, does not
+alter `get_module_catalog_adapters()`, does not create or infer a D44
+permission, does not create a D45 owner approval, and does not grant D36
+authorization. The existing D51 fixed Echo bridge and its explicit D44
+permission remain a separate production reference lane.
+
+D56 preserves:
+
+- `PROJECTED != GOVERNANCE ADMITTED`
+- `GOVERNANCE ADMITTED != LOADED`
+- `LOADED != EXPOSED`
+- `EXPOSED != REGISTERED`
+- `REGISTERED != PERMITTED`
+- `PERMITTED != EXECUTION APPROVED`
+- `EXECUTION APPROVED != AUTHORIZED`
+- `AUTHORIZED != EXECUTED`
+- `MODULE EXPOSURE != ADAPTER REGISTRATION`
+- `MODULE EXPOSURE != D44 PERMISSION`
+- `MODULE EXPOSURE != D45 APPROVAL`
+- `MODULE EXPOSURE != D36 AUTHORIZATION`
+- `PLUGIN LOADED != RAW PLUGIN EXPOSED`
+- `EXPOSURE RECORD != MODULE EXECUTION AUTHORITY`
+- `STALE EXPOSURE != ACTIVE EXPOSURE`
+- `EXPOSURE TARGET != REGISTRY CLAIM`
+
+D56 adds no dynamic registry mutation, automatic routing, permission creation,
+automatic loading, filesystem/package import, persistence, migration, public
+Plugin API/UI, credentials, OAuth, external connector, Docker change,
+dependency, or frontend change.

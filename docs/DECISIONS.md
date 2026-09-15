@@ -1334,3 +1334,50 @@ D55 adds no filesystem scanning, arbitrary dynamic import, package installation,
 version fallback, network download, persistence, database migration, public
 Plugin API/UI, OAuth, credential handling, external connector, Docker change,
 dependency, or frontend change. D51 remains unchanged.
+
+## ADR-048: Governed Plugin Module Exposure v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce `PluginModuleExposureService`, a bounded process-local
+`PluginModuleExposureStore`, immutable `PluginModuleExposureRecord` metadata,
+and capability-specific `ProjectedPluginModuleAdapter` instances.
+
+An exposure may be materialized only when all of the following are exact and
+current: D52 projection, D53 `projected_match` candidate, D54 `admitted`
+governance subject, and an already-loaded D55 subject. Capability tuples must
+match across D53, D54 and D55, and the D52 projection version must exactly match
+the requested Plugin version. D56 never auto-loads.
+
+The public D56 service returns metadata only. Materialized Module adapters remain
+internal to the exposure store. D55 continues to return loaded metadata only; a
+package-private loaded-store invocation seam is added solely so D56 can invoke
+an exact loaded subject without exposing the raw Plugin object.
+
+Before each internal Plugin invocation, D56 revalidates current projection,
+candidate, governance, loaded subject and stored exposure metadata. Revocation
+or subject drift therefore makes a previously materialized adapter inactive.
+
+The v1 projected adapter binds Plugin id/version/capability, adapter id and
+operation at construction. It accepts exactly one bounded `content` parameter
+and returns only bounded Plugin result content. It never accepts Plugin identity
+or operation authority from request data.
+
+**Consequences**
+
+D56 creates materialized ModuleAdapter objects but does not register them in the
+D31 `AdapterRegistry`. It does not mutate `get_module_catalog_adapters()`, create
+or infer D44 permissions, create D45 approvals, grant D36 authorization, or
+create execution routes. The D51 fixed Echo bridge remains unchanged and
+separate.
+
+D56 therefore establishes `LOADED != EXPOSED` and `EXPOSED != REGISTERED` as
+explicit Plugin Engine authority boundaries. A later milestone must deliberately
+bind valid exposure metadata to registration and capability permission rules
+before any dynamic Plugin Module can enter the normal execution authority chain.
+
+D56 adds no persistence, database migration, filesystem scanning, package
+installation/import, public Plugin API/UI, OAuth, credentials, external
+connector, Docker change, dependency, or frontend change.

@@ -60,6 +60,10 @@ from app.services.plugin_loading import (
     LoadedPluginStore,
     PluginLoadingService,
 )
+from app.services.plugin_module_exposure import (
+    PluginModuleExposureService,
+    PluginModuleExposureStore,
+)
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.ai_router import AIRouter
@@ -410,6 +414,25 @@ def get_plugin_loading_service() -> PluginLoadingService:
         governance=get_plugin_governance_service(),
         loader=get_controlled_plugin_loader(),
         store=get_loaded_plugin_store(),
+    )
+
+
+@lru_cache
+def get_plugin_module_exposure_store() -> PluginModuleExposureStore:
+    """Compose the bounded process-local D56 Module exposure store."""
+    return PluginModuleExposureStore()
+
+
+@lru_cache
+def get_plugin_module_exposure_service() -> PluginModuleExposureService:
+    """Compose D56 exposure without AdapterRegistry or permission authority."""
+    return PluginModuleExposureService(
+        projection_catalog=get_plugin_projection_catalog(),
+        candidate_discovery=get_plugin_candidate_discovery(),
+        governance=get_plugin_governance_service(),
+        loading=get_plugin_loading_service(),
+        loaded_store=get_loaded_plugin_store(),
+        exposure_store=get_plugin_module_exposure_store(),
     )
 
 
