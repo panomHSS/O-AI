@@ -9,11 +9,20 @@ from app.contracts.chat_action import (
     ChatActionDirective,
 )
 from app.contracts.chat_plugin_action import ChatPluginActionBinding
+from app.services.chat_calendar import (
+    GOOGLE_CALENDAR_CHAT_ADAPTER_ID,
+    GOOGLE_CALENDAR_CHAT_OPERATION,
+    GOOGLE_CALENDAR_CHAT_REQUEST_SENTINEL,
+    CalendarChatWindowResolver,
+)
 from app.services.chat_plugin_action import (
     GITHUB_PUBLIC_REPO_ADAPTER_ID,
     GITHUB_PUBLIC_REPO_OPERATION,
     ChatPluginActionBindingStore,
     ChatPluginIntentRouter,
+)
+from app.services.google_oauth_connection_status import (
+    GoogleOAuthConnectionStatusReader,
 )
 from app.services.conversations import ConversationService
 from app.services.execution_approval_service import (
@@ -34,6 +43,27 @@ PLUGIN_DISABLED_REPLY = (
 PLUGIN_INVALID_REPLY = (
     "พบคำขอข้อมูล GitHub แต่ต้องระบุ repository "
     "แบบ owner/repository เพียงหนึ่งรายการครับ"
+)
+CALENDAR_PENDING_REPLY = (
+    "พบคำขออ่าน Google Calendar และเตรียม Action "
+    "สำหรับการอนุมัติของเจ้าของแล้วครับ"
+)
+CALENDAR_DISABLED_REPLY = "Google Calendar connector ยังไม่ได้เปิดใช้งานครับ"
+CALENDAR_DISCONNECTED_REPLY = (
+    "ยังไม่ได้เชื่อมต่อ Google Calendar ผ่าน OAuth ครับ"
+)
+CALENDAR_REAUTH_REPLY = (
+    "Google Calendar ต้องเชื่อมต่อ OAuth ใหม่ก่อนใช้งานครับ"
+)
+CALENDAR_INVALID_REPLY = (
+    "คำขอ Google Calendar นี้ยังไม่อยู่ในช่วงเวลาที่รองรับ "
+    "(วันนี้, พรุ่งนี้ หรือ 7 วันข้างหน้า) ครับ"
+)
+CALENDAR_STATUS_UNAVAILABLE_REPLY = (
+    "ไม่สามารถตรวจสถานะการเชื่อมต่อ Google Calendar ได้ในครั้งนี้ครับ"
+)
+CALENDAR_TIMEZONE_UNAVAILABLE_REPLY = (
+    "ไม่สามารถตีความช่วงเวลา Calendar ตาม timezone ของเจ้าของได้ครับ"
 )
 INVALID_REPLY = "The action directive could not be recognized."
 UNAVAILABLE_REPLY = "The requested action is not currently available."
@@ -92,10 +122,20 @@ class ChatActionBridge:
         plugin_binding_store: ChatPluginActionBindingStore | None = None,
         plugin_intent_router: ChatPluginIntentRouter | None = None,
         github_public_repo_connector_enabled: bool = False,
+        google_calendar_connector_enabled: bool = False,
+        google_calendar_connection_status_reader: (
+            GoogleOAuthConnectionStatusReader | None
+        ) = None,
+        owner_timezone: str = "Asia/Bangkok",
+        calendar_window_resolver: CalendarChatWindowResolver | None = None,
     ) -> None:
         if type(github_public_repo_connector_enabled) is not bool:
             raise TypeError(
                 "github_public_repo_connector_enabled must be an exact bool."
+            )
+        if type(google_calendar_connector_enabled) is not bool:
+            raise TypeError(
+                "google_calendar_connector_enabled must be an exact bool."
             )
         self._conversation_service = conversation_service
         self._approval_service = approval_service
@@ -107,6 +147,16 @@ class ChatActionBridge:
         )
         self._github_public_repo_connector_enabled = (
             github_public_repo_connector_enabled
+        )
+        self._google_calendar_connector_enabled = (
+            google_calendar_connector_enabled
+        )
+        self._google_calendar_connection_status_reader = (
+            google_calendar_connection_status_reader
+        )
+        self._calendar_window_resolver = (
+            calendar_window_resolver
+            or CalendarChatWindowResolver(owner_timezone)
         )
 
     @staticmethod
@@ -156,6 +206,14 @@ class ChatActionBridge:
         if not explicit:
             assert plugin_intent is not None
             if plugin_intent.status == "invalid":
+                if plugin_intent.calendar_intent:
+                    return self._complete(
+                        conversation_id=str(conversation.id),
+                        conversation_uuid=conversation_uuid,
+                        reply=CALENDAR_INVALID_REPLY,
+                        status="rejected",
+                        reason_code="invalid_google_calendar_intent",
+                    )
                 return self._complete(
                     conversation_id=str(conversation.id),
                     conversation_uuid=conversation_uuid,
@@ -163,6 +221,15 @@ class ChatActionBridge:
                     status="rejected",
                     reason_code="invalid_github_repository_intent",
                 )
+
+            if plugin_intent.calendar_intent:
+                assert plugin_intent.calendar_window is not None
+                return self._process_google_calendar_plugin(
+                    conversation_id=str(conversation.id),
+                    conversation_uuid=conversation_uuid,
+                    calendar_window=plugin_intent.calendar_window,
+                )
+
             if not self._github_public_repo_connector_enabled:
                 return self._complete(
                     conversation_id=str(conversation.id),
@@ -255,6 +322,107 @@ class ChatActionBridge:
             self._conversation_service.complete_turn(
                 conversation_id,
                 PLUGIN_PENDING_REPLY,
+            )
+        return outcome
+
+    def _process_google_calendar_plugin(
+        self,
+        *,
+        conversation_id: str,
+        conversation_uuid: UUID,
+        calendar_window: str,
+    ) -> ChatActionBridgeOutcome:
+        if not self._google_calendar_connector_enabled:
+            return self._complete(
+                conversation_id=conversation_id,
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_DISABLED_REPLY,
+                status="unavailable",
+                reason_code="google_calendar_connector_disabled",
+            )
+
+        reader = self._google_calendar_connection_status_reader
+        if reader is None:
+            return self._complete(
+                conversation_id=conversation_id,
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_DISCONNECTED_REPLY,
+                status="unavailable",
+                reason_code="google_calendar_not_connected",
+            )
+        try:
+            connection_status = reader.read_status()
+        except Exception:
+            return self._complete(
+                conversation_id=conversation_id,
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_STATUS_UNAVAILABLE_REPLY,
+                status="unavailable",
+                reason_code="google_calendar_connection_status_unavailable",
+            )
+
+        if connection_status == "disconnected":
+            return self._complete(
+                conversation_id=conversation_id,
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_DISCONNECTED_REPLY,
+                status="unavailable",
+                reason_code="google_calendar_not_connected",
+            )
+        if connection_status != "active":
+            return self._complete(
+                conversation_id=conversation_id,
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_REAUTH_REPLY,
+                status="unavailable",
+                reason_code="google_calendar_reauthorization_required",
+            )
+
+        try:
+            snapshot = self._calendar_window_resolver.snapshot(
+                calendar_window  # type: ignore[arg-type]
+            )
+        except Exception:
+            return self._complete(
+                conversation_id=conversation_id,
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_TIMEZONE_UNAVAILABLE_REPLY,
+                status="unavailable",
+                reason_code="google_calendar_owner_timezone_invalid",
+            )
+
+        outcome = self._propose(
+            conversation_id=conversation_id,
+            conversation_uuid=conversation_uuid,
+            target_kind="module",
+            adapter_id=GOOGLE_CALENDAR_CHAT_ADAPTER_ID,
+            operation=GOOGLE_CALENDAR_CHAT_OPERATION,
+            parameters={
+                "content": GOOGLE_CALENDAR_CHAT_REQUEST_SENTINEL,
+            },
+            pending_reply=CALENDAR_PENDING_REPLY,
+            complete_pending=False,
+        )
+        if (
+            outcome.status == "pending_approval"
+            and outcome.approval is not None
+            and outcome.approval.proposal is not None
+        ):
+            proposal = outcome.approval.proposal
+            self._plugin_binding_store.add(
+                ChatPluginActionBinding(
+                    approval_id=proposal.approval_id,
+                    conversation_id=conversation_uuid,
+                    repository_reference=None,
+                    expires_at=proposal.expires_at,
+                    calendar_window=snapshot.window,
+                    calendar_window_start=snapshot.start,
+                    calendar_window_end=snapshot.end,
+                )
+            )
+            self._conversation_service.complete_turn(
+                conversation_id,
+                CALENDAR_PENDING_REPLY,
             )
         return outcome
 

@@ -1715,3 +1715,41 @@ Add `cryptography` solely for the AES-GCM primitive and add migration
 `0010_oauth_credentials`. D64 does not add Gmail, Calendar writes, Chat routing,
 multiple Google accounts, service accounts, DPoP, RISC/Cross-Account Protection,
 background refresh or public-deployment authentication.
+
+## ADR-058: Authenticated Calendar Chat Integration v1
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the existing deterministic D61 Chat-to-Plugin bridge with one exact
+Google Calendar read intent. The v1 grammar recognizes only `today`,
+`tomorrow`, and `next_7_days`; it does not use an AI model to select the Plugin,
+credential, Calendar, scope, time range, or execution parameters.
+
+Keep the D63 execution contract unchanged. Every Calendar proposal targets
+`module.plugin.google_calendar`, operation `list_upcoming_events`, with
+`content=upcoming`. Relative Chat windows are snapshotted in
+`OAI_OWNER_TIMEZONE` and used solely as post-execution presentation filters.
+They never become Google connector query authority.
+
+Before proposing, read only non-secret D64 credential-record metadata.
+Disabled, disconnected, reauthorization-required, drifted, or unavailable
+connection state creates no D45 proposal and does not resolve, decrypt, refresh,
+or expose OAuth credentials. D45 owner approval and D36 authorization remain
+mandatory.
+
+Generalize the process-local D61 approval correlation binding so one ticket can
+carry either the existing GitHub repository reference or one frozen Calendar
+presentation window. This metadata grants no execution authority and expires
+with the D45 ticket.
+
+Validate authorized Calendar Plugin output again before Chat presentation.
+Accept at most ten exact normalized event objects, filter by overlap with the
+frozen owner-timezone window, sanitize event summaries as untrusted data, and
+compose the final response deterministically without feeding Plugin output to
+ChatGPT or Local AI.
+
+D65 adds no Calendar write capability, arbitrary date range, multiple-calendar
+selection, Gmail integration, scheduling, auto-approval, AI tool selection,
+credential selection, background action, or OAuth authority change.

@@ -20,6 +20,10 @@ from app.contracts.chat_plugin_action import (
     ChatPluginIntentOutcome,
 )
 from app.contracts.execution_approval import ExecutionApprovalDecisionOutcome
+from app.services.chat_calendar import (
+    CalendarChatCompletionComposer,
+    CalendarChatIntentRouter,
+)
 from app.services.conversations import ConversationService
 from app.services.plugin_governance import PluginGovernanceService
 from app.services.plugin_loading import PluginLoadingService
@@ -68,7 +72,7 @@ _REQUIRED_RESULT_KEYS = frozenset(
 
 
 class ChatPluginIntentRouter:
-    """Recognize one deliberately narrow GitHub repository metadata request."""
+    """Recognize narrow deterministic GitHub or Calendar Plugin requests."""
 
     _signals = (
         "repository",
@@ -84,6 +88,13 @@ class ChatPluginIntentRouter:
         "ไลเซนส์",
     )
 
+    def __init__(
+        self,
+        *,
+        calendar_router: CalendarChatIntentRouter | None = None,
+    ) -> None:
+        self._calendar_router = calendar_router or CalendarChatIntentRouter()
+
     def classify(self, message: object) -> ChatPluginIntentOutcome:
         if not isinstance(message, str) or not message.strip():
             return ChatPluginIntentOutcome(status="none")
@@ -91,9 +102,9 @@ class ChatPluginIntentRouter:
         normalized = message.strip()
         folded = normalized.casefold()
         if "github" not in folded:
-            return ChatPluginIntentOutcome(status="none")
+            return self._calendar_router.classify(message)
         if not any(signal in folded for signal in self._signals):
-            return ChatPluginIntentOutcome(status="none")
+            return self._calendar_router.classify(message)
 
         if "http://" in folded or "https://" in folded:
             return ChatPluginIntentOutcome(status="invalid")
@@ -280,9 +291,13 @@ class ChatPluginActionCompletionService:
         *,
         conversation_service: ConversationService,
         binding_store: ChatPluginActionBindingStore,
+        calendar_composer: CalendarChatCompletionComposer | None = None,
     ) -> None:
         self._conversation_service = conversation_service
         self._binding_store = binding_store
+        self._calendar_composer = (
+            calendar_composer or CalendarChatCompletionComposer()
+        )
 
     def complete(
         self,
@@ -301,10 +316,13 @@ class ChatPluginActionCompletionService:
             return None
 
         if outcome.decision == "denied":
-            reply = (
-                "ยกเลิกการเรียก GitHub connector "
-                "ตามการตัดสินใจของเจ้าของแล้วครับ"
-            )
+            if binding.calendar_window is not None:
+                reply = self._calendar_composer.DENIED_REPLY
+            else:
+                reply = (
+                    "ยกเลิกการเรียก GitHub connector "
+                    "ตามการตัดสินใจของเจ้าของแล้วครับ"
+                )
         else:
             reply = self._reply_for_approved(binding, outcome)
 
@@ -322,6 +340,12 @@ class ChatPluginActionCompletionService:
         binding: ChatPluginActionBinding,
         outcome: ExecutionApprovalDecisionOutcome,
     ) -> str:
+        if binding.calendar_window is not None:
+            return self._calendar_composer.reply_for_approved(
+                binding,
+                outcome,
+            )
+
         execution = outcome.execution
         result = execution.result
         if (

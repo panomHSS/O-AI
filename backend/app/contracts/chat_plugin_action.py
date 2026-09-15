@@ -1,4 +1,4 @@
-"""D61 immutable contracts for Chat-to-Plugin action correlation."""
+"""D61/D65 immutable contracts for Chat-to-Plugin action correlation."""
 
 from __future__ import annotations
 
@@ -9,6 +9,9 @@ from uuid import UUID
 
 
 ChatPluginIntentStatus: TypeAlias = Literal["none", "matched", "invalid"]
+CalendarChatWindow: TypeAlias = Literal["today", "tomorrow", "next_7_days"]
+
+_CALENDAR_WINDOWS = frozenset({"today", "tomorrow", "next_7_days"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,23 +20,46 @@ class ChatPluginIntentOutcome:
 
     status: ChatPluginIntentStatus
     repository_reference: str | None = None
+    calendar_window: CalendarChatWindow | None = None
+    calendar_intent: bool = False
 
     def __post_init__(self) -> None:
         if self.status not in {"none", "matched", "invalid"}:
             raise ValueError("Unsupported Chat Plugin intent status.")
-        if self.status == "matched":
+        if type(self.calendar_intent) is not bool:
+            raise ValueError("calendar_intent must be an exact bool.")
+
+        if self.status == "none":
             if (
-                not isinstance(self.repository_reference, str)
-                or not self.repository_reference
-                or self.repository_reference
-                != self.repository_reference.strip()
+                self.repository_reference is not None
+                or self.calendar_window is not None
+                or self.calendar_intent
             ):
+                raise ValueError("none intent must not carry target metadata.")
+            return
+
+        if self.status == "invalid":
+            if self.repository_reference is not None or self.calendar_window is not None:
+                raise ValueError("invalid intent must not carry target metadata.")
+            return
+
+        repository = self.repository_reference
+        calendar_window = self.calendar_window
+        if self.calendar_intent:
+            if repository is not None or calendar_window not in _CALENDAR_WINDOWS:
                 raise ValueError(
-                    "matched intent requires one repository_reference."
+                    "matched Calendar intent requires one supported calendar_window."
                 )
-        elif self.repository_reference is not None:
+            return
+
+        if (
+            not isinstance(repository, str)
+            or not repository
+            or repository != repository.strip()
+            or calendar_window is not None
+        ):
             raise ValueError(
-                "non-matched intent must not carry repository_reference."
+                "matched GitHub intent requires one repository_reference."
             )
 
 
@@ -43,26 +69,59 @@ class ChatPluginActionBinding:
 
     approval_id: str
     conversation_id: UUID
-    repository_reference: str
+    repository_reference: str | None
     expires_at: datetime
+    calendar_window: CalendarChatWindow | None = None
+    calendar_window_start: datetime | None = None
+    calendar_window_end: datetime | None = None
 
     def __post_init__(self) -> None:
-        for label, value in (
-            ("approval_id", self.approval_id),
-            ("repository_reference", self.repository_reference),
+        if (
+            not isinstance(self.approval_id, str)
+            or not self.approval_id
+            or self.approval_id != self.approval_id.strip()
         ):
-            if (
-                not isinstance(value, str)
-                or not value
-                or value != value.strip()
-            ):
-                raise ValueError(
-                    f"{label} must be a non-empty trimmed string."
-                )
+            raise ValueError("approval_id must be a non-empty trimmed string.")
         if not isinstance(self.conversation_id, UUID):
             raise TypeError("conversation_id must be a UUID.")
-        if self.expires_at.tzinfo is None:
+        if self.expires_at.tzinfo is None or self.expires_at.utcoffset() is None:
             raise ValueError("expires_at must be timezone-aware.")
+
+        if self.repository_reference is not None:
+            if (
+                not isinstance(self.repository_reference, str)
+                or not self.repository_reference
+                or self.repository_reference != self.repository_reference.strip()
+            ):
+                raise ValueError(
+                    "repository_reference must be a non-empty trimmed string."
+                )
+            if (
+                self.calendar_window is not None
+                or self.calendar_window_start is not None
+                or self.calendar_window_end is not None
+            ):
+                raise ValueError(
+                    "GitHub bindings must not carry Calendar window metadata."
+                )
+            return
+
+        if self.calendar_window not in _CALENDAR_WINDOWS:
+            raise ValueError(
+                "Calendar bindings require one supported calendar_window."
+            )
+        if (
+            not isinstance(self.calendar_window_start, datetime)
+            or not isinstance(self.calendar_window_end, datetime)
+            or self.calendar_window_start.tzinfo is None
+            or self.calendar_window_start.utcoffset() is None
+            or self.calendar_window_end.tzinfo is None
+            or self.calendar_window_end.utcoffset() is None
+            or self.calendar_window_end <= self.calendar_window_start
+        ):
+            raise ValueError(
+                "Calendar bindings require one valid timezone-aware window."
+            )
 
 
 @dataclass(frozen=True, slots=True)

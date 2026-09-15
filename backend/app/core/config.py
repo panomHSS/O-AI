@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     oai_local_ai_context_length: int = Field(default=4096, ge=256, le=32768)
     oai_github_public_repo_connector_enabled: bool = False
     oai_google_calendar_connector_enabled: bool = False
+    oai_owner_timezone: str = "Asia/Bangkok"
     oai_google_oauth_client_id: str | None = None
     oai_google_oauth_client_secret: SecretStr | None = None
     oai_google_oauth_redirect_uri: str = (

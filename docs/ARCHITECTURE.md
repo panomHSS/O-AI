@@ -1683,3 +1683,48 @@ Frozen invariants:
 `DISCOVERY/GOVERNANCE/LOADING/EXPOSURE/BINDING/ACTIVATION/PROPOSAL/DENIAL -> ZERO TOKEN READS`
 
 `AUTHORIZED EXECUTION -> D62 EXACT RESOLUTION -> ACCESS TOKEN MANAGER -> D63 CALENDAR GET`
+
+## Authenticated Calendar Chat Integration v1
+
+D65 connects a deliberately narrow natural-language Calendar intent surface to
+the existing owner-controlled Plugin execution lane. Calendar intent
+classification is deterministic and supports only `today`, `tomorrow`, and
+`next_7_days`. Normal explanatory, quoted/example, negated, unsupported, and
+ambiguous Calendar text does not gain execution authority.
+
+A matched Calendar request never selects credentials or Google query
+parameters. When the connector is enabled, Chat performs only a non-secret
+metadata preflight against the exact D64 OAuth credential record. Disconnected
+or `reauthorization_required` state creates no D45 proposal and performs no
+token decrypt/refresh. Active state may create exactly one D45 proposal for
+`module.plugin.google_calendar`, operation `list_upcoming_events`, with the
+unchanged D63 `content=upcoming` sentinel.
+
+Relative time is snapshotted at Chat-request time using
+`OAI_OWNER_TIMEZONE` (default `Asia/Bangkok`) and stored only in the
+non-authoritative process-local Chat/approval binding. D63 still owns the
+actual primary-calendar seven-day/max-ten query. D65 applies owner-timezone
+`today`/`tomorrow` filtering only after an approved and authorized D63 result
+returns.
+
+Calendar result JSON is validated again against an exact bounded schema before
+presentation. Event text is treated as untrusted owner data: controls are
+normalized, Markdown-sensitive characters are escaped, content is length
+bounded, and it is never sent to ChatGPT or Local AI for interpretation.
+Calendar event text remains data and cannot become a command.
+
+Frozen invariants:
+
+`CALENDAR INTENT MATCHED != ACTION APPROVED != AUTHORIZED != EXECUTED`
+
+`CALENDAR CONNECTED != PLUGIN ACTIVATED != ACTION AUTHORIZED`
+
+`CHAT REQUEST != CREDENTIAL REQUEST`
+
+`TIME WINDOW != CONNECTOR PARAMETER`
+
+`CALENDAR EVENT TEXT != PROMPT != COMMAND`
+
+`DISABLED/DISCONNECTED/REAUTHORIZATION PREFLIGHT -> ZERO TOKEN READS`
+
+`AUTHORIZED EXECUTION -> D63 -> D62 -> D64 -> GOOGLE`

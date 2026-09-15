@@ -85,6 +85,9 @@ from app.services.credential_access_broker import (
 from app.connectors.google_oauth import GoogleOAuthClient
 from app.services.google_oauth_config import GoogleOAuthRuntimeConfig
 from app.services.google_oauth_lifecycle import GoogleOAuthLifecycleService
+from app.services.google_oauth_connection_status import (
+    GoogleOAuthConnectionStatusReader,
+)
 from app.services.google_oauth_token_manager import GoogleOAuthTokenManager
 from app.services.oauth_flow_state import OAuthFlowStateStore
 from app.services.credential_profile_catalog import (
@@ -439,6 +442,15 @@ def get_credential_secret_source() -> CredentialSecretSource:
                 lambda: get_google_oauth_token_manager().resolve_access_token()
             )
         }
+    )
+
+
+def get_google_oauth_connection_status_reader(
+    database_session: Session = Depends(get_db),
+) -> GoogleOAuthConnectionStatusReader:
+    """Read D65 connection metadata without resolving any credential secret."""
+    return GoogleOAuthConnectionStatusReader(
+        OAuthCredentialRepository(database_session)
     )
 
 
@@ -929,8 +941,11 @@ def get_chat_action_bridge(
     plugin_binding_store: ChatPluginActionBindingStore = Depends(
         get_chat_plugin_action_binding_store
     ),
+    google_calendar_connection_status_reader: (
+        GoogleOAuthConnectionStatusReader
+    ) = Depends(get_google_oauth_connection_status_reader),
 ) -> ChatActionBridge:
-    """Compose D46/D61 Chat action routing over existing D45 authority."""
+    """Compose D46/D61/D65 Chat action routing over existing D45 authority."""
     settings = get_settings()
     return ChatActionBridge(
         conversation_service=conversation_service,
@@ -939,6 +954,13 @@ def get_chat_action_bridge(
         github_public_repo_connector_enabled=(
             settings.oai_github_public_repo_connector_enabled
         ),
+        google_calendar_connector_enabled=(
+            settings.oai_google_calendar_connector_enabled
+        ),
+        google_calendar_connection_status_reader=(
+            google_calendar_connection_status_reader
+        ),
+        owner_timezone=settings.oai_owner_timezone,
     )
 
 
