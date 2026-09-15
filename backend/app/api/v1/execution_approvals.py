@@ -6,7 +6,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 
-from app.api.dependencies import get_execution_approval_service
+from app.api.dependencies import (
+    get_chat_plugin_action_completion_service,
+    get_execution_approval_service,
+)
 from app.schemas.api import ApiSuccess
 from app.schemas.execution_approvals import (
     CreateExecutionApprovalRequest,
@@ -14,6 +17,7 @@ from app.schemas.execution_approvals import (
     ExecutionApprovalDecisionResponse,
     ExecutionApprovalProposalResponse,
 )
+from app.services.chat_plugin_action import ChatPluginActionCompletionService
 from app.services.execution_approval_service import ExecutionApprovalService
 
 
@@ -76,13 +80,24 @@ def approve_execution(
         ExecutionApprovalService,
         Depends(get_execution_approval_service),
     ],
+    completion_service: Annotated[
+        ChatPluginActionCompletionService,
+        Depends(get_chat_plugin_action_completion_service),
+    ],
 ) -> ApiSuccess[ExecutionApprovalDecisionResponse]:
     outcome = service.approve(
         approval_id,
         payload.plan_digest,
     )
+    chat_completion = completion_service.complete(
+        approval_id,
+        outcome,
+    )
     return ApiSuccess(
-        data=ExecutionApprovalDecisionResponse.from_outcome(outcome)
+        data=ExecutionApprovalDecisionResponse.from_outcome(
+            outcome,
+            chat_completion=chat_completion,
+        )
     )
 
 
@@ -102,11 +117,22 @@ def deny_execution(
         ExecutionApprovalService,
         Depends(get_execution_approval_service),
     ],
+    completion_service: Annotated[
+        ChatPluginActionCompletionService,
+        Depends(get_chat_plugin_action_completion_service),
+    ],
 ) -> ApiSuccess[ExecutionApprovalDecisionResponse]:
     outcome = service.deny(
         approval_id,
         payload.plan_digest,
     )
+    chat_completion = completion_service.complete(
+        approval_id,
+        outcome,
+    )
     return ApiSuccess(
-        data=ExecutionApprovalDecisionResponse.from_outcome(outcome)
+        data=ExecutionApprovalDecisionResponse.from_outcome(
+            outcome,
+            chat_completion=chat_completion,
+        )
     )

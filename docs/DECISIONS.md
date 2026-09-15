@@ -1529,3 +1529,40 @@ Plugin upgrades, or untrusted third-party Plugin support.
 D60 adds no new Plugin capability or external authority. It narrows connector
 routing, documents the trusted-code boundary, quarantines legacy execution
 surfaces, and freezes security regression coverage before further expansion.
+
+## ADR-053: Chat-to-Plugin Action Integration v1
+
+**Status:** Accepted
+
+**Decision**
+
+Connect normal Chat to the existing D45/D36 Plugin action lane through a narrow
+deterministic GitHub repository intent router. Do not use LLM-generated tool
+calls or model output for Plugin selection in v1.
+
+Keep the D59 GitHub public repository connector disabled by default. Add the
+owner deployment setting `OAI_GITHUB_PUBLIC_REPO_CONNECTOR_ENABLED=false`.
+When enabled, materialize only the exact first-party
+`github_public_repo/1.0.0` D54-D58 lifecycle before D31/D44 request snapshots
+are created. This configuration makes the connector available but does not
+approve any execution.
+
+Correlate pending Plugin action approvals to conversations with bounded,
+process-local, non-authoritative metadata. After the existing D45 decision and
+D36-authorized execution completes, validate the D59 result again, compose a
+deterministic safe assistant reply, and persist that reply to the originating
+conversation.
+
+Do not pass Plugin output to the AI provider in D61 v1. Denied, unavailable,
+stale, revoked, failed, malformed, or mismatched outcomes fail closed and never
+expose raw connector errors or raw external response bodies.
+
+Preserve the existing explicit `/action` D46 behavior and existing
+`ActionApprovalCard` owner-decision UI.
+
+**Consequences**
+
+O-AI can offer its first live external-data capability from normal Chat while
+retaining explicit owner approval and D36 authorization. D61 does not add a
+second connector, credentials, writes, generic web access, autonomous tool
+calling, public lifecycle controls, authentication, or sandboxing.

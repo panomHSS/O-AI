@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     oai_local_ai_model: str = "qwen3.5:9b"
     oai_local_ai_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     oai_local_ai_context_length: int = Field(default=4096, ge=256, le=32768)
+    oai_github_public_repo_connector_enabled: bool = False
 
     @model_validator(mode="after")
     def validate_chunk_settings(self) -> "Settings":

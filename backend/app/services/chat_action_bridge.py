@@ -1,4 +1,4 @@
-"""D46 deterministic explicit Chat -> Action bridge."""
+"""D46 deterministic explicit Chat -> Action bridge, extended by D61."""
 
 from __future__ import annotations
 
@@ -7,6 +7,13 @@ from uuid import UUID
 from app.contracts.chat_action import (
     ChatActionBridgeOutcome,
     ChatActionDirective,
+)
+from app.contracts.chat_plugin_action import ChatPluginActionBinding
+from app.services.chat_plugin_action import (
+    GITHUB_PUBLIC_REPO_ADAPTER_ID,
+    GITHUB_PUBLIC_REPO_OPERATION,
+    ChatPluginActionBindingStore,
+    ChatPluginIntentRouter,
 )
 from app.services.conversations import ConversationService
 from app.services.execution_approval_service import (
@@ -17,6 +24,17 @@ from app.services.execution_approval_service import (
 
 ACTION_PREFIX = "/action"
 PENDING_REPLY = "Action prepared for owner approval."
+PLUGIN_PENDING_REPLY = (
+    "พบคำขอข้อมูลสดจาก GitHub และเตรียม Action "
+    "สำหรับการอนุมัติของเจ้าของแล้วครับ"
+)
+PLUGIN_DISABLED_REPLY = (
+    "GitHub public repository connector ยังไม่ได้เปิดใช้งานครับ"
+)
+PLUGIN_INVALID_REPLY = (
+    "พบคำขอข้อมูล GitHub แต่ต้องระบุ repository "
+    "แบบ owner/repository เพียงหนึ่งรายการครับ"
+)
 INVALID_REPLY = "The action directive could not be recognized."
 UNAVAILABLE_REPLY = "The requested action is not currently available."
 PROJECT_REQUIRED_REPLY = (
@@ -64,16 +82,32 @@ _REMAINDER_DIRECTIVES: dict[
 
 
 class ChatActionBridge:
-    """Convert only explicit /action syntax into D45 approval proposals."""
+    """Convert deterministic Chat action syntax/intents into D45 proposals."""
 
     def __init__(
         self,
         *,
         conversation_service: ConversationService,
         approval_service: ExecutionApprovalService,
+        plugin_binding_store: ChatPluginActionBindingStore | None = None,
+        plugin_intent_router: ChatPluginIntentRouter | None = None,
+        github_public_repo_connector_enabled: bool = False,
     ) -> None:
+        if type(github_public_repo_connector_enabled) is not bool:
+            raise TypeError(
+                "github_public_repo_connector_enabled must be an exact bool."
+            )
         self._conversation_service = conversation_service
         self._approval_service = approval_service
+        self._plugin_binding_store = (
+            plugin_binding_store or ChatPluginActionBindingStore()
+        )
+        self._plugin_intent_router = (
+            plugin_intent_router or ChatPluginIntentRouter()
+        )
+        self._github_public_repo_connector_enabled = (
+            github_public_repo_connector_enabled
+        )
 
     @staticmethod
     def is_action_directive(message: str) -> bool:
@@ -88,6 +122,9 @@ class ChatActionBridge:
             return False
         return normalized[len(ACTION_PREFIX)].isspace()
 
+    def is_plugin_action_request(self, message: str) -> bool:
+        return self._plugin_intent_router.classify(message).status != "none"
+
     def process(
         self,
         *,
@@ -95,12 +132,20 @@ class ChatActionBridge:
         conversation_id: UUID | None = None,
         project_id: UUID | None = None,
     ) -> ChatActionBridgeOutcome:
-        if not self.is_action_directive(message):
+        explicit = self.is_action_directive(message)
+        plugin_intent = (
+            None
+            if explicit
+            else self._plugin_intent_router.classify(message)
+        )
+        if not explicit and (
+            plugin_intent is None
+            or plugin_intent.status == "none"
+        ):
             raise ValueError(
-                "ChatActionBridge only accepts explicit /action directives."
+                "ChatActionBridge accepts only deterministic action requests."
             )
 
-        directive = self._parse(message)
         conversation, _ = self._conversation_service.begin_turn(
             message,
             conversation_id,
@@ -108,6 +153,36 @@ class ChatActionBridge:
         )
         conversation_uuid = UUID(str(conversation.id))
 
+        if not explicit:
+            assert plugin_intent is not None
+            if plugin_intent.status == "invalid":
+                return self._complete(
+                    conversation_id=str(conversation.id),
+                    conversation_uuid=conversation_uuid,
+                    reply=PLUGIN_INVALID_REPLY,
+                    status="rejected",
+                    reason_code="invalid_github_repository_intent",
+                )
+            if not self._github_public_repo_connector_enabled:
+                return self._complete(
+                    conversation_id=str(conversation.id),
+                    conversation_uuid=conversation_uuid,
+                    reply=PLUGIN_DISABLED_REPLY,
+                    status="unavailable",
+                    reason_code=(
+                        "github_public_repo_connector_disabled"
+                    ),
+                )
+            assert plugin_intent.repository_reference is not None
+            return self._process_github_plugin(
+                conversation_id=str(conversation.id),
+                conversation_uuid=conversation_uuid,
+                repository_reference=(
+                    plugin_intent.repository_reference
+                ),
+            )
+
+        directive = self._parse(message)
         if directive is None:
             return self._complete(
                 conversation_id=str(conversation.id),
@@ -136,16 +211,75 @@ class ChatActionBridge:
                 "project_id": str(linked_project_id),
             }
 
+        return self._propose(
+            conversation_id=str(conversation.id),
+            conversation_uuid=conversation_uuid,
+            target_kind=directive.target_kind,
+            adapter_id=directive.adapter_id,
+            operation=directive.operation,
+            parameters=parameters,
+            pending_reply=PENDING_REPLY,
+        )
+
+    def _process_github_plugin(
+        self,
+        *,
+        conversation_id: str,
+        conversation_uuid: UUID,
+        repository_reference: str,
+    ) -> ChatActionBridgeOutcome:
+        outcome = self._propose(
+            conversation_id=conversation_id,
+            conversation_uuid=conversation_uuid,
+            target_kind="module",
+            adapter_id=GITHUB_PUBLIC_REPO_ADAPTER_ID,
+            operation=GITHUB_PUBLIC_REPO_OPERATION,
+            parameters={"content": repository_reference},
+            pending_reply=PLUGIN_PENDING_REPLY,
+            complete_pending=False,
+        )
+        if (
+            outcome.status == "pending_approval"
+            and outcome.approval is not None
+            and outcome.approval.proposal is not None
+        ):
+            proposal = outcome.approval.proposal
+            self._plugin_binding_store.add(
+                ChatPluginActionBinding(
+                    approval_id=proposal.approval_id,
+                    conversation_id=conversation_uuid,
+                    repository_reference=repository_reference,
+                    expires_at=proposal.expires_at,
+                )
+            )
+            self._conversation_service.complete_turn(
+                conversation_id,
+                PLUGIN_PENDING_REPLY,
+            )
+        return outcome
+
+    def _propose(
+        self,
+        *,
+        conversation_id: str,
+        conversation_uuid: UUID,
+        target_kind: str,
+        adapter_id: str,
+        operation: str,
+        parameters: dict[str, object],
+        pending_reply: str,
+        complete_pending: bool = True,
+    ) -> ChatActionBridgeOutcome:
         try:
             approval = self._approval_service.propose(
-                target_kind=directive.target_kind,
-                adapter_id=directive.adapter_id,
-                operation=directive.operation,
+                target_kind=target_kind,
+                adapter_id=adapter_id,
+                operation=operation,
                 parameters=parameters,
             )
         except ExecutionApprovalError as error:
             return self._complete(
-                conversation_id=str(conversation.id),
+                conversation_id=conversation_id,
                 conversation_uuid=conversation_uuid,
                 reply=UNAVAILABLE_REPLY,
                 status="unavailable",
@@ -157,17 +291,21 @@ class ChatActionBridge:
             )
 
         if approval.status == "pending":
-            return self._complete(
-                conversation_id=str(conversation.id),
-                conversation_uuid=conversation_uuid,
-                reply=PENDING_REPLY,
+            if complete_pending:
+                self._conversation_service.complete_turn(
+                    conversation_id,
+                    pending_reply,
+                )
+            return ChatActionBridgeOutcome(
+                reply=pending_reply,
+                conversation_id=conversation_uuid,
                 status="pending_approval",
                 reason_code=approval.reason_code,
                 approval=approval,
             )
 
         return self._complete(
-            conversation_id=str(conversation.id),
+            conversation_id=conversation_id,
             conversation_uuid=conversation_uuid,
             reply=UNAVAILABLE_REPLY,
             status=approval.status,

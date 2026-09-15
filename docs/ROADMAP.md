@@ -141,6 +141,7 @@ The following capabilities are implemented in the current codebase but have not 
 - D58 adds controlled process-local Plugin registration and D44 permission activation through coherent immutable runtime snapshots; activation-aware wrappers block stale snapshots after deactivation or upstream invalidation, while D45 approval and D36 authorization remain mandatory execution gates.
 - D59 adds the first production-known read-only external connector as an exact static `github_public_repo` Plugin; it can read only bounded public repository metadata through one fixed unauthenticated GitHub HTTPS GET, while governance, activation, owner approval and authorization remain explicit and default-deny.
 - D60 completes Plugin Engine Integration / Security Review v1: D59 connector egress ignores environment proxy routing, in-process Plugins are explicitly trusted O-AI code rather than sandboxed extensions, legacy Plugin runtime/registrar paths remain quarantined from production authority, and end-to-end D45/D36/stale-state security regressions are frozen.
+- D61 connects normal Chat to the exact D59 GitHub metadata capability through deterministic intent recognition, config-controlled first-party lifecycle materialization, D45 owner approval, D36 authorization, deterministic Plugin-result composition, and persisted final Chat responses without sending Plugin output back into the AI model.
 
 ## Planned
 
@@ -151,7 +152,7 @@ The following capabilities are implemented in the current codebase but have not 
 ## Future releases
 
 - Gmail and Calendar integrations.
-- Plugin Engine beyond D60 security review (credential architecture, authenticated connectors, isolation for any untrusted Plugin model, activation-generation approval policy, lifecycle hardening, and additional explicitly approved read/write capabilities).
+- Plugin Engine beyond D61 Chat integration (credential architecture, authenticated connectors, isolation for any untrusted Plugin model, activation-generation approval policy, lifecycle hardening, and additional explicitly approved read/write capabilities).
 - Engineering Assistant, personal finance, factory knowledge, and approved automation capabilities.
 
 Future items are direction, not commitments. Each requires an approved decision record, scoped implementation plan, and release acceptance criteria.

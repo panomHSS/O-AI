@@ -4,7 +4,10 @@ import unittest
 from typing import Any
 from urllib.parse import urlsplit
 
-from app.api.dependencies import get_execution_approval_service
+from app.api.dependencies import (
+    get_chat_plugin_action_completion_service,
+    get_execution_approval_service,
+)
 from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.command import CommandRequest, ExecutionPlan, Result
 from app.contracts.tool_module import TOOL_MODULE_ADAPTER_CONTRACT_VERSION
@@ -51,6 +54,11 @@ class StubToolAdapter:
                 "value": plan.steps[0].parameters.get("value")
             },
         )
+
+
+class NoopChatPluginActionCompletion:
+    def complete(self, approval_id, outcome):
+        return None
 
 
 class SequenceFactory:
@@ -188,6 +196,9 @@ class ExecutionApprovalApiTests(unittest.TestCase):
         app.dependency_overrides[
             get_execution_approval_service
         ] = lambda: self.service
+        app.dependency_overrides[
+            get_chat_plugin_action_completion_service
+        ] = lambda: NoopChatPluginActionCompletion()
 
     def tearDown(self) -> None:
         app.dependency_overrides.clear()

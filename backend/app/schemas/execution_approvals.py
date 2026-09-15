@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import UUID
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,6 +12,7 @@ from app.contracts.execution_approval import (
     ExecutionApprovalDecisionOutcome,
     ExecutionApprovalProposalOutcome,
 )
+from app.contracts.chat_plugin_action import ChatPluginActionCompletion
 
 
 class CreateExecutionApprovalRequest(BaseModel):
@@ -96,6 +98,21 @@ class ExecutionResultResponse(BaseModel):
     error_code: str | None = None
 
 
+class ExecutionChatCompletionResponse(BaseModel):
+    conversation_id: UUID
+    reply: str
+
+    @classmethod
+    def from_completion(
+        cls,
+        completion: ChatPluginActionCompletion,
+    ) -> "ExecutionChatCompletionResponse":
+        return cls(
+            conversation_id=completion.conversation_id,
+            reply=completion.reply,
+        )
+
+
 class ExecutionApprovalDecisionResponse(BaseModel):
     approval_id: str
     request_id: str
@@ -109,11 +126,14 @@ class ExecutionApprovalDecisionResponse(BaseModel):
     target_kind: Literal["tool", "module"] | None
     reason_code: str
     result: ExecutionResultResponse | None = None
+    chat_completion: ExecutionChatCompletionResponse | None = None
 
     @classmethod
     def from_outcome(
         cls,
         outcome: ExecutionApprovalDecisionOutcome,
+        *,
+        chat_completion: ChatPluginActionCompletion | None = None,
     ) -> "ExecutionApprovalDecisionResponse":
         execution = outcome.execution
         result = execution.result
@@ -136,4 +156,11 @@ class ExecutionApprovalDecisionResponse(BaseModel):
             target_kind=execution.target_kind,
             reason_code=execution.reason_code,
             result=public_result,
+            chat_completion=(
+                ExecutionChatCompletionResponse.from_completion(
+                    chat_completion
+                )
+                if chat_completion is not None
+                else None
+            ),
         )

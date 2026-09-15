@@ -65,7 +65,10 @@ def send_chat_message(
 ) -> ApiSuccess[ChatResponse]:
     """Handle normal chat or one explicit owner-reviewed /action turn."""
 
-    if chat_action_bridge.is_action_directive(payload.message):
+    if (
+        chat_action_bridge.is_action_directive(payload.message)
+        or chat_action_bridge.is_plugin_action_request(payload.message)
+    ):
         if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN

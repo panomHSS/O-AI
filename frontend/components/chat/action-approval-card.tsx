@@ -10,14 +10,17 @@ import {
 import type {
   ChatAction,
   ExecutionApprovalDecision,
+  ExecutionChatCompletion,
 } from "../../types/chat";
 
 interface ActionApprovalCardProps {
   action: ChatAction;
+  onChatCompletion?: (completion: ExecutionChatCompletion) => void;
 }
 
 export function ActionApprovalCard({
   action,
+  onChatCompletion,
 }: ActionApprovalCardProps) {
   const approval = action.approval;
   const [decision, setDecision] =
@@ -75,6 +78,9 @@ export function ActionApprovalCard({
               planDigest,
             );
       setDecision(result);
+      if (result.chat_completion) {
+        onChatCompletion?.(result.chat_completion);
+      }
     } catch (caughtError) {
       if (caughtError instanceof ApiError) {
         if (caughtError.status === 410) {
@@ -164,7 +170,11 @@ export function ActionApprovalCard({
           <p className="mt-1 text-xs text-zinc-400">
             {decision.reason_code}
           </p>
-          {decision.result ? (
+          {decision.chat_completion ? (
+            <p className="mt-2 text-xs text-zinc-300">
+              Result added to the conversation.
+            </p>
+          ) : decision.result ? (
             <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded bg-zinc-950 p-2 text-xs">
               {JSON.stringify(decision.result, null, 2)}
             </pre>

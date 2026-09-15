@@ -98,11 +98,6 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
   }
 }
 
-function isExplicitActionMessage(message: string): boolean {
-  const normalized = message.trim();
-  return normalized === "/action" || /^\/action\s/.test(normalized);
-}
-
 export function sendChatMessage(message: string, conversationId?: string, projectId?: string): Promise<ChatResponse> {
   const payload: ChatRequest = {
     message,
@@ -112,9 +107,7 @@ export function sendChatMessage(message: string, conversationId?: string, projec
   return apiRequest<ChatResponse>("/chat", {
     method: "POST",
     body: payload,
-    headers: isExplicitActionMessage(message)
-      ? { "X-OAI-Local-Request": "1" }
-      : undefined,
+    headers: { "X-OAI-Local-Request": "1" },
     timeoutMs: configuredChatTimeoutMs(),
   });
 }

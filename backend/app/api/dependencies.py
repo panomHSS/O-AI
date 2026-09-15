@@ -83,6 +83,11 @@ from app.telemetry.system_metrics import SystemMetricsProvider
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.chat_action_bridge import ChatActionBridge
+from app.services.chat_plugin_action import (
+    ChatPluginActionBindingStore,
+    ChatPluginActionCompletionService,
+    FirstPartyPluginEnablementService,
+)
 from app.services.tool_module_router import ToolModuleRouter
 from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
 from app.services.response_composer import ResponseComposer
@@ -498,8 +503,24 @@ def get_plugin_registration_activation_service() -> PluginRegistrationActivation
     )
 
 
+@lru_cache
+def get_first_party_plugin_enablement_service() -> FirstPartyPluginEnablementService:
+    """Compose D61 owner-configured first-party Plugin lifecycle materialization."""
+    return FirstPartyPluginEnablementService(
+        governance=get_plugin_governance_service(),
+        loading=get_plugin_loading_service(),
+        exposure=get_plugin_module_exposure_service(),
+        binding=get_plugin_permission_binding_service(),
+        activation=get_plugin_registration_activation_service(),
+    )
+
+
 def get_plugin_runtime_activation_snapshot() -> PluginRuntimeActivationSnapshot:
-    """Capture one coherent current D58 adapter/permission snapshot."""
+    """Materialize configured first-party Plugins, then capture one D58 snapshot."""
+    settings = get_settings()
+    get_first_party_plugin_enablement_service().ensure_github_public_repository_enabled(
+        settings.oai_github_public_repo_connector_enabled
+    )
     return get_plugin_registration_activation_service().runtime_snapshot()
 
 
@@ -790,6 +811,12 @@ def get_execution_approval_service(
     )
 
 
+@lru_cache
+def get_chat_plugin_action_binding_store() -> ChatPluginActionBindingStore:
+    """Compose bounded process-local D61 Chat/approval correlation metadata."""
+    return ChatPluginActionBindingStore()
+
+
 def get_chat_action_bridge(
     conversation_service: ConversationService = Depends(
         get_conversation_service
@@ -797,11 +824,34 @@ def get_chat_action_bridge(
     approval_service: ExecutionApprovalService = Depends(
         get_execution_approval_service
     ),
+    plugin_binding_store: ChatPluginActionBindingStore = Depends(
+        get_chat_plugin_action_binding_store
+    ),
 ) -> ChatActionBridge:
-    """Compose D46 over conversation persistence and D45 proposal authority."""
+    """Compose D46/D61 Chat action routing over existing D45 authority."""
+    settings = get_settings()
     return ChatActionBridge(
         conversation_service=conversation_service,
         approval_service=approval_service,
+        plugin_binding_store=plugin_binding_store,
+        github_public_repo_connector_enabled=(
+            settings.oai_github_public_repo_connector_enabled
+        ),
+    )
+
+
+def get_chat_plugin_action_completion_service(
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    binding_store: ChatPluginActionBindingStore = Depends(
+        get_chat_plugin_action_binding_store
+    ),
+) -> ChatPluginActionCompletionService:
+    """Compose non-authoritative D61 Plugin-result Chat finalization."""
+    return ChatPluginActionCompletionService(
+        conversation_service=conversation_service,
+        binding_store=binding_store,
     )
 
 

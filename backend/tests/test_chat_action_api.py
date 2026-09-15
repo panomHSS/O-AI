@@ -112,6 +112,9 @@ class FakeActionBridge:
             or normalized.startswith("/action ")
         )
 
+    def is_plugin_action_request(self, message: str) -> bool:
+        return False
+
     def process(self, **kwargs) -> ChatActionBridgeOutcome:
         self.process_calls += 1
         now = datetime(2026, 9, 15, tzinfo=timezone.utc)

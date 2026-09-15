@@ -3,7 +3,11 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { ApiError, getConversation, getProject, sendChatMessage } from "../../lib/api-client";
-import type { ChatAction, ChatMessage } from "../../types/chat";
+import type {
+  ChatAction,
+  ChatMessage,
+  ExecutionChatCompletion,
+} from "../../types/chat";
 import type { Project } from "../../types/projects";
 import { ActionApprovalCard } from "./action-approval-card";
 
@@ -103,6 +107,28 @@ export function Chat() {
     }
   }
 
+  function handleActionChatCompletion(
+    completion: ExecutionChatCompletion,
+  ) {
+    if (
+      conversationId &&
+      conversationId !== completion.conversation_id
+    ) {
+      setError("Action result belongs to another conversation.");
+      return;
+    }
+
+    setConversationId(completion.conversation_id);
+    window.localStorage.setItem(
+      ACTIVE_CONVERSATION_STORAGE_KEY,
+      completion.conversation_id,
+    );
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      createMessage("assistant", completion.reply),
+    ]);
+  }
+
   function handleNewConversation() {
     window.localStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY);
     setConversationId(null);
@@ -145,7 +171,10 @@ export function Chat() {
               </ol>
             ) : null}
             {chatMessage.action ? (
-              <ActionApprovalCard action={chatMessage.action} />
+              <ActionApprovalCard
+                action={chatMessage.action}
+                onChatCompletion={handleActionChatCompletion}
+              />
             ) : null}
           </article>
         ))}

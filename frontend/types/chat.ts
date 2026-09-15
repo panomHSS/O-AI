@@ -37,6 +37,11 @@ export interface ExecutionResult {
   error_code: string | null;
 }
 
+export interface ExecutionChatCompletion {
+  conversation_id: string;
+  reply: string;
+}
+
 export interface ExecutionApprovalDecision {
   approval_id: string;
   request_id: string;
@@ -45,6 +50,7 @@ export interface ExecutionApprovalDecision {
   target_kind: "tool" | "module" | null;
   reason_code: string;
   result: ExecutionResult | null;
+  chat_completion: ExecutionChatCompletion | null;
 }
 
 export interface ChatAction {

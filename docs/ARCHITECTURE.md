@@ -1500,3 +1500,48 @@ Frozen invariants include:
 `ACTIVATED != APPROVED != AUTHORIZED != EXECUTED`
 
 Detailed findings are recorded in `docs/PLUGIN_ENGINE_SECURITY_REVIEW_V1.md`.
+
+## D61 — Chat-to-Plugin Action Integration v1
+
+D61 connects normal Chat to the already-approved Plugin execution authority
+without creating a second authority lane.
+
+A deliberately narrow deterministic intent router recognizes only GitHub public
+repository metadata requests that contain exactly one canonical
+`owner/repository` identifier. Model output is not used to select a Plugin or
+grant capability authority.
+
+The production flow is:
+
+`Chat -> deterministic GitHub intent -> D45 proposal -> owner decision -> D36
+authorization -> ModuleRuntime -> D58/D56/D55 -> D59 connector -> deterministic
+safe result composition -> persisted assistant message`
+
+The first-party D59 connector remains disabled by default through
+`OAI_GITHUB_PUBLIC_REPO_CONNECTOR_ENABLED=false`. When the owner enables that
+setting, request-snapshot composition idempotently materializes the exact
+D54-D58 lifecycle for `github_public_repo/1.0.0` before D31/D44 snapshots are
+built. Enablement grants availability only; every execution remains separately
+D45 approval-gated and D36-authorized.
+
+D61 stores only bounded process-local correlation metadata between a D45
+approval ticket and its originating conversation. This correlation is not
+approval, authorization, permission, registration, or execution authority.
+
+Successful Plugin output is validated again and rendered deterministically into
+the conversation. External Plugin data is never inserted into an AI provider
+prompt in D61 v1.
+
+Frozen invariants include:
+
+`CHAT INTENT != EXECUTION AUTHORITY`
+
+`CONNECTOR ENABLED != EXECUTION APPROVED`
+
+`PLUGIN RESULT != PROMPT`
+
+`DENIED -> ZERO CONNECTOR CALLS`
+
+`PROPOSAL ONLY -> ZERO CONNECTOR CALLS`
+
+`NORMAL CHAT != AUTO TOOL EXECUTION`
