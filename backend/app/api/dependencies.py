@@ -28,6 +28,7 @@ from app.services.tool_filesystem_boundary import ToolFilesystemBoundary
 from app.db.session import get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.plugins.default_plugin_discovery import DefaultPluginDiscovery
+from app.plugins.explicit_plugin_factory_loader import ExplicitPluginFactoryLoader
 from app.readers import create_document_reader_registry
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
@@ -54,6 +55,10 @@ from app.services.plugin_candidate_discovery import PluginCandidateDiscovery
 from app.services.plugin_governance import (
     PluginGovernanceDecisionStore,
     PluginGovernanceService,
+)
+from app.services.plugin_loading import (
+    LoadedPluginStore,
+    PluginLoadingService,
 )
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
@@ -382,6 +387,29 @@ def get_plugin_governance_service() -> PluginGovernanceService:
     return PluginGovernanceService(
         candidate_discovery=get_plugin_candidate_discovery(),
         store=get_plugin_governance_store(),
+    )
+
+
+@lru_cache
+def get_controlled_plugin_loader() -> ExplicitPluginFactoryLoader:
+    """Compose the exact static D55 Plugin factory allowlist."""
+    return ExplicitPluginFactoryLoader()
+
+
+@lru_cache
+def get_loaded_plugin_store() -> LoadedPluginStore:
+    """Compose the bounded process-local D55 loaded Plugin store."""
+    return LoadedPluginStore()
+
+
+@lru_cache
+def get_plugin_loading_service() -> PluginLoadingService:
+    """Compose D55 loading without registration, exposure, or execution."""
+    return PluginLoadingService(
+        candidate_discovery=get_plugin_candidate_discovery(),
+        governance=get_plugin_governance_service(),
+        loader=get_controlled_plugin_loader(),
+        store=get_loaded_plugin_store(),
     )
 
 

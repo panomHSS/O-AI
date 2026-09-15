@@ -1138,3 +1138,72 @@ approval, D36 Guard, ModuleRuntime, PluginRuntime, or the fixed D51 Echo bridge.
 It adds no public API, frontend, database migration, persistence, filesystem
 Plugin scanning, package import, dynamic ModuleAdapter generation, OAuth,
 credential handling, external connector, Docker change, or dependency.
+
+## D55 — Controlled Plugin Loading v1
+
+D55 adds a fail-closed controlled loading boundary after D53 candidate
+reconciliation and D54 governance admission.
+
+The loading lane is:
+
+`D53 exact current candidate + D54 exact admitted decision ->
+PluginLoadingService -> ExplicitPluginFactoryLoader -> internal
+LoadedPluginStore -> immutable LoadedPluginRecord metadata`
+
+Before the loader is called, the requested Plugin id and version must have an
+exact D54 `admitted` decision and an exact current D53 `projected_match`
+candidate. The projected capability-name tuple must match exactly between D53
+and D54. Capability drift therefore fails closed rather than inheriting a prior
+admission.
+
+D55 introduces an `ExplicitPluginFactoryLoader` instead of enabling the legacy
+`DefaultPluginLoader`. The v1 production factory table contains exactly
+`echo/1.0.0 -> EchoPlugin`. It performs no filesystem scanning, manifest-supplied
+module import, package installation, version-range matching, latest-version
+selection, network download, retry, or fallback.
+
+A returned Plugin instance is revalidated after construction: id and version
+must exactly match the requested manifest, name must be a non-empty trimmed
+string, and the execution surface must be callable. Invalid or mismatched
+instances are discarded and never stored.
+
+Loaded Plugin instances are held only in a bounded, thread-safe, process-local
+`LoadedPluginStore`. Public D55 service methods expose immutable
+`LoadedPluginRecord` metadata only; they do not expose the Plugin object or an
+execution method. The v1 store has a default maximum of 100 exact id/version
+entries and never silently evicts. Process restart clears the loaded snapshot.
+
+Repeated loading of an already loaded exact subject is idempotent only after
+D54 governance and D53 current-candidate checks are repeated. A revoked
+governance decision or changed current capability subject therefore blocks the
+repeat request even if the old Plugin object remains internally held.
+
+D55 preserves:
+
+- `DISCOVERED != CANDIDATE`
+- `CANDIDATE != PROJECTED`
+- `PROJECTED != GOVERNANCE ADMITTED`
+- `GOVERNANCE ADMITTED != LOADED`
+- `LOADED != REGISTERED`
+- `LOADED != EXPOSED`
+- `REGISTERED != PERMITTED`
+- `PERMITTED != EXECUTION APPROVED`
+- `EXECUTION APPROVED != AUTHORIZED`
+- `AUTHORIZED != EXECUTED`
+- `PLUGIN LOADED != PLUGIN OBJECT EXPOSED`
+- `LOADING RESULT != GOVERNANCE DECISION`
+- `LOAD FAILURE != RETRY`
+- `LOAD FAILURE != FALLBACK`
+- `LOAD FAILURE != REGISTER`
+- `LOAD FAILURE != EXECUTE`
+
+D55 does not register a loaded Plugin in `PluginRegistry`, expose an adapter,
+create a D44 permission, create a D45 execution approval, authorize a plan, call
+Plugin execution, or change D51. The fixed D51 Echo bridge remains a separate
+reference execution lane and does not consume the D55 loaded store.
+
+D55 adds no dynamic filesystem discovery, Python import from a manifest path,
+package installation, signature/hash verification, persistent loaded state,
+database migration, dynamic ModuleAdapter generation, public Plugin API/UI,
+OAuth, credential handling, external connector, Docker change, dependency, or
+frontend change.

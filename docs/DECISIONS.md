@@ -1276,3 +1276,61 @@ ModuleAdapter, governance persistence, database migration, public governance
 API/UI, OAuth, credential handling, external connector, Docker change,
 dependency, or frontend change. D51 remains the only production Plugin
 execution bridge.
+
+## ADR-047: Controlled Plugin Loading v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a fail-closed `PluginLoadingService`, explicit static
+`ExplicitPluginFactoryLoader`, bounded process-local `LoadedPluginStore`, and
+immutable `LoadedPluginRecord` metadata.
+
+Only an exact requested Plugin id/version with both an exact current D53
+`projected_match` candidate and an exact current D54 `admitted` governance
+decision may reach the explicit loader. The projected capability-name tuple
+must match exactly between the current candidate and governance decision.
+
+The legacy `DefaultPluginLoader` remains unimplemented and the legacy
+`DefaultPluginRegistrar` remains unchanged. D55 therefore does not make the
+legacy `discover -> load -> register` path a production authority. Instead, the
+new loader uses an explicit in-process factory table; v1 permits exactly
+`echo/1.0.0 -> EchoPlugin`.
+
+After construction, D55 validates the loaded Plugin id, exact version, non-empty
+trimmed name, and callable execution surface. The Plugin object is stored
+internally and public D55 methods return only immutable metadata. D55 never
+calls the Plugin execution surface.
+
+The loaded store is thread-safe, bounded to 100 entries by default,
+process-local, and has no silent eviction. Repeated exact loads are idempotent
+only after governance and current-candidate checks are repeated, preventing an
+old loaded object from bypassing later revocation or subject drift.
+
+**Context**
+
+D52 introduced metadata-only Plugin projections, D53 reconciled discovery
+manifests into fail-closed candidates, and D54 added explicit owner governance
+admission for exact id/version/capability subjects. D55 is the first dynamic
+Plugin Engine milestone allowed to instantiate Plugin code, so loading itself
+must be treated as a privileged boundary without turning it into registration
+or execution authority.
+
+The `Plugin` contract exposes an `execute` method. Returning a loaded Plugin
+object from the D55 service would therefore create a direct execution bypass.
+D55 intentionally exposes metadata only and defers any controlled runtime
+binding to a later milestone.
+
+**Consequences**
+
+Future governed Module exposure may build on internally loaded subjects, but it
+must add its own boundary and re-check the required authority state. D55 itself
+grants no PluginRegistry registration, AdapterRegistry exposure, D44
+permission, D45 execution approval, D36 authorization, Module exposure, or
+Plugin execution authority.
+
+D55 adds no filesystem scanning, arbitrary dynamic import, package installation,
+version fallback, network download, persistence, database migration, public
+Plugin API/UI, OAuth, credential handling, external connector, Docker change,
+dependency, or frontend change. D51 remains unchanged.

@@ -135,6 +135,7 @@ The following capabilities are implemented in the current codebase but have not 
 - D52 adds an immutable metadata-only Plugin Capability Projection Catalog; projection does not imply adapter registration, permission, approval, authorization, loading, or execution.
 - D53 adds fail-closed read-only Plugin discovery candidate reconciliation against D52 projections; exact version match is required and discovery still does not load or execute Plugins.
 - D54 adds bounded process-local default-deny Plugin governance admission; decisions bind exact Plugin id/version/capabilities and grant only future loading eligibility, never execution authority.
+- D55 adds fail-closed controlled Plugin loading through an exact static factory allowlist; only current D53 + D54 exact subjects may load, and loaded objects remain internal metadata-only holdings with no registration or execution authority.
 
 ## Planned
 
@@ -145,7 +146,7 @@ The following capabilities are implemented in the current codebase but have not 
 ## Future releases
 
 - Gmail and Calendar integrations.
-- Plugin Engine beyond D54 governance admission (controlled Plugin loading, governed Module exposure, and approved external connectors).
+- Plugin Engine beyond D55 controlled loading (governed Module exposure, capability/permission binding, and approved external connectors).
 - Engineering Assistant, personal finance, factory knowledge, and approved automation capabilities.
 
 Future items are direction, not commitments. Each requires an approved decision record, scoped implementation plan, and release acceptance criteria.
