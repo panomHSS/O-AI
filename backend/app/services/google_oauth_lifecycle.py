@@ -11,17 +11,8 @@ from app.connectors.google_oauth import (
     GoogleOAuthClient,
     GoogleOAuthClientError,
 )
-from app.contracts.google_calendar import (
-    GOOGLE_CALENDAR_CAPABILITY_NAME,
-    GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
-    GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID,
-    GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
-    GOOGLE_CALENDAR_PLUGIN_ID,
-    GOOGLE_CALENDAR_PLUGIN_VERSION,
-)
 from app.repositories.oauth_credentials import OAuthCredentialRepository
 from app.services.google_oauth_config import (
-    GOOGLE_CALENDAR_OAUTH_AAD,
     GoogleOAuthConfigError,
     GoogleOAuthRuntimeConfig,
 )
@@ -77,6 +68,7 @@ class GoogleOAuthLifecycleService:
     ) -> None:
         self._repository = repository
         self._config = config
+        self._subject = config.subject
         self._client = client
         self._flow_state_store = flow_state_store
         self._token_manager = token_manager
@@ -160,7 +152,7 @@ class GoogleOAuthLifecycleService:
 
         now = self._now()
         existing = self._repository.get(
-            GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID
+            self._subject.profile_id
         )
 
         refresh_token = response.refresh_token
@@ -169,7 +161,7 @@ class GoogleOAuthLifecycleService:
             try:
                 encrypted = cipher.encrypt(
                     refresh_token,
-                    aad=GOOGLE_CALENDAR_OAUTH_AAD,
+                    aad=self._subject.aad,
                 )
             except OAuthTokenCipherError:
                 raise GoogleOAuthLifecycleError(
@@ -185,11 +177,11 @@ class GoogleOAuthLifecycleService:
         elif (
             existing is not None
             and existing.status == "active"
-            and existing.provider_id == GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID
-            and existing.plugin_id == GOOGLE_CALENDAR_PLUGIN_ID
-            and existing.plugin_version == GOOGLE_CALENDAR_PLUGIN_VERSION
-            and existing.capability_name == GOOGLE_CALENDAR_CAPABILITY_NAME
-            and existing.granted_scopes == GOOGLE_CALENDAR_CREDENTIAL_SCOPE
+            and existing.provider_id == self._subject.provider_id
+            and existing.plugin_id == self._subject.plugin_id
+            and existing.plugin_version == self._subject.plugin_version
+            and existing.capability_name == self._subject.capability_name
+            and existing.granted_scopes == self._subject.scope
             and existing.cipher_version == "aesgcm-v1"
         ):
             encrypted = EncryptedOAuthSecret(
@@ -207,15 +199,15 @@ class GoogleOAuthLifecycleService:
 
         try:
             self._repository.save_active(
-                profile_id=GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
-                provider_id=GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID,
-                plugin_id=GOOGLE_CALENDAR_PLUGIN_ID,
-                plugin_version=GOOGLE_CALENDAR_PLUGIN_VERSION,
-                capability_name=GOOGLE_CALENDAR_CAPABILITY_NAME,
+                profile_id=self._subject.profile_id,
+                provider_id=self._subject.provider_id,
+                plugin_id=self._subject.plugin_id,
+                plugin_version=self._subject.plugin_version,
+                capability_name=self._subject.capability_name,
                 encrypted_refresh_token=encrypted.ciphertext,
                 encryption_nonce=encrypted.nonce,
                 cipher_version=encrypted.cipher_version,
-                granted_scopes=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
+                granted_scopes=self._subject.scope,
                 refresh_token_expires_at=refresh_token_expires_at,
                 now=now,
             )
@@ -234,37 +226,37 @@ class GoogleOAuthLifecycleService:
 
     def status(self) -> GoogleOAuthStatus:
         record = self._repository.get(
-            GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID
+            self._subject.profile_id
         )
         if record is None:
             return GoogleOAuthStatus(
                 connected=False,
                 status="disconnected",
-                scope=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
+                scope=self._subject.scope,
             )
         exact_subject = (
-            record.provider_id == GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID
-            and record.plugin_id == GOOGLE_CALENDAR_PLUGIN_ID
-            and record.plugin_version == GOOGLE_CALENDAR_PLUGIN_VERSION
-            and record.capability_name == GOOGLE_CALENDAR_CAPABILITY_NAME
-            and record.granted_scopes == GOOGLE_CALENDAR_CREDENTIAL_SCOPE
+            record.provider_id == self._subject.provider_id
+            and record.plugin_id == self._subject.plugin_id
+            and record.plugin_version == self._subject.plugin_version
+            and record.capability_name == self._subject.capability_name
+            and record.granted_scopes == self._subject.scope
             and record.cipher_version == "aesgcm-v1"
         )
         if record.status != "active" or not exact_subject:
             return GoogleOAuthStatus(
                 connected=False,
                 status="reauthorization_required",
-                scope=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
+                scope=self._subject.scope,
             )
         return GoogleOAuthStatus(
             connected=True,
             status="active",
-            scope=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
+            scope=self._subject.scope,
         )
 
     def disconnect(self) -> GoogleOAuthStatus:
         record = self._repository.get(
-            GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID
+            self._subject.profile_id
         )
         if record is None:
             self._token_manager.clear_cache()
@@ -278,7 +270,7 @@ class GoogleOAuthLifecycleService:
             refresh_token = cipher.decrypt(
                 record.encrypted_refresh_token,
                 record.encryption_nonce,
-                aad=GOOGLE_CALENDAR_OAUTH_AAD,
+                aad=self._subject.aad,
             )
             self._client.revoke_refresh_token(
                 refresh_token=refresh_token
@@ -294,7 +286,7 @@ class GoogleOAuthLifecycleService:
 
         try:
             self._repository.delete(
-                GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID
+                self._subject.profile_id
             )
             self._repository.commit()
         except Exception:

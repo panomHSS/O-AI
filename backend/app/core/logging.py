@@ -11,6 +11,13 @@ from app.contracts.execution_audit import ExecutionAuditEvent
 GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH = (
     "/api/v1/oauth/google-calendar/callback"
 )
+GOOGLE_GMAIL_OAUTH_CALLBACK_PATH = (
+    "/api/v1/oauth/google-gmail/callback"
+)
+OAUTH_CALLBACK_PATHS = (
+    GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH,
+    GOOGLE_GMAIL_OAUTH_CALLBACK_PATH,
+)
 
 EXECUTION_AUDIT_LOGGER_NAME = "oai.execution_audit"
 EXECUTION_AUDIT_EVENT_NAME = "oai.execution_audit"
@@ -120,15 +127,14 @@ class OAuthCallbackAccessLogFilter(logging.Filter):
                 and isinstance(args[2], str)
             ):
                 request_target = args[2]
-                if request_target == GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH:
-                    return True
-                if request_target.startswith(
-                    GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH + "?"
-                ):
-                    sanitized = list(args)
-                    sanitized[2] = GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH
-                    record.args = tuple(sanitized)
-                    return True
+                for callback_path in OAUTH_CALLBACK_PATHS:
+                    if request_target == callback_path:
+                        return True
+                    if request_target.startswith(callback_path + "?"):
+                        sanitized = list(args)
+                        sanitized[2] = callback_path
+                        record.args = tuple(sanitized)
+                        return True
 
             if self._contains_callback_target(record.msg):
                 return False
@@ -141,9 +147,10 @@ class OAuthCallbackAccessLogFilter(logging.Filter):
     @classmethod
     def _contains_callback_target(cls, value: object) -> bool:
         if isinstance(value, str):
-            return (
-                GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH + "?" in value
-                or value == GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH
+            return any(
+                callback_path + "?" in value
+                or value == callback_path
+                for callback_path in OAUTH_CALLBACK_PATHS
             )
         if isinstance(value, tuple):
             return any(cls._contains_callback_target(item) for item in value)

@@ -13,8 +13,9 @@ from typing import Protocol
 
 from pydantic import SecretStr
 
-from app.contracts.google_calendar import GOOGLE_CALENDAR_CREDENTIAL_SCOPE
+from app.contracts.google_oauth import GoogleOAuthCredentialSubject
 from app.services.google_oauth_config import GoogleOAuthRuntimeConfig
+from app.services.google_oauth_subjects import GOOGLE_CALENDAR_OAUTH_SUBJECT
 
 GOOGLE_OAUTH_AUTHORIZATION_URL = (
     "https://accounts.google.com/o/oauth2/v2/auth"
@@ -33,6 +34,7 @@ GOOGLE_OAUTH_ERROR_INVALID_JSON = "google_oauth_invalid_json"
 GOOGLE_OAUTH_ERROR_INVALID_RESPONSE = "google_oauth_invalid_response"
 GOOGLE_OAUTH_ERROR_SCOPE_MISMATCH = "google_oauth_scope_mismatch"
 GOOGLE_OAUTH_ERROR_RESPONSE_TOO_LARGE = "google_oauth_response_too_large"
+GOOGLE_OAUTH_ERROR_SUBJECT_MISMATCH = "google_oauth_subject_mismatch"
 
 
 class GoogleOAuthClientError(ValueError):
@@ -82,6 +84,7 @@ class GoogleOAuthClient:
     def __init__(
         self,
         *,
+        subject: GoogleOAuthCredentialSubject = GOOGLE_CALENDAR_OAUTH_SUBJECT,
         timeout_seconds: float = GOOGLE_OAUTH_TIMEOUT_SECONDS,
         transport: GoogleOAuthTransport | None = None,
     ) -> None:
@@ -91,6 +94,9 @@ class GoogleOAuthClient:
             or timeout_seconds <= 0
         ):
             raise ValueError("timeout_seconds must be positive.")
+        if not isinstance(subject, GoogleOAuthCredentialSubject):
+            raise TypeError("subject must be GoogleOAuthCredentialSubject.")
+        self._subject = subject
         self._timeout_seconds = float(timeout_seconds)
         self._transport = transport or _open_without_redirects
 
@@ -100,6 +106,7 @@ class GoogleOAuthClient:
         *,
         state: str,
     ) -> str:
+        self._require_subject_match(config)
         config.require_ready()
         state = self._bounded_text(state, max_bytes=512)
         query = urllib.parse.urlencode(
@@ -107,7 +114,7 @@ class GoogleOAuthClient:
                 ("response_type", "code"),
                 ("client_id", config.require_client_id()),
                 ("redirect_uri", config.redirect_uri),
-                ("scope", GOOGLE_CALENDAR_CREDENTIAL_SCOPE),
+                ("scope", self._subject.scope),
                 ("access_type", "offline"),
                 ("prompt", "consent"),
                 ("state", state),
@@ -121,6 +128,7 @@ class GoogleOAuthClient:
         *,
         code: str,
     ) -> GoogleOAuthTokenResponse:
+        self._require_subject_match(config)
         code = self._bounded_text(code, max_bytes=8192)
         response = self._post_json(
             GOOGLE_OAUTH_TOKEN_URL,
@@ -146,6 +154,7 @@ class GoogleOAuthClient:
         *,
         refresh_token: SecretStr,
     ) -> GoogleOAuthTokenResponse:
+        self._require_subject_match(config)
         token = self._bounded_secret(refresh_token)
         response = self._post_json(
             GOOGLE_OAUTH_TOKEN_URL,
@@ -174,6 +183,18 @@ class GoogleOAuthClient:
             GOOGLE_OAUTH_REVOCATION_URL,
             (("token", token),),
         )
+
+    def _require_subject_match(
+        self,
+        config: GoogleOAuthRuntimeConfig,
+    ) -> None:
+        if (
+            not isinstance(config, GoogleOAuthRuntimeConfig)
+            or config.subject != self._subject
+        ):
+            raise GoogleOAuthClientError(
+                GOOGLE_OAUTH_ERROR_SUBJECT_MISMATCH
+            )
 
     def _post_json(
         self,
@@ -319,7 +340,7 @@ class GoogleOAuthClient:
             scopes = ()
         elif isinstance(raw_scope, str) and raw_scope:
             scopes = tuple(sorted(set(raw_scope.split())))
-            if scopes != (GOOGLE_CALENDAR_CREDENTIAL_SCOPE,):
+            if scopes != (self._subject.scope,):
                 raise GoogleOAuthClientError(
                     GOOGLE_OAUTH_ERROR_SCOPE_MISMATCH
                 )

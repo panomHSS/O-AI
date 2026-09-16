@@ -75,5 +75,25 @@ class OwnerUIRedirectConfigTests(unittest.TestCase):
         )
 
 
+    def test_gmail_redirects_are_connector_specific_and_safe(self):
+        config = OwnerUIRedirectConfig("http://localhost:3000")
+        connected = urlsplit(config.gmail_connected_url())
+        self.assertEqual(
+            parse_qs(connected.query),
+            {"gmail": ["connected"]},
+        )
+        failed = urlsplit(
+            config.gmail_error_url("oauth_exchange_failed")
+        )
+        self.assertEqual(
+            parse_qs(failed.query),
+            {
+                "gmail": ["error"],
+                "reason": ["oauth_exchange_failed"],
+            },
+        )
+        self.assertNotIn("google_calendar", failed.query)
+        self.assertNotIn("token", failed.query)
+
 if __name__ == "__main__":
     unittest.main()

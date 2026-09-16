@@ -2204,3 +2204,31 @@ D75 reuses the D74 `calendar.events.owned` OAuth scope through exact D62
 managed Calendar access-token secret reference. It adds no new OAuth scope,
 database migration, Docker/dependency change, frontend route, Chat write
 routing, fuzzy event lookup, secondary calendar support, or automation.
+
+## D76 Gmail Credential Foundation v1
+
+D76 adds a second exact Google OAuth credential subject for Gmail without adding
+Gmail mailbox reads or execution authority. The Gmail subject is fixed to
+`gmail / 1.0.0 / read_messages`, profile `gmail.messages.readonly`, secret
+reference `gmail.access_token`, and the single exact scope
+`https://www.googleapis.com/auth/gmail.readonly`.
+
+Google OAuth infrastructure is parameterized by an immutable O-AI-controlled
+credential subject. Calendar and Gmail share the deployment OAuth client
+credentials and AES-GCM key but remain separate across profile identity, scope,
+secret reference, encrypted refresh-token record/AAD, process-local access-token
+cache, OAuth flow-state store, callback path, and browser state cookie.
+
+The local owner control surface is separate at
+`/api/v1/oauth/google-gmail/{start,callback,status,disconnect}`. Gmail status is
+metadata-only and must not decrypt a refresh token, refresh an access token, or
+contact Google. Disconnect revokes/deletes only the Gmail subject and cannot
+remove the Calendar record; the Calendar lifecycle remains subject-local in the
+opposite direction.
+
+D76 deliberately stops before Gmail API transport, message listing/getting,
+message-body parsing, attachments, Chat routing, D31 adapter registration,
+D44/D45 execution permission, automation, database migration, Docker change, or
+dependency change. Core boundary:
+
+`GMAIL CREDENTIAL FOUNDATION != GMAIL API READ != CHAT INTENT != AUTOMATION`.

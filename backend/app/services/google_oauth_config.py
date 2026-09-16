@@ -8,27 +8,12 @@ from urllib.parse import urlsplit
 
 from pydantic import SecretStr
 
-from app.contracts.google_calendar import (
-    GOOGLE_CALENDAR_CAPABILITY_NAME,
-    GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
-    GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID,
-    GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
-    GOOGLE_CALENDAR_PLUGIN_ID,
-    GOOGLE_CALENDAR_PLUGIN_VERSION,
+from app.contracts.google_oauth import GoogleOAuthCredentialSubject
+from app.services.google_oauth_subjects import (
+    GOOGLE_CALENDAR_OAUTH_AAD,
+    GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH,
+    GOOGLE_CALENDAR_OAUTH_SUBJECT,
 )
-
-GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH = (
-    "/api/v1/oauth/google-calendar/callback"
-)
-GOOGLE_CALENDAR_OAUTH_AAD = (
-    "oauth-v1|"
-    f"{GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID}|"
-    f"{GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID}|"
-    f"{GOOGLE_CALENDAR_PLUGIN_ID}|"
-    f"{GOOGLE_CALENDAR_PLUGIN_VERSION}|"
-    f"{GOOGLE_CALENDAR_CAPABILITY_NAME}|"
-    f"{GOOGLE_CALENDAR_CREDENTIAL_SCOPE}"
-).encode("utf-8")
 
 GOOGLE_OAUTH_CONFIG_ERROR_MISSING_CLIENT_ID = "oauth_missing_client_id"
 GOOGLE_OAUTH_CONFIG_ERROR_MISSING_CLIENT_SECRET = "oauth_missing_client_secret"
@@ -53,9 +38,15 @@ class GoogleOAuthRuntimeConfig:
     client_secret: SecretStr | None
     redirect_uri: str
     token_encryption_key: SecretStr | None
+    subject: GoogleOAuthCredentialSubject = GOOGLE_CALENDAR_OAUTH_SUBJECT
 
     def __post_init__(self) -> None:
-        self._validate_redirect_uri(self.redirect_uri)
+        if not isinstance(self.subject, GoogleOAuthCredentialSubject):
+            raise TypeError("subject must be GoogleOAuthCredentialSubject.")
+        self._validate_redirect_uri(
+            self.redirect_uri,
+            callback_path=self.subject.callback_path,
+        )
 
     def require_client_id(self) -> str:
         value = self.client_id
@@ -127,7 +118,11 @@ class GoogleOAuthRuntimeConfig:
         self.require_encryption_key()
 
     @staticmethod
-    def _validate_redirect_uri(value: object) -> None:
+    def _validate_redirect_uri(
+        value: object,
+        *,
+        callback_path: str,
+    ) -> None:
         if not isinstance(value, str) or not value or value != value.strip():
             raise GoogleOAuthConfigError(
                 GOOGLE_OAUTH_CONFIG_ERROR_INVALID_REDIRECT_URI
@@ -136,7 +131,7 @@ class GoogleOAuthRuntimeConfig:
         if (
             parsed.scheme != "http"
             or parsed.hostname not in {"localhost", "127.0.0.1"}
-            or parsed.path != GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH
+            or parsed.path != callback_path
             or parsed.username is not None
             or parsed.password is not None
             or parsed.query

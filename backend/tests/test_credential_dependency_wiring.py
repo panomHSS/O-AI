@@ -29,15 +29,17 @@ class CredentialDependencyWiringTests(unittest.TestCase):
         dependencies.get_credential_profile_catalog.cache_clear()
         dependencies.get_credential_secret_source.cache_clear()
         dependencies.get_google_oauth_token_manager.cache_clear()
+        dependencies.get_google_gmail_oauth_token_manager.cache_clear()
 
     def tearDown(self) -> None:
         dependencies.get_credential_access_broker.cache_clear()
         dependencies.get_credential_profile_catalog.cache_clear()
         dependencies.get_credential_secret_source.cache_clear()
         dependencies.get_google_oauth_token_manager.cache_clear()
+        dependencies.get_google_gmail_oauth_token_manager.cache_clear()
 
     def test_production_catalog_and_source_keep_exact_managed_boundary(self) -> None:
-        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 4)
+        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 5)
         self.assertEqual(
             dependencies.get_credential_profile_catalog().profiles,
             PRODUCTION_CREDENTIAL_PROFILES,
@@ -117,6 +119,31 @@ class CredentialDependencyWiringTests(unittest.TestCase):
             repr(resolved),
         )
 
+
+    def test_exact_gmail_read_subject_resolves_managed_access_token(self) -> None:
+        fake = FakeTokenManager()
+        with patch.object(
+            dependencies,
+            "get_google_gmail_oauth_token_manager",
+            return_value=fake,
+        ):
+            dependencies.get_credential_secret_source.cache_clear()
+            dependencies.get_credential_access_broker.cache_clear()
+            resolved = dependencies.get_credential_access_broker().resolve(
+                "gmail",
+                "1.0.0",
+                "read_messages",
+            )
+        self.assertEqual(fake.calls, 1)
+        self.assertEqual(resolved.profile_id, "gmail.messages.readonly")
+        self.assertEqual(
+            resolved.secret.get_secret_value(),
+            "managed-access-token-never-log",
+        )
+        self.assertNotIn(
+            "managed-access-token-never-log",
+            repr(resolved),
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -54,12 +54,16 @@ class Settings(BaseSettings):
     oai_local_ai_context_length: int = Field(default=4096, ge=256, le=32768)
     oai_github_public_repo_connector_enabled: bool = False
     oai_google_calendar_connector_enabled: bool = False
+    oai_gmail_connector_enabled: bool = False
     oai_owner_timezone: str = "Asia/Bangkok"
     oai_owner_ui_base_url: str = "http://localhost:3000"
     oai_google_oauth_client_id: str | None = None
     oai_google_oauth_client_secret: SecretStr | None = None
     oai_google_oauth_redirect_uri: str = (
         "http://localhost:8000/api/v1/oauth/google-calendar/callback"
+    )
+    oai_google_gmail_oauth_redirect_uri: str = (
+        "http://localhost:8000/api/v1/oauth/google-gmail/callback"
     )
     oai_oauth_token_encryption_key: SecretStr | None = None
 

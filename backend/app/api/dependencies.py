@@ -115,8 +115,13 @@ from app.services.credential_profile_catalog import (
     PRODUCTION_CREDENTIAL_PROFILES,
     CredentialProfileCatalog,
 )
+from app.contracts.gmail import GMAIL_CREDENTIAL_SECRET_REF
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF,
+)
+from app.services.google_oauth_subjects import (
+    GOOGLE_CALENDAR_OAUTH_SUBJECT,
+    GOOGLE_GMAIL_OAUTH_SUBJECT,
 )
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
@@ -438,6 +443,19 @@ def get_google_oauth_runtime_config() -> GoogleOAuthRuntimeConfig:
         client_secret=settings.oai_google_oauth_client_secret,
         redirect_uri=settings.oai_google_oauth_redirect_uri,
         token_encryption_key=settings.oai_oauth_token_encryption_key,
+        subject=GOOGLE_CALENDAR_OAUTH_SUBJECT,
+    )
+
+
+def get_google_gmail_oauth_runtime_config() -> GoogleOAuthRuntimeConfig:
+    """Compose the exact D76 Gmail OAuth deployment subject."""
+    settings = get_settings()
+    return GoogleOAuthRuntimeConfig(
+        client_id=settings.oai_google_oauth_client_id,
+        client_secret=settings.oai_google_oauth_client_secret,
+        redirect_uri=settings.oai_google_gmail_oauth_redirect_uri,
+        token_encryption_key=settings.oai_oauth_token_encryption_key,
+        subject=GOOGLE_GMAIL_OAUTH_SUBJECT,
     )
 
 
@@ -448,13 +466,25 @@ def get_owner_ui_redirect_config() -> OwnerUIRedirectConfig:
 
 @lru_cache
 def get_google_oauth_client() -> GoogleOAuthClient:
-    """Compose the bounded no-proxy/no-redirect Google OAuth transport."""
-    return GoogleOAuthClient()
+    """Compose the exact Calendar OAuth transport."""
+    return GoogleOAuthClient(subject=GOOGLE_CALENDAR_OAUTH_SUBJECT)
+
+
+@lru_cache
+def get_google_gmail_oauth_client() -> GoogleOAuthClient:
+    """Compose the exact Gmail OAuth transport."""
+    return GoogleOAuthClient(subject=GOOGLE_GMAIL_OAUTH_SUBJECT)
 
 
 @lru_cache
 def get_google_oauth_flow_state_store() -> OAuthFlowStateStore:
-    """Compose bounded process-local single-use OAuth state."""
+    """Compose bounded Calendar-only process-local OAuth state."""
+    return OAuthFlowStateStore()
+
+
+@lru_cache
+def get_google_gmail_oauth_flow_state_store() -> OAuthFlowStateStore:
+    """Compose separate bounded Gmail-only process-local OAuth state."""
     return OAuthFlowStateStore()
 
 
@@ -469,13 +499,26 @@ def get_google_oauth_token_manager() -> GoogleOAuthTokenManager:
 
 
 @lru_cache
+def get_google_gmail_oauth_token_manager() -> GoogleOAuthTokenManager:
+    """Compose Gmail access-token refresh over the exact Gmail subject."""
+    return GoogleOAuthTokenManager(
+        session_factory=SessionLocal,
+        config=get_google_gmail_oauth_runtime_config(),
+        client=get_google_gmail_oauth_client(),
+    )
+
+
+@lru_cache
 def get_credential_secret_source() -> CredentialSecretSource:
     """Resolve D64 managed access tokens only when D62 requests the exact ref."""
     return LazyCredentialSecretSource(
         {
             GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF: (
                 lambda: get_google_oauth_token_manager().resolve_access_token()
-            )
+            ),
+            GMAIL_CREDENTIAL_SECRET_REF: (
+                lambda: get_google_gmail_oauth_token_manager().resolve_access_token()
+            ),
         }
     )
 
@@ -485,9 +528,19 @@ def get_google_oauth_connection_status_reader(
 ) -> GoogleOAuthConnectionStatusReader:
     """Read D65 connection metadata without resolving any credential secret."""
     return GoogleOAuthConnectionStatusReader(
-        OAuthCredentialRepository(database_session)
+        OAuthCredentialRepository(database_session),
+        subject=GOOGLE_CALENDAR_OAUTH_SUBJECT,
     )
 
+
+def get_google_gmail_oauth_connection_status_reader(
+    database_session: Session = Depends(get_db),
+) -> GoogleOAuthConnectionStatusReader:
+    """Read Gmail OAuth metadata without credential resolution."""
+    return GoogleOAuthConnectionStatusReader(
+        OAuthCredentialRepository(database_session),
+        subject=GOOGLE_GMAIL_OAUTH_SUBJECT,
+    )
 
 
 def get_runtime_diagnostics_service(
@@ -513,6 +566,19 @@ def get_google_oauth_lifecycle_service(
         client=get_google_oauth_client(),
         flow_state_store=get_google_oauth_flow_state_store(),
         token_manager=get_google_oauth_token_manager(),
+    )
+
+
+def get_google_gmail_oauth_lifecycle_service(
+    database_session: Session = Depends(get_db),
+) -> GoogleOAuthLifecycleService:
+    """Compose explicit owner Gmail OAuth lifecycle without API read authority."""
+    return GoogleOAuthLifecycleService(
+        repository=OAuthCredentialRepository(database_session),
+        config=get_google_gmail_oauth_runtime_config(),
+        client=get_google_gmail_oauth_client(),
+        flow_state_store=get_google_gmail_oauth_flow_state_store(),
+        token_manager=get_google_gmail_oauth_token_manager(),
     )
 
 

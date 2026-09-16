@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from app.core.logging import (
     GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH,
+    GOOGLE_GMAIL_OAUTH_CALLBACK_PATH,
     OAuthCallbackAccessLogFilter,
     _install_oauth_callback_access_log_filter,
 )
@@ -44,6 +45,22 @@ class OAuthCallbackAccessLogFilterTests(unittest.TestCase):
         self.assertNotIn("secret-code", rendered)
         self.assertNotIn("secret-state", rendered)
 
+    def test_gmail_callback_code_and_state_are_removed_from_access_log(self) -> None:
+        record = self.access_record(
+            GOOGLE_GMAIL_OAUTH_CALLBACK_PATH
+            + "?code=gmail-secret-code&state=gmail-secret-state"
+        )
+        subject = OAuthCallbackAccessLogFilter()
+
+        self.assertTrue(subject.filter(record))
+
+        rendered = record.getMessage()
+        self.assertIn(GOOGLE_GMAIL_OAUTH_CALLBACK_PATH, rendered)
+        self.assertNotIn("code=", rendered)
+        self.assertNotIn("state=", rendered)
+        self.assertNotIn("gmail-secret-code", rendered)
+        self.assertNotIn("gmail-secret-state", rendered)
+
     def test_callback_error_query_is_removed_from_access_log(self) -> None:
         record = self.access_record(
             GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH
@@ -78,6 +95,23 @@ class OAuthCallbackAccessLogFilterTests(unittest.TestCase):
             args=(
                 "GET",
                 GOOGLE_CALENDAR_OAUTH_CALLBACK_PATH + "?code=secret",
+            ),
+            exc_info=None,
+        )
+        subject = OAuthCallbackAccessLogFilter()
+
+        self.assertFalse(subject.filter(record))
+
+    def test_malformed_gmail_callback_record_fails_closed(self) -> None:
+        record = logging.LogRecord(
+            name="uvicorn.access",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="%s %s",
+            args=(
+                "GET",
+                GOOGLE_GMAIL_OAUTH_CALLBACK_PATH + "?code=secret",
             ),
             exc_info=None,
         )

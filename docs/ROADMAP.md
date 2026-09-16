@@ -191,3 +191,17 @@ reuse the existing `calendar.events.owned` OAuth scope, and return bounded
 `succeeded` / `failed` / `indeterminate` outcomes with no automatic retry.
 
 Next roadmap baseline after D75 remains D76: Gmail credential foundation.
+
+## D76 completion note — Gmail Credential Foundation v1
+
+D76 establishes a separate read-only Gmail OAuth credential subject without
+reading mailbox data. Gmail uses exact profile `gmail.messages.readonly`, secret
+reference `gmail.access_token`, and only the `gmail.readonly` scope, with
+subject-local encrypted refresh-token identity/AAD, access-token cache,
+flow-state store, callback cookie/path, status, and disconnect lifecycle.
+
+Calendar OAuth behavior remains isolated and regression-covered. D76 adds no
+Gmail API connector, message read, Chat routing, execution adapter/permission,
+automation, migration, Docker change, or dependency change.
+
+Next roadmap baseline after D76 is D77: bounded Gmail read intent/capability.

@@ -37,7 +37,7 @@ class CredentialProfileCatalogTests(unittest.TestCase):
         )
 
     def test_production_catalog_contains_exact_calendar_profiles(self) -> None:
-        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 4)
+        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 5)
         catalog = CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES)
         expected = {
             "create_event": "google_calendar.events.create",
@@ -69,6 +69,13 @@ class CredentialProfileCatalogTests(unittest.TestCase):
                     profile.secret_ref,
                     "google_calendar.access_token",
                 )
+        gmail = catalog.resolve("gmail", "1.0.0", "read_messages")
+        self.assertEqual(gmail.profile_id, "gmail.messages.readonly")
+        self.assertEqual(
+            gmail.required_scopes,
+            ("https://www.googleapis.com/auth/gmail.readonly",),
+        )
+        self.assertEqual(gmail.secret_ref, "gmail.access_token")
         self.assertEqual(catalog.profiles, PRODUCTION_CREDENTIAL_PROFILES)
 
     def test_exact_subject_resolves_profile(self) -> None:

@@ -2212,3 +2212,46 @@ D75 adds no automatic retry, idempotency layer, fuzzy event lookup, secondary
 calendar targeting, attendees/invitations, recurrence, reminders, Meet,
 attachments, all-day writes, organizer/ACL changes, Chat write routing,
 frontend, automation, database migration, Docker change, or dependency change.
+
+## ADR-069: Exact Gmail Read-Only Credential Foundation v1
+
+**Status:** Accepted
+
+**Decision**
+
+Add Gmail as a distinct Google OAuth credential subject before introducing any
+Gmail API capability. The exact subject is `gmail / 1.0.0 / read_messages`,
+mapped to profile `gmail.messages.readonly`, provider `google`, auth scheme
+`oauth2_bearer`, secret reference `gmail.access_token`, and only
+`https://www.googleapis.com/auth/gmail.readonly`.
+
+Parameterize the D64 Google OAuth client, lifecycle, token manager, connection
+status reader, and runtime configuration with immutable O-AI-controlled subject
+metadata. Calendar remains the compatibility/default subject. Gmail receives a
+separate callback path, flow-state store, state cookie, persisted credential
+profile, AAD, access-token cache, token manager, and local owner control API.
+The deployment may reuse the same Google OAuth client id/client secret and
+AES-GCM encryption key, but that does not merge authority between subjects.
+
+**Rationale**
+
+Keeping Gmail and Calendar as independent credential subjects prevents a
+Calendar grant from silently acquiring mailbox authority and prevents caller
+input from selecting an OAuth profile, scope, or secret reference. Subject-bound
+AAD also prevents an encrypted refresh token from being decrypted under the
+other connector identity.
+
+`gmail.readonly` is chosen for the future D77 bounded message-read capability;
+D76 itself makes no Gmail API request and exposes no mailbox data.
+
+**Consequences**
+
+A Gmail identity/scope drift, `invalid_grant`, or refresh scope mismatch fails
+closed as reauthorization required. Access tokens remain process-memory only;
+refresh tokens remain encrypted at rest. Gmail disconnect affects only Gmail,
+and Calendar disconnect affects only Calendar.
+
+No Gmail send/modify/compose/full-mailbox scope, Gmail REST connector, message
+read, Chat intent, D31 adapter, D44/D45 permission, frontend mailbox surface,
+automation, database migration, Docker change, or dependency change is added by
+D76.

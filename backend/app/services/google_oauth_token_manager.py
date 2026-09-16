@@ -15,17 +15,8 @@ from app.connectors.google_oauth import (
     GoogleOAuthClient,
     GoogleOAuthClientError,
 )
-from app.contracts.google_calendar import (
-    GOOGLE_CALENDAR_CAPABILITY_NAME,
-    GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
-    GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID,
-    GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
-    GOOGLE_CALENDAR_PLUGIN_ID,
-    GOOGLE_CALENDAR_PLUGIN_VERSION,
-)
 from app.repositories.oauth_credentials import OAuthCredentialRepository
 from app.services.google_oauth_config import (
-    GOOGLE_CALENDAR_OAUTH_AAD,
     GoogleOAuthConfigError,
     GoogleOAuthRuntimeConfig,
 )
@@ -66,6 +57,7 @@ class GoogleOAuthTokenManager:
     ) -> None:
         self._session_factory = session_factory
         self._config = config
+        self._subject = config.subject
         self._client = client
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._lock = threading.Lock()
@@ -99,7 +91,7 @@ class GoogleOAuthTokenManager:
             repository = OAuthCredentialRepository(session)
             try:
                 record = repository.get(
-                    GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID
+                    self._subject.profile_id
                 )
                 if record is None:
                     raise GoogleOAuthTokenManagerError(
@@ -111,7 +103,7 @@ class GoogleOAuthTokenManager:
                     )
                 if not self._record_identity_matches(record):
                     repository.mark_reauthorization_required(
-                        GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
+                        self._subject.profile_id,
                         now=now,
                     )
                     repository.commit()
@@ -127,7 +119,7 @@ class GoogleOAuthTokenManager:
                     and refresh_expires <= now
                 ):
                     repository.mark_reauthorization_required(
-                        GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
+                        self._subject.profile_id,
                         now=now,
                     )
                     repository.commit()
@@ -140,7 +132,7 @@ class GoogleOAuthTokenManager:
                     refresh_token = cipher.decrypt(
                         record.encrypted_refresh_token,
                         record.encryption_nonce,
-                        aad=GOOGLE_CALENDAR_OAUTH_AAD,
+                        aad=self._subject.aad,
                     )
                 except OAuthTokenCipherError:
                     self._clear_cache_unlocked()
@@ -159,7 +151,7 @@ class GoogleOAuthTokenManager:
                         GOOGLE_OAUTH_ERROR_SCOPE_MISMATCH,
                     }:
                         repository.mark_reauthorization_required(
-                            GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
+                            self._subject.profile_id,
                             now=now,
                         )
                         repository.commit()
@@ -173,10 +165,10 @@ class GoogleOAuthTokenManager:
 
                 if response.scopes not in {
                     (),
-                    (GOOGLE_CALENDAR_CREDENTIAL_SCOPE,),
+                    (self._subject.scope,),
                 }:
                     repository.mark_reauthorization_required(
-                        GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
+                        self._subject.profile_id,
                         now=now,
                     )
                     repository.commit()
@@ -188,7 +180,7 @@ class GoogleOAuthTokenManager:
                 if response.refresh_token is not None:
                     encrypted = cipher.encrypt(
                         response.refresh_token,
-                        aad=GOOGLE_CALENDAR_OAUTH_AAD,
+                        aad=self._subject.aad,
                     )
                     refresh_token_expires_at = (
                         now
@@ -199,15 +191,15 @@ class GoogleOAuthTokenManager:
                         else None
                     )
                     repository.save_active(
-                        profile_id=GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID,
-                        provider_id=GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID,
-                        plugin_id=GOOGLE_CALENDAR_PLUGIN_ID,
-                        plugin_version=GOOGLE_CALENDAR_PLUGIN_VERSION,
-                        capability_name=GOOGLE_CALENDAR_CAPABILITY_NAME,
+                        profile_id=self._subject.profile_id,
+                        provider_id=self._subject.provider_id,
+                        plugin_id=self._subject.plugin_id,
+                        plugin_version=self._subject.plugin_version,
+                        capability_name=self._subject.capability_name,
                         encrypted_refresh_token=encrypted.ciphertext,
                         encryption_nonce=encrypted.nonce,
                         cipher_version=encrypted.cipher_version,
-                        granted_scopes=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
+                        granted_scopes=self._subject.scope,
                         refresh_token_expires_at=refresh_token_expires_at,
                         now=now,
                     )
@@ -278,16 +270,15 @@ class GoogleOAuthTokenManager:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
 
-    @staticmethod
-    def _record_identity_matches(record) -> bool:
+    def _record_identity_matches(self, record) -> bool:
         return (
-            record.provider_id == GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID
-            and record.plugin_id == GOOGLE_CALENDAR_PLUGIN_ID
+            record.provider_id == self._subject.provider_id
+            and record.plugin_id == self._subject.plugin_id
             and record.plugin_version
-            == GOOGLE_CALENDAR_PLUGIN_VERSION
+            == self._subject.plugin_version
             and record.capability_name
-            == GOOGLE_CALENDAR_CAPABILITY_NAME
+            == self._subject.capability_name
             and record.granted_scopes
-            == GOOGLE_CALENDAR_CREDENTIAL_SCOPE
+            == self._subject.scope
             and record.cipher_version == "aesgcm-v1"
         )

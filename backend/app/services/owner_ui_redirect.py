@@ -45,6 +45,25 @@ class OwnerUIRedirectConfig:
             )
         )
 
+    def gmail_connected_url(self) -> str:
+        return self._url((("gmail", "connected"),))
+
+    def gmail_error_url(self, reason_code: str) -> str:
+        if (
+            not isinstance(reason_code, str)
+            or not reason_code
+            or reason_code != reason_code.strip()
+            or len(reason_code) > 128
+            or not reason_code.replace("_", "").isalnum()
+        ):
+            reason_code = "oauth_unavailable"
+        return self._url(
+            (
+                ("gmail", "error"),
+                ("reason", reason_code),
+            )
+        )
+
     def _url(self, query: tuple[tuple[str, str], ...]) -> str:
         return (
             f"{self.base_url.rstrip('/')}{OWNER_UI_INTEGRATIONS_PATH}"
