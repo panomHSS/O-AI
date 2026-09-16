@@ -152,6 +152,8 @@ The following capabilities are implemented in the current codebase but have not 
 - D68 adds Sensitive Log & Execution Audit Hardening v1: the exact Google Calendar OAuth callback access log removes the full query string and fails closed for unexpected callback-shaped records, while Tool/Module execution audit completion preserves only bounded machine-safe adapter reason codes and replaces free-form error text with generic target-specific codes without changing caller-visible Results or execution authority.
 - D69 adds Structured Execution Observability v2: `oai.execution_audit` uses a dedicated non-propagating logging lane and a fail-closed one-line JSON formatter that emits only the fixed event marker plus the ten D39 audit fields; malformed payloads collapse to a fixed safe record, while D68 OAuth-query redaction, safe reason-code projection, normal application logging, and audit failure isolation remain unchanged.
 
+- D70 adds Safe Runtime Diagnostics v1: a separate read-only `/api/v1/diagnostics` surface projects only allowlisted service, database, D69 execution-audit wiring, and non-secret Google Calendar status data; component failures fail closed without raw errors, while diagnostics never resolve credentials, refresh OAuth tokens, call external providers, or create execution authority.
+
 ## Planned
 
 ### 0.6.2 - OCR Foundation

@@ -1953,3 +1953,44 @@ D69 invariants:
 - `LOGGING FAILURE != BUSINESS EXECUTION FAILURE`
 - `OAUTH CALLBACK QUERY != ACCESS LOG DATA`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## ADR-063: Safe Runtime Diagnostics v1
+
+**Status:** Accepted
+
+**Decision**
+
+Keep the existing `/api/v1/health` liveness contract unchanged. Add a separate
+read-only `GET /api/v1/diagnostics` endpoint whose response is an exact
+allowlisted D70 schema.
+
+The top-level diagnostic payload contains only `contract_version`, `service`,
+`environment`, `database_revision`, `execution_audit`, and `google_calendar`.
+Execution-audit diagnostics inspect only the D69 logger wiring and never read
+audit payloads. Google Calendar diagnostics reuse non-secret connection
+metadata and the safe deployment `configuration_present` projection; they do
+not resolve credentials, refresh OAuth tokens, or call Google.
+
+Component failures collapse to bounded `unavailable` status rather than raw
+exception text. Connector-disabled and configuration-missing states remain
+explicit status data and do not create execution authority.
+
+D70 does not add a diagnostics frontend, metrics, tracing, OpenTelemetry,
+Loki/ELK, database migration, Calendar write capability, Gmail, automated
+remediation, external health probing, a secret scanner, or a new dependency.
+
+**Consequences**
+
+The owner gains a deterministic machine-readable runtime status surface while
+health/liveness semantics and all Planner -> Guard -> Runtime authority gates
+remain unchanged.
+
+D70 invariants:
+
+- `DIAGNOSTICS != EXECUTION AUTHORITY`
+- `DIAGNOSTICS != CREDENTIAL ACCESS`
+- `DIAGNOSTICS != EXTERNAL SIDE EFFECT`
+- `DIAGNOSTIC RESPONSE == ALLOWLISTED STATUS DATA`
+- `RAW ERROR != DIAGNOSTIC RESPONSE`
+- `HEALTH != READINESS TO EXECUTE`
+- `APPROVED != AUTHORIZED != EXECUTED`

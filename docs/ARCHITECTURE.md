@@ -1958,3 +1958,56 @@ the logger.
 `OAUTH CALLBACK QUERY != ACCESS LOG DATA`
 
 `APPROVED != AUTHORIZED != EXECUTED`
+
+## D70 - Safe Runtime Diagnostics v1
+
+D70 adds a local-owner, read-only diagnostics surface that projects bounded
+runtime status without widening execution authority, credential access, or
+external side effects.
+
+### Separate liveness and diagnostics surfaces
+
+The existing `/api/v1/health` contract remains unchanged and continues to
+report process/service liveness plus the verified database revision. D70 adds
+`GET /api/v1/diagnostics` as a distinct surface. Diagnostics do not claim that
+an action is approved, authorized, or executable.
+
+The D70 response is an exact allowlisted model containing only
+`contract_version`, `service`, `environment`, `database_revision`,
+`execution_audit`, and `google_calendar`. Component objects expose only bounded
+status values and safe booleans.
+
+### Execution-audit diagnostics
+
+D70 inspects only the D69 logging wiring for the exact
+`oai.execution_audit` logger: one dedicated handler, disabled propagation, and
+`SafeExecutionAuditFormatter`. It does not read, replay, or serialize audit
+event payloads.
+
+### Google Calendar diagnostics
+
+Google Calendar diagnostics reuse the non-secret connection-status reader and
+the safe `configuration_present` projection. The diagnostics path never asks
+the credential broker for a secret, never decrypts or refreshes an OAuth token,
+and never calls Google. Disabled, not-configured, disconnected, connected,
+reauthorization-required, and unavailable states are projected as bounded
+status values.
+
+Unexpected component failures fail closed to `unavailable` without returning
+exception text or arbitrary provider data.
+
+### D70 invariants
+
+`DIAGNOSTICS != EXECUTION AUTHORITY`
+
+`DIAGNOSTICS != CREDENTIAL ACCESS`
+
+`DIAGNOSTICS != EXTERNAL SIDE EFFECT`
+
+`DIAGNOSTIC RESPONSE == ALLOWLISTED STATUS DATA`
+
+`RAW ERROR != DIAGNOSTIC RESPONSE`
+
+`HEALTH != READINESS TO EXECUTE`
+
+`APPROVED != AUTHORIZED != EXECUTED`

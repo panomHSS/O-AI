@@ -114,6 +114,7 @@ from app.services.chat_plugin_action import (
 from app.services.tool_module_router import ToolModuleRouter
 from app.services.orchestration_error_normalizer import OrchestrationErrorNormalizer
 from app.services.response_composer import ResponseComposer
+from app.services.runtime_diagnostics import RuntimeDiagnosticsService
 from app.services.ai_adapter_registry import AIAdapterRegistry
 from app.services.command_orchestrator import CommandOrchestrator
 from app.services.command_execution_coordinator import (
@@ -457,6 +458,20 @@ def get_google_oauth_connection_status_reader(
     """Read D65 connection metadata without resolving any credential secret."""
     return GoogleOAuthConnectionStatusReader(
         OAuthCredentialRepository(database_session)
+    )
+
+
+
+def get_runtime_diagnostics_service(
+    database_session: Session = Depends(get_db),
+) -> RuntimeDiagnosticsService:
+    """Compose D70 diagnostics without credential resolution or execution."""
+    return RuntimeDiagnosticsService(
+        settings=get_settings(),
+        google_oauth_status_reader=(
+            get_google_oauth_connection_status_reader(database_session)
+        ),
+        google_oauth_config_factory=get_google_oauth_runtime_config,
     )
 
 

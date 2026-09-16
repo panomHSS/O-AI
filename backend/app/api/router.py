@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.chat import router as chat_router
 from app.api.v1.conversations import router as conversations_router
+from app.api.v1.diagnostics import router as diagnostics_router
 from app.api.v1.health import router as health_router
 from app.api.v1.execution_approvals import router as execution_approvals_router
 from app.api.v1.knowledge import router as knowledge_router
@@ -14,6 +15,7 @@ from app.api.v1.project_update_proposals import router as project_update_proposa
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(chat_router)
 api_router.include_router(conversations_router)
+api_router.include_router(diagnostics_router)
 api_router.include_router(health_router)
 api_router.include_router(execution_approvals_router)
 api_router.include_router(knowledge_router)
