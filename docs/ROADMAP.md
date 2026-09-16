@@ -179,3 +179,15 @@ The following capabilities are implemented in the current codebase but have not 
 - Engineering Assistant, personal finance, factory knowledge, and approved automation capabilities.
 
 Future items are direction, not commitments. Each requires an approved decision record, scoped implementation plan, and release acceptance criteria.
+
+## D75 completion note — Calendar Update/Delete Execution v1
+
+D75 completes the first exact Google Calendar mutation set on top of D72-D74:
+approved exact-target updates execute through one private PATCH attempt and
+approved exact-target deletes through one private DELETE attempt. Both require
+D36 authorization followed by the atomic D73 one-time claim before credential
+resolution/provider access. The adapters remain outside the global D45 lane,
+reuse the existing `calendar.events.owned` OAuth scope, and return bounded
+`succeeded` / `failed` / `indeterminate` outcomes with no automatic retry.
+
+Next roadmap baseline after D75 remains D76: Gmail credential foundation.

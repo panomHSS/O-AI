@@ -37,36 +37,38 @@ class CredentialProfileCatalogTests(unittest.TestCase):
         )
 
     def test_production_catalog_contains_exact_calendar_profiles(self) -> None:
-        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 2)
-        profile = CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES).resolve(
-            "google_calendar", "1.0.0", "upcoming_events"
-        )
-        self.assertEqual(profile.profile_id, "google_calendar.events.readonly")
-        self.assertEqual(profile.plugin_id, "google_calendar")
-        self.assertEqual(profile.plugin_version, "1.0.0")
-        self.assertEqual(profile.capability_name, "upcoming_events")
-        self.assertEqual(profile.provider_id, "google")
-        self.assertEqual(profile.auth_scheme, "oauth2_bearer")
-        self.assertEqual(
-            profile.required_scopes,
-            (
-                "https://www.googleapis.com/auth/"
-                "calendar.events.owned",
-            ),
-        )
-        self.assertEqual(
-            profile.secret_ref,
-            "google_calendar.access_token",
-        )
+        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 4)
         catalog = CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES)
-        create_profile = catalog.resolve(
-            "google_calendar", "1.0.0", "create_event"
-        )
-        self.assertEqual(create_profile.profile_id, "google_calendar.events.create")
-        self.assertEqual(
-            create_profile.required_scopes,
-            ("https://www.googleapis.com/auth/calendar.events.owned",),
-        )
+        expected = {
+            "create_event": "google_calendar.events.create",
+            "delete_event": "google_calendar.events.delete",
+            "upcoming_events": "google_calendar.events.readonly",
+            "update_event": "google_calendar.events.update",
+        }
+        for capability_name, profile_id in expected.items():
+            with self.subTest(capability_name=capability_name):
+                profile = catalog.resolve(
+                    "google_calendar",
+                    "1.0.0",
+                    capability_name,
+                )
+                self.assertEqual(profile.profile_id, profile_id)
+                self.assertEqual(profile.plugin_id, "google_calendar")
+                self.assertEqual(profile.plugin_version, "1.0.0")
+                self.assertEqual(profile.capability_name, capability_name)
+                self.assertEqual(profile.provider_id, "google")
+                self.assertEqual(profile.auth_scheme, "oauth2_bearer")
+                self.assertEqual(
+                    profile.required_scopes,
+                    (
+                        "https://www.googleapis.com/auth/"
+                        "calendar.events.owned",
+                    ),
+                )
+                self.assertEqual(
+                    profile.secret_ref,
+                    "google_calendar.access_token",
+                )
         self.assertEqual(catalog.profiles, PRODUCTION_CREDENTIAL_PROFILES)
 
     def test_exact_subject_resolves_profile(self) -> None:

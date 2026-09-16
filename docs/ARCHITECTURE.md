@@ -2170,3 +2170,37 @@ Calendar OAuth advances to exact `calendar.events.owned`; existing read-only
 grants require explicit owner reauthorization. The Calendar read Plugin and GET
 connector remain read-only. Core invariant:
 `APPROVED != AUTHORIZED != CLAIMED != EXECUTED`.
+
+## D75 Calendar Update/Delete Execution v1
+
+D75 extends the D72/D73/D74 Calendar write authority chain to exact-target
+`update_event` and `delete_event` execution. The authority boundary remains:
+
+`APPROVED != AUTHORIZED != CLAIMED != EXECUTED`.
+
+Both mutations are exposed only through a private Calendar execution registry,
+private D44 permission policy, D36 authorization, atomic D73 one-time claim,
+D62 credential resolution, and D37 ModuleRuntime. The update/delete adapters are
+not added to the global D31 registry or global production D44 permission tuple,
+so generic D45 planning/execution cannot discover or authorize them.
+
+The approved opaque primary-calendar `event_id` is preserved exactly through
+the D73 snapshot, deterministic D75 plan projection, runtime reconstruction,
+and provider target. Provider targeting never uses title/date/fuzzy matching.
+Update uses one bounded PATCH with only D72 allowlisted changed fields;
+delete uses one bounded DELETE with no request body or provider query extras.
+The event id is encoded as one URL path segment.
+
+The D74 transport constraints continue to apply: fixed Google HTTPS endpoint
+shape, primary calendar only, no environment proxy, no redirects, five-second
+timeout, bounded response reads, bearer credential only, no raw provider error
+surface, and no automatic retry. Definite provider 4xx responses except 408 are
+reported as failed. Timeout, network failure, 408, 5xx, and ambiguous/malformed
+post-dispatch outcomes are indeterminate. Once claimed, an approval never
+becomes retry authority.
+
+D75 reuses the D74 `calendar.events.owned` OAuth scope through exact D62
+`update_event` and `delete_event` credential subjects that share the existing
+managed Calendar access-token secret reference. It adds no new OAuth scope,
+database migration, Docker/dependency change, frontend route, Chat write
+routing, fuzzy event lookup, secondary calendar support, or automation.

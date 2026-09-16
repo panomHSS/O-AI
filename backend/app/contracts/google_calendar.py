@@ -1,4 +1,4 @@
-"""D63/D67/D74 exact Google Calendar credential and capability identity."""
+"""D63/D67/D74/D75 exact Google Calendar credential and capability identity."""
 
 from __future__ import annotations
 
@@ -10,7 +10,11 @@ GOOGLE_CALENDAR_PLUGIN_ID = "google_calendar"
 GOOGLE_CALENDAR_PLUGIN_VERSION = "1.0.0"
 GOOGLE_CALENDAR_CAPABILITY_NAME = "upcoming_events"
 GOOGLE_CALENDAR_CREATE_CAPABILITY_NAME = "create_event"
+GOOGLE_CALENDAR_UPDATE_CAPABILITY_NAME = "update_event"
+GOOGLE_CALENDAR_DELETE_CAPABILITY_NAME = "delete_event"
 GOOGLE_CALENDAR_CREATE_CREDENTIAL_PROFILE_ID = "google_calendar.events.create"
+GOOGLE_CALENDAR_UPDATE_CREDENTIAL_PROFILE_ID = "google_calendar.events.update"
+GOOGLE_CALENDAR_DELETE_CREDENTIAL_PROFILE_ID = "google_calendar.events.delete"
 GOOGLE_CALENDAR_ADAPTER_ID = "module.plugin.google_calendar"
 GOOGLE_CALENDAR_OPERATION = "list_upcoming_events"
 GOOGLE_CALENDAR_CAPABILITY_ID = "exec.plugin.google_calendar.upcoming_events"

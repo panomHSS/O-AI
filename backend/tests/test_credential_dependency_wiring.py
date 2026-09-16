@@ -37,7 +37,7 @@ class CredentialDependencyWiringTests(unittest.TestCase):
         dependencies.get_google_oauth_token_manager.cache_clear()
 
     def test_production_catalog_and_source_keep_exact_managed_boundary(self) -> None:
-        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 2)
+        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 4)
         self.assertEqual(
             dependencies.get_credential_profile_catalog().profiles,
             PRODUCTION_CREDENTIAL_PROFILES,
@@ -66,33 +66,36 @@ class CredentialDependencyWiringTests(unittest.TestCase):
         )
         self.assertEqual(fake.calls, 0)
 
-    def test_exact_google_create_subject_resolves_through_managed_token_manager(self) -> None:
-        fake = FakeTokenManager()
-        with patch.object(
-            dependencies,
-            "get_google_oauth_token_manager",
-            return_value=fake,
+    def test_exact_google_write_subjects_resolve_managed_access_token(self) -> None:
+        for capability_name, profile_id in (
+            ("create_event", "google_calendar.events.create"),
+            ("delete_event", "google_calendar.events.delete"),
+            ("update_event", "google_calendar.events.update"),
         ):
-            resolved = dependencies.get_credential_access_broker().resolve(
-                "google_calendar",
-                "1.0.0",
-                "create_event",
-            )
-        self.assertEqual(fake.calls, 1)
-        self.assertEqual(
-            resolved.profile_id,
-            "google_calendar.events.create",
-        )
-        self.assertEqual(
-            resolved.secret.get_secret_value(),
-            "managed-access-token-never-log",
-        )
-        self.assertNotIn(
-            "managed-access-token-never-log",
-            repr(resolved),
-        )
+            with self.subTest(capability_name=capability_name):
+                fake = FakeTokenManager()
+                with patch.object(
+                    dependencies,
+                    "get_google_oauth_token_manager",
+                    return_value=fake,
+                ):
+                    resolved = dependencies.get_credential_access_broker().resolve(
+                        "google_calendar",
+                        "1.0.0",
+                        capability_name,
+                    )
+                self.assertEqual(fake.calls, 1)
+                self.assertEqual(resolved.profile_id, profile_id)
+                self.assertEqual(
+                    resolved.secret.get_secret_value(),
+                    "managed-access-token-never-log",
+                )
+                self.assertNotIn(
+                    "managed-access-token-never-log",
+                    repr(resolved),
+                )
 
-    def test_exact_google_subject_resolves_through_managed_token_manager(self) -> None:
+    def test_exact_google_read_subject_resolves_managed_access_token(self) -> None:
         fake = FakeTokenManager()
         with patch.object(
             dependencies,

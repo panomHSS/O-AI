@@ -9,12 +9,24 @@ from app.contracts.google_calendar_create_execution import (
     GOOGLE_CALENDAR_CREATE_ADAPTER_ID,
     GOOGLE_CALENDAR_CREATE_CAPABILITY_ID,
 )
-from app.contracts.google_calendar_write import GOOGLE_CALENDAR_CREATE_EVENT_OPERATION
+from app.contracts.google_calendar_update_delete_execution import (
+    GOOGLE_CALENDAR_DELETE_ADAPTER_ID,
+    GOOGLE_CALENDAR_DELETE_CAPABILITY_ID,
+    GOOGLE_CALENDAR_UPDATE_ADAPTER_ID,
+    GOOGLE_CALENDAR_UPDATE_CAPABILITY_ID,
+)
+from app.contracts.google_calendar_write import (
+    GOOGLE_CALENDAR_CREATE_EVENT_OPERATION,
+    GOOGLE_CALENDAR_DELETE_EVENT_OPERATION,
+    GOOGLE_CALENDAR_UPDATE_EVENT_OPERATION,
+)
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
 from app.adapters.google_calendar_create_module import GoogleCalendarCreateModuleAdapter
+from app.adapters.google_calendar_delete_module import GoogleCalendarDeleteModuleAdapter
+from app.adapters.google_calendar_update_module import GoogleCalendarUpdateModuleAdapter
 from app.adapters.local_ai import LocalAIAdapter
 from app.adapters.plugin_echo_module import EchoPluginModuleAdapter
 from app.adapters.project_snapshot_module import ProjectSnapshotModuleAdapter
@@ -137,6 +149,9 @@ from app.services.calendar_write_approval import (
     CalendarWriteApprovalStore,
 )
 from app.services.calendar_create_execution import CalendarCreateExecutionService
+from app.services.calendar_update_delete_execution import (
+    CalendarUpdateDeleteExecutionService,
+)
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
 from app.services.execution_audit import ExecutionAuditTrail, LoggingAuditSink
@@ -1012,6 +1027,91 @@ def get_calendar_create_execution_service(
     runtime: ModuleRuntime = Depends(get_calendar_create_private_runtime),
 ) -> CalendarCreateExecutionService:
     return CalendarCreateExecutionService(
+        approval_store=get_calendar_write_approval_store(),
+        guard=guard,
+        runtime=runtime,
+    )
+
+
+
+@lru_cache
+def get_google_calendar_update_module_adapter() -> GoogleCalendarUpdateModuleAdapter:
+    return GoogleCalendarUpdateModuleAdapter(
+        credential_broker=get_credential_access_broker(),
+        client=get_google_calendar_write_client(),
+    )
+
+
+@lru_cache
+def get_google_calendar_delete_module_adapter() -> GoogleCalendarDeleteModuleAdapter:
+    return GoogleCalendarDeleteModuleAdapter(
+        credential_broker=get_credential_access_broker(),
+        client=get_google_calendar_write_client(),
+    )
+
+
+@lru_cache
+def get_calendar_update_delete_private_registry() -> AdapterRegistry:
+    return AdapterRegistry(
+        (
+            get_google_calendar_update_module_adapter(),
+            get_google_calendar_delete_module_adapter(),
+        )
+    )
+
+
+@lru_cache
+def get_calendar_update_delete_private_permission_policy() -> CapabilityPermissionPolicy:
+    registry = get_calendar_update_delete_private_registry()
+    return CapabilityPermissionPolicy(
+        registry=registry,
+        permissions=(
+            ExecutableCapabilityPermission(
+                capability_id=GOOGLE_CALENDAR_UPDATE_CAPABILITY_ID,
+                target_kind="module",
+                adapter_id=GOOGLE_CALENDAR_UPDATE_ADAPTER_ID,
+                operation=GOOGLE_CALENDAR_UPDATE_EVENT_OPERATION,
+                effect="external_side_effect",
+                data_class="owner_data",
+                owner_approval_required=True,
+            ),
+            ExecutableCapabilityPermission(
+                capability_id=GOOGLE_CALENDAR_DELETE_CAPABILITY_ID,
+                target_kind="module",
+                adapter_id=GOOGLE_CALENDAR_DELETE_ADAPTER_ID,
+                operation=GOOGLE_CALENDAR_DELETE_EVENT_OPERATION,
+                effect="external_side_effect",
+                data_class="owner_data",
+                owner_approval_required=True,
+            ),
+        ),
+    )
+
+
+def get_calendar_update_delete_private_guard(
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
+) -> ExecutionGuard:
+    return ExecutionGuard(
+        registry=get_calendar_update_delete_private_registry(),
+        permission_policy=get_calendar_update_delete_private_permission_policy(),
+        audit=audit,
+    )
+
+
+def get_calendar_update_delete_private_runtime(
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
+) -> ModuleRuntime:
+    return ModuleRuntime(
+        registry=get_calendar_update_delete_private_registry(),
+        audit=audit,
+    )
+
+
+def get_calendar_update_delete_execution_service(
+    guard: ExecutionGuard = Depends(get_calendar_update_delete_private_guard),
+    runtime: ModuleRuntime = Depends(get_calendar_update_delete_private_runtime),
+) -> CalendarUpdateDeleteExecutionService:
+    return CalendarUpdateDeleteExecutionService(
         approval_store=get_calendar_write_approval_store(),
         guard=guard,
         runtime=runtime,

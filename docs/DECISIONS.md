@@ -2164,3 +2164,51 @@ The Calendar OAuth grant changes from `calendar.events.readonly` to exact
 reauthorization. Update/delete remain non-executable until D75. No DB migration,
 Docker/dependency, frontend, Chat write routing, attendees, recurrence,
 conference, all-day, secondary-calendar, or automatic retry capability is added.
+
+## ADR-068: Exact Private Google Calendar Update/Delete Execution v1
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the D74 private Calendar mutation lane with exact D72 `update_event` and
+`delete_event` execution. Each operation must revalidate the approved D73 write
+digest, round-trip an exact deterministic execution projection, obtain D36
+authorization from a private operation-specific permission boundary, atomically
+claim the D73 approval once, then resolve the exact D62 credential subject and
+execute through D37 ModuleRuntime.
+
+The approved opaque event id is the sole provider target identity and must remain
+identical across approval, execution plan, reconstructed request, adapter, and
+provider URL. Update uses PATCH semantics with only `summary`, paired timed
+`start`/`end`, `description`, and `location` when present in the approved patch.
+Delete sends no body. Both target only the primary calendar, encode the event id
+as one URL path segment, add no provider-side notification parameters, and make
+at most one provider mutation attempt per claim.
+
+The D75 update/delete adapters and permissions remain private and are not
+registered in the global D31/D44/D45 execution lane. D75 adds exact
+`google_calendar.events.update` and `google_calendar.events.delete` credential
+profiles, both sharing the existing managed access-token secret reference and
+the D74 `calendar.events.owned` scope.
+
+**Rationale**
+
+Update and delete are destructive external side effects. Reusing the D73
+one-time claim after D36 authorization ensures an approval cannot be replayed
+after success or an ambiguous provider outcome. Exact event identity prevents a
+provider search or fuzzy match from changing the object the owner approved.
+Keeping the adapters out of global planning prevents generic execution approval
+from becoming an alternate Calendar-write authority path.
+
+**Consequences**
+
+A definite provider 4xx response except 408 may be reported as failed. Timeout,
+network failure, 408, 5xx, malformed/oversized update success, or another
+post-dispatch ambiguity is reported as indeterminate and the approval remains
+claimed. Retrying requires a new D73 proposal/approval.
+
+D75 adds no automatic retry, idempotency layer, fuzzy event lookup, secondary
+calendar targeting, attendees/invitations, recurrence, reminders, Meet,
+attachments, all-day writes, organizer/ACL changes, Chat write routing,
+frontend, automation, database migration, Docker change, or dependency change.
