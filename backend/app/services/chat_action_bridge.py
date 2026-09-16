@@ -9,6 +9,11 @@ from app.contracts.chat_action import (
     ChatActionDirective,
 )
 from app.contracts.chat_plugin_action import ChatPluginActionBinding
+from app.contracts.gmail import (
+    GMAIL_ADAPTER_ID,
+    GMAIL_OPERATION,
+    GmailReadQuery,
+)
 from app.services.chat_calendar import (
     GOOGLE_CALENDAR_CHAT_ADAPTER_ID,
     GOOGLE_CALENDAR_CHAT_OPERATION,
@@ -63,6 +68,15 @@ CALENDAR_INVALID_REPLY = (
 )
 CALENDAR_STATUS_UNAVAILABLE_REPLY = (
     "ไม่สามารถตรวจสถานะการเชื่อมต่อ Google Calendar ได้ในครั้งนี้ครับ"
+)
+GMAIL_PENDING_REPLY = (
+    "พบคำขออ่าน Gmail และเตรียม Action "
+    "สำหรับการอนุมัติของเจ้าของแล้วครับ"
+)
+GMAIL_DISABLED_REPLY = "Gmail connector ยังไม่ได้เปิดใช้งานครับ"
+GMAIL_INVALID_REPLY = (
+    "คำขอ Gmail นี้รองรับเฉพาะอีเมลล่าสุด, อีเมลที่ยังไม่ได้อ่าน "
+    "หรืออีเมลจากผู้ส่งหนึ่งรายครับ"
 )
 CALENDAR_TIMEZONE_UNAVAILABLE_REPLY = (
     "ไม่สามารถตีความช่วงเวลา Calendar ตาม timezone ของเจ้าของได้ครับ"
@@ -125,6 +139,7 @@ class ChatActionBridge:
         plugin_intent_router: ChatPluginIntentRouter | None = None,
         github_public_repo_connector_enabled: bool = False,
         google_calendar_connector_enabled: bool = False,
+        gmail_connector_enabled: bool = False,
         google_calendar_connection_status_reader: (
             GoogleOAuthConnectionStatusReader | None
         ) = None,
@@ -139,6 +154,8 @@ class ChatActionBridge:
             raise TypeError(
                 "google_calendar_connector_enabled must be an exact bool."
             )
+        if type(gmail_connector_enabled) is not bool:
+            raise TypeError("gmail_connector_enabled must be an exact bool.")
         self._conversation_service = conversation_service
         self._approval_service = approval_service
         self._plugin_binding_store = (
@@ -153,6 +170,7 @@ class ChatActionBridge:
         self._google_calendar_connector_enabled = (
             google_calendar_connector_enabled
         )
+        self._gmail_connector_enabled = gmail_connector_enabled
         self._google_calendar_connection_status_reader = (
             google_calendar_connection_status_reader
         )
@@ -216,12 +234,35 @@ class ChatActionBridge:
                         status="rejected",
                         reason_code="invalid_google_calendar_intent",
                     )
+                if self._plugin_intent_router.is_gmail_request(message):
+                    return self._complete(
+                        conversation_id=str(conversation.id),
+                        conversation_uuid=conversation_uuid,
+                        reply=GMAIL_INVALID_REPLY,
+                        status="rejected",
+                        reason_code="invalid_gmail_intent",
+                    )
                 return self._complete(
                     conversation_id=str(conversation.id),
                     conversation_uuid=conversation_uuid,
                     reply=PLUGIN_INVALID_REPLY,
                     status="rejected",
                     reason_code="invalid_github_repository_intent",
+                )
+
+            if plugin_intent.gmail_query is not None:
+                if not self._gmail_connector_enabled:
+                    return self._complete(
+                        conversation_id=str(conversation.id),
+                        conversation_uuid=conversation_uuid,
+                        reply=GMAIL_DISABLED_REPLY,
+                        status="unavailable",
+                        reason_code="gmail_connector_disabled",
+                    )
+                return self._process_gmail_plugin(
+                    conversation_id=str(conversation.id),
+                    conversation_uuid=conversation_uuid,
+                    gmail_query=plugin_intent.gmail_query,
                 )
 
             if plugin_intent.calendar_intent:
@@ -324,6 +365,44 @@ class ChatActionBridge:
             self._conversation_service.complete_turn(
                 conversation_id,
                 PLUGIN_PENDING_REPLY,
+            )
+        return outcome
+
+    def _process_gmail_plugin(
+        self,
+        *,
+        conversation_id: str,
+        conversation_uuid: UUID,
+        gmail_query: GmailReadQuery,
+    ) -> ChatActionBridgeOutcome:
+        outcome = self._propose(
+            conversation_id=conversation_id,
+            conversation_uuid=conversation_uuid,
+            target_kind="module",
+            adapter_id=GMAIL_ADAPTER_ID,
+            operation=GMAIL_OPERATION,
+            parameters=gmail_query.to_parameters(),
+            pending_reply=GMAIL_PENDING_REPLY,
+            complete_pending=False,
+        )
+        if (
+            outcome.status == "pending_approval"
+            and outcome.approval is not None
+            and outcome.approval.proposal is not None
+        ):
+            proposal = outcome.approval.proposal
+            self._plugin_binding_store.add(
+                ChatPluginActionBinding(
+                    approval_id=proposal.approval_id,
+                    conversation_id=conversation_uuid,
+                    repository_reference=None,
+                    expires_at=proposal.expires_at,
+                    gmail_query=gmail_query,
+                )
+            )
+            self._conversation_service.complete_turn(
+                conversation_id,
+                GMAIL_PENDING_REPLY,
             )
         return outcome
 

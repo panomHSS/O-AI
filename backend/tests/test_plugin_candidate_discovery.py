@@ -101,13 +101,14 @@ class PluginCandidateDiscoveryTests(unittest.TestCase):
             get_plugin_projection_catalog(),
         )
         candidates = service.discover_candidates()
-        self.assertEqual(len(candidates), 2)
+        self.assertEqual(len(candidates), 3)
         self.assertEqual(
             tuple(candidate.plugin_id for candidate in candidates),
-            ("github_public_repo", "google_calendar"),
+            ("github_public_repo", "gmail", "google_calendar"),
         )
         expected = {
             "github_public_repo": ("repository_metadata",),
+            "gmail": ("read_messages",),
             "google_calendar": ("upcoming_events",),
         }
         for candidate in candidates:

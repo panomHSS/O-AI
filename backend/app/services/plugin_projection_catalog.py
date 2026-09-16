@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from app.contracts.gmail import (
+    GMAIL_ADAPTER_ID,
+    GMAIL_OPERATION,
+    GMAIL_PLUGIN_ID,
+    GMAIL_PLUGIN_VERSION,
+    GMAIL_READ_CAPABILITY_NAME,
+)
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_ADAPTER_ID,
     GOOGLE_CALENDAR_CAPABILITY_NAME,
@@ -47,6 +54,14 @@ PRODUCTION_PLUGIN_CAPABILITY_PROJECTIONS = (
         description="Read bounded metadata for one public GitHub repository.",
         module_adapter_id="module.plugin.github_public_repo",
         operation="get_repository_metadata",
+    ),
+    PluginCapabilityProjection(
+        plugin_id=GMAIL_PLUGIN_ID,
+        plugin_version=GMAIL_PLUGIN_VERSION,
+        capability_name=GMAIL_READ_CAPABILITY_NAME,
+        description="Read up to five bounded messages from the owner's Gmail.",
+        module_adapter_id=GMAIL_ADAPTER_ID,
+        operation=GMAIL_OPERATION,
     ),
     PluginCapabilityProjection(
         plugin_id=GOOGLE_CALENDAR_PLUGIN_ID,

@@ -6,6 +6,14 @@ import threading
 from collections.abc import Iterable
 
 from app.contracts.capability_permission import ExecutableCapabilityPermission
+from app.contracts.gmail import (
+    GMAIL_ADAPTER_ID,
+    GMAIL_CAPABILITY_ID,
+    GMAIL_OPERATION,
+    GMAIL_PLUGIN_ID,
+    GMAIL_PLUGIN_VERSION,
+    GMAIL_READ_CAPABILITY_NAME,
+)
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_ADAPTER_ID,
     GOOGLE_CALENDAR_CAPABILITY_ID,
@@ -81,6 +89,17 @@ PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES: tuple[
         operation="get_repository_metadata",
         effect="read",
         data_class="external_data",
+        owner_approval_required=True,
+    ),
+    PluginCapabilityPermissionProfile(
+        plugin_id=GMAIL_PLUGIN_ID,
+        plugin_version=GMAIL_PLUGIN_VERSION,
+        capability_name=GMAIL_READ_CAPABILITY_NAME,
+        capability_id=GMAIL_CAPABILITY_ID,
+        module_adapter_id=GMAIL_ADAPTER_ID,
+        operation=GMAIL_OPERATION,
+        effect="read",
+        data_class="owner_data",
         owner_approval_required=True,
     ),
     PluginCapabilityPermissionProfile(

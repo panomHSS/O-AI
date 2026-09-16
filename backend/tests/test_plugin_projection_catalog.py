@@ -56,6 +56,7 @@ class PluginProjectionCatalogTests(unittest.TestCase):
             (
                 ("echo", "echo"),
                 ("github_public_repo", "repository_metadata"),
+                ("gmail", "read_messages"),
                 ("google_calendar", "upcoming_events"),
             ),
         )

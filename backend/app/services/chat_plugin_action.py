@@ -9,6 +9,11 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 
 from app.connectors.github_public_repository import validate_repository_reference
+from app.contracts.gmail import (
+    GMAIL_PLUGIN_ID,
+    GMAIL_PLUGIN_VERSION,
+    GMAIL_READ_CAPABILITY_NAME,
+)
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_CAPABILITY_NAME,
     GOOGLE_CALENDAR_PLUGIN_ID,
@@ -23,6 +28,10 @@ from app.contracts.execution_approval import ExecutionApprovalDecisionOutcome
 from app.services.chat_calendar import (
     CalendarChatCompletionComposer,
     CalendarChatIntentRouter,
+)
+from app.services.chat_gmail import (
+    GmailChatCompletionComposer,
+    GmailChatIntentRouter,
 )
 from app.services.conversations import ConversationService
 from app.services.plugin_governance import PluginGovernanceService
@@ -72,7 +81,7 @@ _REQUIRED_RESULT_KEYS = frozenset(
 
 
 class ChatPluginIntentRouter:
-    """Recognize narrow deterministic GitHub or Calendar Plugin requests."""
+    """Recognize narrow deterministic GitHub, Gmail, or Calendar requests."""
 
     _signals = (
         "repository",
@@ -92,8 +101,13 @@ class ChatPluginIntentRouter:
         self,
         *,
         calendar_router: CalendarChatIntentRouter | None = None,
+        gmail_router: GmailChatIntentRouter | None = None,
     ) -> None:
         self._calendar_router = calendar_router or CalendarChatIntentRouter()
+        self._gmail_router = gmail_router or GmailChatIntentRouter()
+
+    def is_gmail_request(self, message: object) -> bool:
+        return self._gmail_router.has_signal(message)
 
     def classify(self, message: object) -> ChatPluginIntentOutcome:
         if not isinstance(message, str) or not message.strip():
@@ -101,11 +115,31 @@ class ChatPluginIntentRouter:
 
         normalized = message.strip()
         folded = normalized.casefold()
-        if "github" not in folded:
-            return self._calendar_router.classify(message)
-        if not any(signal in folded for signal in self._signals):
-            return self._calendar_router.classify(message)
+        github_signal = (
+            "github" in folded
+            and any(signal in folded for signal in self._signals)
+        )
+        gmail_signal = self._gmail_router.has_signal(normalized)
+        calendar_outcome = self._calendar_router.classify(normalized)
+        calendar_signal = (
+            calendar_outcome.status != "none"
+            or "google calendar" in folded
+            or "ปฏิทิน" in folded
+            or "นัด" in folded
+        )
 
+        if sum((github_signal, gmail_signal, calendar_signal)) > 1:
+            return ChatPluginIntentOutcome(status="invalid")
+
+        if github_signal:
+            return self._classify_github(normalized)
+        if gmail_signal:
+            return self._gmail_router.classify(normalized)
+        return calendar_outcome
+
+    @staticmethod
+    def _classify_github(normalized: str) -> ChatPluginIntentOutcome:
+        folded = normalized.casefold()
         if "http://" in folded or "https://" in folded:
             return ChatPluginIntentOutcome(status="invalid")
 
@@ -282,6 +316,30 @@ class FirstPartyPluginEnablementService:
             GOOGLE_CALENDAR_CAPABILITY_NAME,
         )
 
+    def ensure_gmail_enabled(self, enabled: bool) -> None:
+        """Materialize D77 Gmail read lifecycle without credential resolution."""
+        if type(enabled) is not bool:
+            raise TypeError("enabled must be an exact bool.")
+        if not enabled:
+            return
+        self._governance.admit(GMAIL_PLUGIN_ID, GMAIL_PLUGIN_VERSION)
+        self._loading.load(GMAIL_PLUGIN_ID, GMAIL_PLUGIN_VERSION)
+        self._exposure.expose(
+            GMAIL_PLUGIN_ID,
+            GMAIL_PLUGIN_VERSION,
+            GMAIL_READ_CAPABILITY_NAME,
+        )
+        self._binding.bind(
+            GMAIL_PLUGIN_ID,
+            GMAIL_PLUGIN_VERSION,
+            GMAIL_READ_CAPABILITY_NAME,
+        )
+        self._activation.activate(
+            GMAIL_PLUGIN_ID,
+            GMAIL_PLUGIN_VERSION,
+            GMAIL_READ_CAPABILITY_NAME,
+        )
+
 
 class ChatPluginActionCompletionService:
     """Turn a decided D45 Plugin result into one persisted safe Chat reply."""
@@ -292,12 +350,14 @@ class ChatPluginActionCompletionService:
         conversation_service: ConversationService,
         binding_store: ChatPluginActionBindingStore,
         calendar_composer: CalendarChatCompletionComposer | None = None,
+        gmail_composer: GmailChatCompletionComposer | None = None,
     ) -> None:
         self._conversation_service = conversation_service
         self._binding_store = binding_store
         self._calendar_composer = (
             calendar_composer or CalendarChatCompletionComposer()
         )
+        self._gmail_composer = gmail_composer or GmailChatCompletionComposer()
 
     def complete(
         self,
@@ -316,7 +376,9 @@ class ChatPluginActionCompletionService:
             return None
 
         if outcome.decision == "denied":
-            if binding.calendar_window is not None:
+            if binding.gmail_query is not None:
+                reply = self._gmail_composer.DENIED_REPLY
+            elif binding.calendar_window is not None:
                 reply = self._calendar_composer.DENIED_REPLY
             else:
                 reply = (
@@ -326,9 +388,16 @@ class ChatPluginActionCompletionService:
         else:
             reply = self._reply_for_approved(binding, outcome)
 
+        persisted_reply = reply
+        if (
+            binding.gmail_query is not None
+            and outcome.decision == "approved"
+        ):
+            persisted_reply = self._gmail_composer.HISTORY_SAFE_REPLY
+
         self._conversation_service.complete_turn(
             str(binding.conversation_id),
-            reply,
+            persisted_reply,
         )
         return ChatPluginActionCompletion(
             conversation_id=binding.conversation_id,
@@ -340,6 +409,11 @@ class ChatPluginActionCompletionService:
         binding: ChatPluginActionBinding,
         outcome: ExecutionApprovalDecisionOutcome,
     ) -> str:
+        if binding.gmail_query is not None:
+            return self._gmail_composer.reply_for_approved(
+                binding,
+                outcome,
+            )
         if binding.calendar_window is not None:
             return self._calendar_composer.reply_for_approved(
                 binding,

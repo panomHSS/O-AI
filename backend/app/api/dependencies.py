@@ -48,6 +48,7 @@ from app.db.session import SessionLocal, get_db
 from app.providers.openai_provider import OpenAIChatProvider
 from app.plugins.default_plugin_discovery import DefaultPluginDiscovery
 from app.plugins.explicit_plugin_factory_loader import ExplicitPluginFactoryLoader
+from app.plugins.gmail import GmailPlugin
 from app.plugins.google_calendar import GoogleCalendarPlugin
 from app.readers import create_document_reader_registry
 from app.repositories.conversations import ConversationRepository
@@ -637,7 +638,12 @@ def get_controlled_plugin_loader() -> ExplicitPluginFactoryLoader:
             lambda: GoogleCalendarPlugin(
                 credential_broker=get_credential_access_broker()
             )
-        )
+        ),
+        gmail_factory=(
+            lambda: GmailPlugin(
+                credential_broker=get_credential_access_broker()
+            )
+        ),
     )
 
 
@@ -750,6 +756,7 @@ def get_plugin_runtime_activation_snapshot() -> PluginRuntimeActivationSnapshot:
     enablement.ensure_google_calendar_enabled(
         settings.oai_google_calendar_connector_enabled
     )
+    enablement.ensure_gmail_enabled(settings.oai_gmail_connector_enabled)
     return get_plugin_registration_activation_service().runtime_snapshot()
 
 
@@ -1237,6 +1244,7 @@ def get_chat_action_bridge(
         google_calendar_connector_enabled=(
             settings.oai_google_calendar_connector_enabled
         ),
+        gmail_connector_enabled=settings.oai_gmail_connector_enabled,
         google_calendar_connection_status_reader=(
             google_calendar_connection_status_reader
         ),

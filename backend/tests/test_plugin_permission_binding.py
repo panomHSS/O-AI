@@ -128,7 +128,7 @@ class PluginPermissionBindingTests(unittest.TestCase):
             profiles,
             PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES,
         )
-        self.assertEqual(len(profiles), 2)
+        self.assertEqual(len(profiles), 3)
 
         github = next(
             profile
@@ -170,12 +170,25 @@ class PluginPermissionBindingTests(unittest.TestCase):
         self.assertEqual(calendar.data_class, "owner_data")
         self.assertTrue(calendar.owner_approval_required)
 
+        gmail = next(
+            profile for profile in profiles if profile.plugin_id == "gmail"
+        )
+        self.assertEqual(gmail.plugin_version, "1.0.0")
+        self.assertEqual(gmail.capability_name, "read_messages")
+        self.assertEqual(gmail.capability_id, "exec.plugin.gmail.read_messages")
+        self.assertEqual(gmail.module_adapter_id, "module.plugin.gmail")
+        self.assertEqual(gmail.operation, "read_messages")
+        self.assertEqual(gmail.effect, "read")
+        self.assertEqual(gmail.data_class, "owner_data")
+        self.assertTrue(gmail.owner_approval_required)
+
         self.assertEqual(
             get_plugin_permission_binding_service().list_bindings(),
             (),
         )
         for subject in (
             ("github_public_repo", "1.0.0", "repository_metadata"),
+            ("gmail", "1.0.0", "read_messages"),
             ("google_calendar", "1.0.0", "upcoming_events"),
         ):
             with self.subTest(subject=subject):

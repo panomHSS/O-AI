@@ -301,7 +301,7 @@ class D76GmailCredentialFoundationAcceptanceTests(unittest.TestCase):
             [GMAIL_READ_CREDENTIAL_PROFILE_ID],
         )
 
-    def test_production_source_has_no_gmail_api_or_write_scope(self):
+    def test_production_source_has_no_gmail_write_scope(self):
         root = Path(__file__).resolve().parents[2]
         app_root = root / "backend" / "app"
         production = "\n".join(
@@ -309,9 +309,6 @@ class D76GmailCredentialFoundationAcceptanceTests(unittest.TestCase):
             for path in app_root.rglob("*.py")
         )
         for forbidden in (
-            "https://gmail.googleapis.com",
-            "/gmail/v1/",
-            "users.messages",
             "https://www.googleapis.com/auth/gmail.modify",
             "https://www.googleapis.com/auth/gmail.send",
             "https://www.googleapis.com/auth/gmail.compose",
@@ -320,16 +317,8 @@ class D76GmailCredentialFoundationAcceptanceTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, production)
 
-    def test_no_gmail_execution_adapter_permission_or_migration_is_added(self):
+    def test_no_gmail_static_execution_permission_or_migration_is_added(self):
         root = Path(__file__).resolve().parents[2]
-        adapter_names = {
-            path.name
-            for path in (root / "backend" / "app" / "adapters").glob("*.py")
-        }
-        self.assertFalse(
-            any("gmail" in name.lower() for name in adapter_names)
-        )
-
         permission_source = (
             root
             / "backend"

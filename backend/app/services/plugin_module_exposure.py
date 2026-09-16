@@ -5,12 +5,20 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
+from app.adapters.gmail_module import GmailModuleAdapter
 from app.adapters.google_calendar_module import GoogleCalendarModuleAdapter
 from app.adapters.projected_plugin_module import (
     PLUGIN_MODULE_INVOCATION_ERROR_EXECUTION_FAILED,
     PLUGIN_MODULE_INVOCATION_ERROR_INACTIVE,
     PluginModuleInvocationError,
     ProjectedPluginModuleAdapter,
+)
+from app.contracts.gmail import (
+    GMAIL_ADAPTER_ID,
+    GMAIL_OPERATION,
+    GMAIL_PLUGIN_ID,
+    GMAIL_PLUGIN_VERSION,
+    GMAIL_READ_CAPABILITY_NAME,
 )
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_ADAPTER_ID,
@@ -160,17 +168,24 @@ class PluginModuleExposureService:
                 raise PluginModuleExposureError(PLUGIN_MODULE_EXPOSURE_ERROR_DUPLICATE_TARGET)
             if not self._store.has_capacity_for(plugin_id, plugin_version, capability_name):
                 raise PluginModuleExposureError(PLUGIN_MODULE_EXPOSURE_ERROR_STORE_FULL)
-            adapter_class = (
-                GoogleCalendarModuleAdapter
-                if (
-                    plugin_id == GOOGLE_CALENDAR_PLUGIN_ID
-                    and plugin_version == GOOGLE_CALENDAR_PLUGIN_VERSION
-                    and capability_name == GOOGLE_CALENDAR_CAPABILITY_NAME
-                    and current.record.module_adapter_id == GOOGLE_CALENDAR_ADAPTER_ID
-                    and current.record.operation == GOOGLE_CALENDAR_OPERATION
-                )
-                else ProjectedPluginModuleAdapter
-            )
+            if (
+                plugin_id == GOOGLE_CALENDAR_PLUGIN_ID
+                and plugin_version == GOOGLE_CALENDAR_PLUGIN_VERSION
+                and capability_name == GOOGLE_CALENDAR_CAPABILITY_NAME
+                and current.record.module_adapter_id == GOOGLE_CALENDAR_ADAPTER_ID
+                and current.record.operation == GOOGLE_CALENDAR_OPERATION
+            ):
+                adapter_class = GoogleCalendarModuleAdapter
+            elif (
+                plugin_id == GMAIL_PLUGIN_ID
+                and plugin_version == GMAIL_PLUGIN_VERSION
+                and capability_name == GMAIL_READ_CAPABILITY_NAME
+                and current.record.module_adapter_id == GMAIL_ADAPTER_ID
+                and current.record.operation == GMAIL_OPERATION
+            ):
+                adapter_class = GmailModuleAdapter
+            else:
+                adapter_class = ProjectedPluginModuleAdapter
             adapter = adapter_class(
                 plugin_id=plugin_id,
                 plugin_version=plugin_version,

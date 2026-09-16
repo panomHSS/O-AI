@@ -7,6 +7,8 @@ from datetime import datetime
 from typing import Literal, TypeAlias
 from uuid import UUID
 
+from app.contracts.gmail import GmailReadQuery
+
 
 ChatPluginIntentStatus: TypeAlias = Literal["none", "matched", "invalid"]
 CalendarChatWindow: TypeAlias = Literal[
@@ -54,29 +56,59 @@ class ChatPluginIntentOutcome:
     repository_reference: str | None = None
     calendar_window: CalendarChatWindow | None = None
     calendar_intent: bool = False
+    gmail_query: GmailReadQuery | None = None
 
     def __post_init__(self) -> None:
         if self.status not in {"none", "matched", "invalid"}:
             raise ValueError("Unsupported Chat Plugin intent status.")
         if type(self.calendar_intent) is not bool:
             raise ValueError("calendar_intent must be an exact bool.")
+        if self.gmail_query is not None and not isinstance(
+            self.gmail_query, GmailReadQuery
+        ):
+            raise TypeError("gmail_query must be a GmailReadQuery.")
 
         if self.status == "none":
             if (
                 self.repository_reference is not None
                 or self.calendar_window is not None
                 or self.calendar_intent
+                or self.gmail_query is not None
             ):
                 raise ValueError("none intent must not carry target metadata.")
             return
 
         if self.status == "invalid":
-            if self.repository_reference is not None or self.calendar_window is not None:
+            if (
+                self.repository_reference is not None
+                or self.calendar_window is not None
+                or self.gmail_query is not None
+            ):
                 raise ValueError("invalid intent must not carry target metadata.")
             return
 
         repository = self.repository_reference
         calendar_window = self.calendar_window
+        gmail_query = self.gmail_query
+        target_count = sum(
+            (
+                repository is not None,
+                self.calendar_intent,
+                gmail_query is not None,
+            )
+        )
+        if target_count != 1:
+            raise ValueError(
+                "matched intent requires exactly one connector target."
+            )
+
+        if gmail_query is not None:
+            if calendar_window is not None or self.calendar_intent:
+                raise ValueError(
+                    "matched Gmail intent must not carry Calendar metadata."
+                )
+            return
+
         if self.calendar_intent:
             if repository is not None or calendar_window not in _CALENDAR_WINDOWS:
                 raise ValueError(
@@ -106,6 +138,7 @@ class ChatPluginActionBinding:
     calendar_window: CalendarChatWindow | None = None
     calendar_window_start: datetime | None = None
     calendar_window_end: datetime | None = None
+    gmail_query: GmailReadQuery | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -118,12 +151,24 @@ class ChatPluginActionBinding:
             raise TypeError("conversation_id must be a UUID.")
         if self.expires_at.tzinfo is None or self.expires_at.utcoffset() is None:
             raise ValueError("expires_at must be timezone-aware.")
+        if self.gmail_query is not None and not isinstance(
+            self.gmail_query, GmailReadQuery
+        ):
+            raise TypeError("gmail_query must be a GmailReadQuery.")
 
-        if self.repository_reference is not None:
+        repository = self.repository_reference
+        calendar = self.calendar_window is not None
+        gmail = self.gmail_query is not None
+        if sum((repository is not None, calendar, gmail)) != 1:
+            raise ValueError(
+                "Plugin binding requires exactly one connector target."
+            )
+
+        if repository is not None:
             if (
-                not isinstance(self.repository_reference, str)
-                or not self.repository_reference
-                or self.repository_reference != self.repository_reference.strip()
+                not isinstance(repository, str)
+                or not repository
+                or repository != repository.strip()
             ):
                 raise ValueError(
                     "repository_reference must be a non-empty trimmed string."
@@ -132,9 +177,21 @@ class ChatPluginActionBinding:
                 self.calendar_window is not None
                 or self.calendar_window_start is not None
                 or self.calendar_window_end is not None
+                or self.gmail_query is not None
             ):
                 raise ValueError(
-                    "GitHub bindings must not carry Calendar window metadata."
+                    "GitHub bindings must not carry Calendar or Gmail metadata."
+                )
+            return
+
+        if gmail:
+            if (
+                self.calendar_window is not None
+                or self.calendar_window_start is not None
+                or self.calendar_window_end is not None
+            ):
+                raise ValueError(
+                    "Gmail bindings must not carry Calendar window metadata."
                 )
             return
 

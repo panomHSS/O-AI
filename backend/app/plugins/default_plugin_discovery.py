@@ -24,4 +24,8 @@ class DefaultPluginDiscovery(
                 plugin_id="google_calendar",
                 version="1.0.0",
             ),
+            PluginManifest(
+                plugin_id="gmail",
+                version="1.0.0",
+            ),
         ]

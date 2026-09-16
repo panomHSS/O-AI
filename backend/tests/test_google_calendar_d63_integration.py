@@ -17,6 +17,7 @@ from app.plugins.plugin_manifest import PluginManifest
 class RaisingTokenSettings:
     oai_github_public_repo_connector_enabled = False
     oai_google_calendar_connector_enabled = True
+    oai_gmail_connector_enabled = False
 
     @property
     def oai_google_oauth_client_id(self):
@@ -104,6 +105,7 @@ class GoogleCalendarD63IntegrationTests(unittest.TestCase):
         settings = SimpleNamespace(
             oai_github_public_repo_connector_enabled=False,
             oai_google_calendar_connector_enabled=False,
+            oai_gmail_connector_enabled=False,
         )
         with patch.object(
             dependencies,

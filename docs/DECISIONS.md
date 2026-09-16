@@ -2255,3 +2255,78 @@ No Gmail send/modify/compose/full-mailbox scope, Gmail REST connector, message
 read, Chat intent, D31 adapter, D44/D45 permission, frontend mailbox surface,
 automation, database migration, Docker change, or dependency change is added by
 D76.
+
+## ADR-070: Bounded Gmail Read and Deterministic Chat Intent v1
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the exact D76 Gmail credential subject with one bounded read-only Plugin
+capability: `gmail / 1.0.0 / read_messages`. Project it only to
+`module.plugin.gmail / read_messages` with capability
+`exec.plugin.gmail.read_messages`, `effect=read`, `data_class=owner_data`, and
+`owner_approval_required=True`.
+
+Keep Gmail execution inside the governed D53-D58 Plugin lifecycle and existing
+D45/D36 owner-control authority chain. Discovery, admission, loading, exposure,
+permission binding, activation, Chat classification, proposal creation and
+denial do not resolve the Gmail access token or read mailbox data. Credential
+resolution occurs only after the owner approves the exact frozen query and the
+execution lane reaches the Gmail Plugin.
+
+Limit Chat-created Gmail queries to the typed modes `recent`, `unread`, and
+`from`. `from` requires one validated sender address. O-AI owns the provider
+mapping, fixed user `me`, fixed result maximum of five, Spam/Trash exclusion,
+message format and all credential metadata. Raw Gmail search syntax, pagination
+and caller-selected provider parameters are not authority inputs.
+
+The Gmail connector uses only fixed HTTPS GET list/get operations, disables
+environment proxy routing and redirects, performs no retry, enforces bounded
+provider responses, and fetches only message ids returned by the same list
+invocation. Raw MIME, attachments and HTML rendering are excluded. MIME parsing
+accepts only bounded inline `text/plain`.
+
+Normalize every provider response to the exact bounded Gmail message schema
+before it leaves the connector. Treat sender, subject, snippet and body as
+untrusted external data. Deterministic completion may display that normalized
+data to the owner but must not pass it to an AI model or tool-decision path.
+Persist only a fixed safe placeholder for an approved Gmail result so displayed
+mailbox content cannot re-enter an AI prompt later through conversation history.
+
+GitHub, Calendar and Gmail Chat targets remain mutually exclusive. Any request
+containing multiple connector signals fails closed and creates no execution
+proposal.
+
+**Rationale**
+
+Mailbox content is sensitive owner data and also an untrusted instruction
+source. Exact typed queries, bounded transport, owner approval, execution-time
+credential resolution and deterministic presentation preserve the authority
+separations established by D45, D53-D64 and D76 while preventing email content
+from becoming model or cross-connector execution authority.
+
+**Consequences**
+
+O-AI can read at most five bounded Gmail messages only after explicit owner
+approval of one exact deterministic query. Denial performs no Gmail network
+access. Lifecycle materialization and proposal creation perform no credential
+resolution.
+
+D77 adds no Gmail write capability, arbitrary provider search, attachments,
+raw MIME, HTML rendering, pagination, threads API, polling/watch, cross-connector
+reasoning, automation, database migration, Docker/dependency change, or mailbox
+frontend.
+
+D77 invariants:
+
+- `GMAIL CREDENTIAL != GMAIL API READ != CHAT INTENT`
+- `INTENT != APPROVAL != CREDENTIAL RESOLUTION != NETWORK EXECUTION`
+- `DENIED -> ZERO GMAIL NETWORK`
+- `APPROVED QUERY == EXECUTED QUERY`
+- `GITHUB / CALENDAR / GMAIL == XOR`
+- `CROSS-CONNECTOR REQUEST -> EXECUTE NONE`
+- `EMAIL CONTENT != LLM PROMPT`
+- `EMAIL CONTENT != TOOL DECISION`
+- `GMAIL READ != GMAIL WRITE`
+- `GMAIL READ != AUTOMATION`

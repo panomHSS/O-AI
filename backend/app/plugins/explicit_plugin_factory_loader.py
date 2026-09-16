@@ -15,6 +15,7 @@ from collections.abc import Callable
 from app.plugins.base import Plugin
 from app.plugins.echo import EchoPlugin
 from app.plugins.github_public_repository import GitHubPublicRepositoryPlugin
+from app.plugins.gmail import GmailPlugin
 from app.plugins.google_calendar import GoogleCalendarPlugin
 from app.services.credential_access_broker import (
     CredentialAccessBroker,
@@ -56,6 +57,18 @@ def _default_google_calendar_factory() -> Plugin:
     )
 
 
+def _default_gmail_factory() -> Plugin:
+    """Safe default Gmail factory: known identity, no configured credential."""
+    return GmailPlugin(
+        credential_broker=CredentialAccessBroker(
+            profile_catalog=CredentialProfileCatalog(
+                PRODUCTION_CREDENTIAL_PROFILES
+            ),
+            secret_source=EmptyCredentialSecretSource(),
+        )
+    )
+
+
 class ExplicitPluginFactoryLoader(PluginLoader):
     """Load only exact id/version pairs from an explicit in-process allowlist."""
 
@@ -64,11 +77,14 @@ class ExplicitPluginFactoryLoader(PluginLoader):
         factories: dict[tuple[str, str], PluginFactory] | None = None,
         *,
         google_calendar_factory: PluginFactory | None = None,
+        gmail_factory: PluginFactory | None = None,
     ) -> None:
-        if factories is not None and google_calendar_factory is not None:
+        if factories is not None and (
+            google_calendar_factory is not None or gmail_factory is not None
+        ):
             raise ValueError(
-                "Custom factories cannot be combined with the fixed "
-                "Google Calendar factory seam."
+                "Custom factories cannot be combined with fixed first-party "
+                "credentialed factory seams."
             )
         if factories is None:
             calendar_factory = (
@@ -76,10 +92,16 @@ class ExplicitPluginFactoryLoader(PluginLoader):
                 if google_calendar_factory is None
                 else google_calendar_factory
             )
+            resolved_gmail_factory = (
+                _default_gmail_factory
+                if gmail_factory is None
+                else gmail_factory
+            )
             source = {
                 ("echo", "1.0.0"): EchoPlugin,
                 ("github_public_repo", "1.0.0"): GitHubPublicRepositoryPlugin,
                 ("google_calendar", "1.0.0"): calendar_factory,
+                ("gmail", "1.0.0"): resolved_gmail_factory,
             }
         else:
             source = dict(factories)

@@ -150,7 +150,7 @@ class D59ExternalConnectorLifecycleTests(unittest.TestCase):
     def test_production_connector_is_known_but_default_deny(self):
         reader, candidate_discovery, governance, loading, exposure, binding, activation = self.compose()
         candidates = candidate_discovery.discover_candidates()
-        self.assertEqual(len(candidates), 2)
+        self.assertEqual(len(candidates), 3)
         github = next(
             candidate
             for candidate in candidates

@@ -2232,3 +2232,78 @@ D44/D45 execution permission, automation, database migration, Docker change, or
 dependency change. Core boundary:
 
 `GMAIL CREDENTIAL FOUNDATION != GMAIL API READ != CHAT INTENT != AUTOMATION`.
+
+## D77 Gmail Read + Chat Intent v1
+
+D77 turns the separate D76 Gmail credential subject into one bounded read-only
+mailbox capability and one deterministic Chat intent surface. The exact Plugin
+subject remains `gmail / 1.0.0 / read_messages`, capability
+`exec.plugin.gmail.read_messages`, adapter `module.plugin.gmail`, operation
+`read_messages`, credential profile `gmail.messages.readonly`, secret reference
+`gmail.access_token`, and OAuth scope
+`https://www.googleapis.com/auth/gmail.readonly`.
+
+Gmail enters production through the governed Plugin projection, discovery,
+loading, exposure, permission-binding and activation path. The capability is
+`effect=read`, `data_class=owner_data`, and
+`owner_approval_required=True`. Lifecycle activation does not resolve Gmail
+credentials or read mailbox data. Credential resolution occurs only during an
+already-approved and authorized Plugin execution.
+
+The Gmail transport is fixed to HTTPS `gmail.googleapis.com` and user `me`.
+It performs only bounded message-list and message-get requests, uses GET only,
+disables environment proxy routing and redirects, performs no retry, follows no
+pagination, excludes Spam and Trash, requests at most five messages, and never
+uses attachment or raw-MIME endpoints. List responses are capped at 64 KiB and
+individual message responses at 256 KiB.
+
+Chat cannot pass arbitrary Gmail search syntax. `GmailReadQuery` supports only
+`recent`, `unread`, and `from`; `from` requires one validated sender address.
+O-AI maps those modes internally to either no Gmail `q`, `is:unread`, or the
+fixed `from:<validated_sender>` form. Caller input cannot select the Gmail user,
+endpoint, format, result count, page token, OAuth profile, scope, or secret
+reference.
+
+Message normalization exposes only bounded `message_id`, `from`, `subject`,
+`received_at`, `unread`, `snippet`, and `body`. MIME traversal is bounded and
+accepts only inline `text/plain` data with no filename and no attachment id.
+HTML rendering, attachment download, raw MIME and provider label exposure remain
+outside D77.
+
+The Chat router recognizes only the approved deterministic Thai/English Gmail
+phrases for recent, unread and sender-filtered mail. GitHub, Calendar and Gmail
+targets are mutually exclusive. A request containing multiple connector signals
+fails closed and executes none.
+
+Email sender, subject, snippet and body are untrusted external data. Gmail
+results are schema-validated and rendered by a deterministic completion
+composer; email content is never sent to an AI model for interpretation or tool
+selection. The transient approved Gmail response may display normalized email
+content to the owner, while persisted conversation history receives only a safe
+fixed placeholder so mailbox content cannot become future LLM conversation
+context.
+
+D77 adds no Gmail send, draft, reply, modify, delete, archive, label mutation,
+mark-read/unread operation, attachment retrieval, arbitrary Gmail search,
+pagination, mailbox polling/watch, cross-connector reasoning, automation,
+database migration, Docker change, dependency change, or mailbox frontend.
+
+Frozen invariants:
+
+`GMAIL CREDENTIAL != GMAIL API READ != CHAT INTENT`
+
+`INTENT != APPROVAL != CREDENTIAL RESOLUTION != NETWORK EXECUTION`
+
+`DENIED -> ZERO GMAIL NETWORK`
+
+`APPROVED QUERY == EXECUTED QUERY`
+
+`GITHUB / CALENDAR / GMAIL INTENT == EXACTLY ONE OR NONE`
+
+`CROSS-CONNECTOR REQUEST -> EXECUTE NONE`
+
+`EMAIL CONTENT == UNTRUSTED EXTERNAL DATA`
+
+`EMAIL CONTENT != LLM PROMPT != TOOL DECISION`
+
+`GMAIL READ != GMAIL WRITE != AUTOMATION`

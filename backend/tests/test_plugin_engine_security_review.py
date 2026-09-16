@@ -219,7 +219,7 @@ class PluginEngineSecurityReviewTests(unittest.TestCase):
         reader, candidates, governance, loading, exposure, binding, activation = (
             self.compose()
         )
-        self.assertEqual(len(candidates.discover_candidates()), 2)
+        self.assertEqual(len(candidates.discover_candidates()), 3)
         governance.admit(PLUGIN_ID, PLUGIN_VERSION)
         loading.load(PLUGIN_ID, PLUGIN_VERSION)
         exposure.expose(PLUGIN_ID, PLUGIN_VERSION, CAPABILITY_NAME)
@@ -307,7 +307,7 @@ class PluginEngineSecurityReviewTests(unittest.TestCase):
     def test_d59_production_permission_profile_remains_exact(self):
         self.assertEqual(
             len(PRODUCTION_PLUGIN_CAPABILITY_PERMISSION_PROFILES),
-            2,
+            3,
         )
         profile = next(
             item

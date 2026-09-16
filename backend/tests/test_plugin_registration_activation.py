@@ -167,6 +167,7 @@ class PluginRegistrationActivationTests(unittest.TestCase):
         settings = SimpleNamespace(
             oai_github_public_repo_connector_enabled=False,
             oai_google_calendar_connector_enabled=False,
+            oai_gmail_connector_enabled=False,
         )
         with patch(
             "app.api.dependencies.get_settings",
