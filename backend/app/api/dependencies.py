@@ -132,6 +132,10 @@ from app.telemetry.system_metrics import SystemMetricsProvider
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.chat_action_bridge import ChatActionBridge
+from app.services.chat_cross_connector import CrossConnectorChatService
+from app.services.cross_connector_context import (
+    CrossConnectorContextStore,
+)
 from app.services.chat_plugin_action import (
     ChatPluginActionBindingStore,
     ChatPluginActionCompletionService,
@@ -1218,6 +1222,12 @@ def get_chat_plugin_action_binding_store() -> ChatPluginActionBindingStore:
     return ChatPluginActionBindingStore()
 
 
+@lru_cache
+def get_cross_connector_context_store() -> CrossConnectorContextStore:
+    """Compose D78 process-local approved connector context only."""
+    return CrossConnectorContextStore()
+
+
 def get_chat_action_bridge(
     conversation_service: ConversationService = Depends(
         get_conversation_service
@@ -1259,11 +1269,30 @@ def get_chat_plugin_action_completion_service(
     binding_store: ChatPluginActionBindingStore = Depends(
         get_chat_plugin_action_binding_store
     ),
+    cross_connector_context_store: CrossConnectorContextStore = Depends(
+        get_cross_connector_context_store
+    ),
 ) -> ChatPluginActionCompletionService:
     """Compose non-authoritative D61 Plugin-result Chat finalization."""
     return ChatPluginActionCompletionService(
         conversation_service=conversation_service,
         binding_store=binding_store,
+        cross_connector_context_store=cross_connector_context_store,
+    )
+
+
+def get_cross_connector_chat_service(
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    context_store: CrossConnectorContextStore = Depends(get_cross_connector_context_store),
+    planner: ExecutionPlanner = Depends(get_execution_planner),
+    guard: ExecutionGuard = Depends(get_execution_guard),
+    ai_runtime: AIRuntime = Depends(get_ai_runtime),
+) -> CrossConnectorChatService:
+    settings = get_settings()
+    return CrossConnectorChatService(
+        conversation_service=conversation_service, context_store=context_store,
+        planner=planner, guard=guard, ai_runtime=ai_runtime,
+        enabled=settings.oai_cross_connector_ai_context_enabled,
     )
 
 

@@ -34,6 +34,9 @@ from app.services.chat_gmail import (
     GmailChatIntentRouter,
 )
 from app.services.conversations import ConversationService
+from app.services.cross_connector_context import (
+    CrossConnectorContextStore,
+)
 from app.services.plugin_governance import PluginGovernanceService
 from app.services.plugin_loading import PluginLoadingService
 from app.services.plugin_module_exposure import PluginModuleExposureService
@@ -351,6 +354,7 @@ class ChatPluginActionCompletionService:
         binding_store: ChatPluginActionBindingStore,
         calendar_composer: CalendarChatCompletionComposer | None = None,
         gmail_composer: GmailChatCompletionComposer | None = None,
+        cross_connector_context_store: CrossConnectorContextStore | None = None,
     ) -> None:
         self._conversation_service = conversation_service
         self._binding_store = binding_store
@@ -358,6 +362,7 @@ class ChatPluginActionCompletionService:
             calendar_composer or CalendarChatCompletionComposer()
         )
         self._gmail_composer = gmail_composer or GmailChatCompletionComposer()
+        self._cross_connector_context_store = cross_connector_context_store
 
     def complete(
         self,
@@ -389,20 +394,54 @@ class ChatPluginActionCompletionService:
             reply = self._reply_for_approved(binding, outcome)
 
         persisted_reply = reply
-        if (
-            binding.gmail_query is not None
-            and outcome.decision == "approved"
-        ):
-            persisted_reply = self._gmail_composer.HISTORY_SAFE_REPLY
+        if outcome.decision == "approved":
+            if binding.gmail_query is not None:
+                persisted_reply = self._gmail_composer.HISTORY_SAFE_REPLY
+            elif binding.calendar_window is not None:
+                persisted_reply = self._calendar_composer.HISTORY_SAFE_REPLY
 
         self._conversation_service.complete_turn(
             str(binding.conversation_id),
             persisted_reply,
         )
+        self._capture_cross_connector_context(binding, outcome)
         return ChatPluginActionCompletion(
             conversation_id=binding.conversation_id,
             reply=reply,
         )
+
+    def _capture_cross_connector_context(
+        self,
+        binding: ChatPluginActionBinding,
+        outcome: ExecutionApprovalDecisionOutcome,
+    ) -> None:
+        store = self._cross_connector_context_store
+        if store is None or outcome.decision != "approved":
+            return
+        try:
+            if binding.gmail_query is not None:
+                messages = self._gmail_composer.context_messages_for_approved(
+                    binding,
+                    outcome,
+                )
+                if messages is not None:
+                    store.capture_gmail(
+                        binding.conversation_id,
+                        messages,
+                    )
+                return
+            if binding.calendar_window is not None:
+                events = self._calendar_composer.context_events_for_approved(
+                    binding,
+                    outcome,
+                )
+                if events is not None:
+                    store.capture_calendar(
+                        binding.conversation_id,
+                        events,
+                    )
+        except (TypeError, ValueError, RuntimeError):
+            return
 
     def _reply_for_approved(
         self,

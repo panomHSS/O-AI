@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.contracts.cross_connector_context import CalendarContextEvent
 from app.contracts.chat_plugin_action import (
     CalendarChatWindow,
     ChatPluginActionBinding,
@@ -523,6 +524,11 @@ class _DisplayEvent:
 class CalendarChatCompletionComposer:
     """Validate, filter and render authorized Calendar output without an AI model."""
 
+    HISTORY_SAFE_REPLY = (
+        "Google Calendar result was displayed as untrusted external data; "
+        "calendar content was not retained in AI conversation context."
+    )
+
     DENIED_REPLY = (
         "ยกเลิกการอ่าน Google Calendar "
         "ตามการตัดสินใจของเจ้าของแล้วครับ"
@@ -570,6 +576,62 @@ class CalendarChatCompletionComposer:
                 f"{self._status_suffix(event.status)}"
             )
         return self._with_truncation_note("\n".join(lines), truncated)
+
+    def context_events_for_approved(
+        self,
+        binding: ChatPluginActionBinding,
+        outcome: object,
+    ) -> tuple[CalendarContextEvent, ...] | None:
+        """Project only strictly validated events from the approved window."""
+        if binding.calendar_window is None:
+            return None
+        execution = getattr(outcome, "execution", None)
+        result = getattr(execution, "result", None)
+        if (
+            getattr(execution, "status", None) != "completed"
+            or result is None
+            or getattr(result, "status", None) != "succeeded"
+        ):
+            return None
+
+        validated = self._validated_payload(
+            getattr(result, "output", None),
+            binding,
+        )
+        if validated is None:
+            return None
+        events, _ = validated
+        filtered = tuple(
+            event
+            for event in events
+            if event.start < binding.calendar_window_end
+            and event.end > binding.calendar_window_start
+        )
+        filtered = tuple(
+            sorted(filtered, key=lambda item: (item.start, item.end))
+        )
+
+        projected: list[CalendarContextEvent] = []
+        for event in filtered:
+            if event.all_day:
+                start_value = event.start.date().isoformat()
+                end_value = event.end.date().isoformat()
+            else:
+                start_value = event.start.isoformat()
+                end_value = event.end.isoformat()
+            try:
+                projected.append(
+                    CalendarContextEvent(
+                        summary=event.summary,
+                        status=event.status,
+                        start=start_value,
+                        end=end_value,
+                        all_day=event.all_day,
+                    )
+                )
+            except (TypeError, ValueError):
+                return None
+        return tuple(projected)
 
     def _validated_payload(
         self,

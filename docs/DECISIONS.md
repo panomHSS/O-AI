@@ -2330,3 +2330,77 @@ D77 invariants:
 - `EMAIL CONTENT != TOOL DECISION`
 - `GMAIL READ != GMAIL WRITE`
 - `GMAIL READ != AUTOMATION`
+
+## ADR-071: Explicit Bounded Cross-Connector Context v1
+
+**Status:** Accepted
+
+**Decision**
+
+Allow one explicit answer-only Chat lane to synthesize already-approved Gmail and
+Google Calendar read results, while keeping connector data separate from
+execution authority.
+
+Capture only strictly validated successful owner-approved connector results into
+a bounded process-local context store. Gmail snapshots contain no message id,
+provider label, raw query or credential metadata and expose at most five
+messages with at most 2048 characters of selected body/snippet text per message.
+Calendar snapshots expose at most ten validated events and retain only summary,
+status, start, end and all-day state. Both sources expire after exactly ten
+minutes, must belong to the same conversation, and together may not exceed
+24 KiB serialized UTF-8.
+
+Do not create snapshots for denied, failed or malformed executions. A context
+store failure must not change the already-completed owner connector read.
+
+Recognize only the frozen deterministic D78 Thai/English summarize/compare
+phrases. Require an existing conversation, the local-owner request marker and the
+deployment gate `OAI_CROSS_CONNECTOR_AI_CONTEXT_ENABLED`, which defaults to
+false. Missing or stale snapshots stop before AI planning.
+
+When the gate and context are valid, build a bounded prompt that labels the Gmail
+and Calendar values as untrusted external data. Route the request through the
+existing `ExecutionPlanner -> ExecutionGuard -> AIRuntime` AI authority chain and
+preserve configured provider routing. Do not call a provider directly and do not
+use connector content for routing, tool selection, connector selection,
+execution parameters or approval.
+
+The D78 lane bypasses normal Chat project/memory/action orchestration and returns
+only one bounded text answer. It cannot create Tool/Module execution, connector
+execution, Calendar write, Gmail write, Project update/action proposals,
+automation or background work.
+
+Persist only fixed safe placeholders for approved Gmail/Calendar display results
+and for the D78 synthesized answer. The current owner may see the validated
+connector content and synthesized answer, but those sensitive values are not
+stored as future AI conversation context.
+
+**Rationale**
+
+Email and Calendar values are sensitive owner data and untrusted instruction
+sources. Requiring prior owner-approved reads, short-lived bounded snapshots, an
+explicit synthesis request, a disabled-by-default deployment gate and the
+existing AI authorization chain permits useful cross-source summarization without
+turning external content or model output into execution authority.
+
+**Consequences**
+
+D78 can summarize or compare recent approved Gmail and Calendar results without
+performing another connector read. Ordinary mixed Gmail/Calendar action requests
+remain fail-closed and execute neither connector. D78 adds no connector write
+capability, live multi-connector fan-out, arbitrary search, attachment access,
+automation, database migration, Docker/dependency change or frontend surface.
+
+D78 invariants:
+
+- `APPROVED READ != CROSS-CONNECTOR CONTEXT`
+- `CONTEXT != AI ANSWER != ACTION AUTHORITY`
+- `EMAIL/CALENDAR DATA == UNTRUSTED EXTERNAL DATA`
+- `UNTRUSTED DATA != TOOL/CONNECTOR/ACTION AUTHORITY`
+- `MISSING/STALE CONTEXT -> ZERO AI`
+- `D78 REQUEST -> ZERO CONNECTOR NETWORK`
+- `D78 REQUEST -> ZERO CREDENTIAL RESOLUTION`
+- `D78 AI -> PLANNER -> GUARD -> AIRUNTIME`
+- `AI OUTPUT != TOOL/MODULE/WRITE/AUTOMATION AUTHORITY`
+- `CURRENT DISPLAY != FUTURE AI HISTORY`
+- `LIVE MULTI-CONNECTOR FAN-OUT REMAINS UNSUPPORTED`

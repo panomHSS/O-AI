@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.api.dependencies import (
     get_chat_action_bridge,
+    get_cross_connector_chat_service,
     get_command_input_pipeline,
     get_command_orchestrator,
     get_project_update_turn_orchestrator,
@@ -19,6 +20,7 @@ from app.schemas.execution_approvals import (
     ExecutionApprovalProposalResponse,
 )
 from app.services.chat_action_bridge import ChatActionBridge
+from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.command_orchestrator import (
     CommandOrchestrator,
@@ -58,12 +60,29 @@ def send_chat_message(
         ChatActionBridge,
         Depends(get_chat_action_bridge),
     ],
+    cross_connector_chat_service: Annotated[
+        CrossConnectorChatService,
+        Depends(get_cross_connector_chat_service),
+    ],
     x_oai_local_request: Annotated[
         str | None,
         Header(),
     ] = None,
 ) -> ApiSuccess[ChatResponse]:
     """Handle normal chat or one explicit owner-reviewed /action turn."""
+
+    if cross_connector_chat_service.is_request(payload.message):
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        if payload.conversation_id is None or payload.project_id is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        cross_outcome = cross_connector_chat_service.process(
+            request_id=request.state.request_id, message=payload.message,
+            conversation_id=payload.conversation_id,
+        )
+        return ApiSuccess(data=ChatResponse(
+            reply=cross_outcome.reply, conversation_id=cross_outcome.conversation_id,
+        ))
 
     if (
         chat_action_bridge.is_action_directive(payload.message)

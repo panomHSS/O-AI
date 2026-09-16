@@ -16,6 +16,10 @@ from app.connectors.gmail import (
     GMAIL_ERROR_UNAVAILABLE,
     GMAIL_MAX_RESULT_BYTES,
 )
+from app.contracts.cross_connector_context import (
+    CROSS_CONNECTOR_GMAIL_MAX_TEXT_CHARS,
+    GmailContextMessage,
+)
 from app.contracts.chat_plugin_action import (
     ChatPluginActionBinding,
     ChatPluginIntentOutcome,
@@ -184,6 +188,51 @@ class GmailChatCompletionComposer:
         if not isinstance(content, str):
             return self.FAILURE_REPLY
         return self.reply_for_content(content)
+
+    def context_messages_for_approved(
+        self,
+        binding: ChatPluginActionBinding,
+        outcome: ExecutionApprovalDecisionOutcome,
+    ) -> tuple[GmailContextMessage, ...] | None:
+        """Project only a strictly validated approved Gmail result for D78."""
+        if binding.gmail_query is None:
+            return None
+        execution = outcome.execution
+        result = execution.result
+        if (
+            execution.status != "completed"
+            or result is None
+            or result.status != "succeeded"
+        ):
+            return None
+        output = result.output
+        if not isinstance(output, Mapping) or set(output) != {"content"}:
+            return None
+        content = output.get("content")
+        if not isinstance(content, str):
+            return None
+        parsed = self._validated_result(content)
+        if parsed is None:
+            return None
+
+        projected: list[GmailContextMessage] = []
+        for message in parsed.messages:
+            text = (message.body or message.snippet)[
+                :CROSS_CONNECTOR_GMAIL_MAX_TEXT_CHARS
+            ]
+            try:
+                projected.append(
+                    GmailContextMessage(
+                        sender=message.sender,
+                        subject=message.subject,
+                        received_at=message.received_at,
+                        unread=message.unread,
+                        text=text,
+                    )
+                )
+            except (TypeError, ValueError):
+                return None
+        return tuple(projected)
 
     def reply_for_content(self, content: str) -> str:
         parsed = self._validated_result(content)

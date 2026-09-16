@@ -2307,3 +2307,85 @@ Frozen invariants:
 `EMAIL CONTENT != LLM PROMPT != TOOL DECISION`
 
 `GMAIL READ != GMAIL WRITE != AUTOMATION`
+
+## D78 Cross-Connector Context / Gmail + Calendar Integration Boundary v1
+
+D78 adds an explicit answer-only synthesis lane over already-approved Gmail and
+Google Calendar read results. It does not add live multi-connector fan-out and it
+does not make connector content execution authority.
+
+The D78 authority boundary is:
+
+`APPROVED CONNECTOR READ != CROSS-CONNECTOR CONTEXT != AI ANSWER != ACTION AUTHORITY != AUTOMATION`
+
+Approved successful Gmail and Calendar results are projected into bounded,
+process-local snapshots keyed by conversation. Gmail projection contains only
+`from`, `subject`, `received_at`, `unread`, and bounded text. Calendar projection
+contains only `summary`, `status`, `start`, `end`, and `all_day`. Provider ids,
+Gmail labels/search syntax, credential metadata, raw provider payloads and
+attachment/MIME authority do not enter D78 context.
+
+Snapshots expire exactly ten minutes after capture. Gmail contributes at most
+five messages, Calendar at most ten events, and a combined bundle is limited to
+24 KiB serialized UTF-8. A bundle exists only when both fresh sources belong to
+the same conversation. Denied, failed or malformed connector completions create
+no snapshot. Snapshot storage is process-local only and grants no persistence or
+execution authority.
+
+D78 recognizes only a frozen deterministic Thai/English summarize/compare
+grammar. The request requires an existing `conversation_id`, the local-owner
+`X-OAI-Local-Request: 1` marker, and
+`OAI_CROSS_CONNECTOR_AI_CONTEXT_ENABLED=true`. The deployment flag defaults to
+false. Missing or stale context fails closed with no AI invocation, connector
+network request or credential resolution.
+
+The answer-only AI lane is:
+
+`explicit owner request -> fresh bounded bundle -> untrusted context prompt ->
+ExecutionPlanner -> ExecutionGuard -> AIRuntime -> one text answer`
+
+The prompt explicitly marks Gmail and Calendar values as untrusted external data
+and forbids instructions inside that data from selecting tools, connectors,
+actions or execution parameters. D78 reuses existing AI provider routing and the
+D35/D36/D49 Planner/Guard/AIRuntime authority chain; it does not call an AI
+provider directly.
+
+D78 does not enter the normal `ConversationService.send_message()` lane for the
+cross-context synthesis. Consequently the turn does not create Project update or
+Project action proposals, Tool/Module execution, connector execution, Calendar
+write authority, Gmail write authority, automation, scheduler work or background
+jobs. Model output is text only and cannot become execution authority.
+
+Approved Gmail and Calendar display content is not retained as future AI history.
+Calendar receives the same safe-history isolation established for Gmail in D77.
+The D78 synthesized answer is returned to the current owner, while persisted
+assistant history contains only a fixed safe placeholder. This prevents
+connector content, or a model answer that quotes it, from silently re-entering a
+later normal AI prompt.
+
+D77's direct multi-connector action rule remains intact: an ordinary request that
+simultaneously signals Gmail and Calendar still executes neither connector. D78
+is a separate explicit synthesis request over previously approved snapshots and
+performs no connector execution itself.
+
+Frozen invariants:
+
+- `APPROVED CONNECTOR READ != CROSS-CONNECTOR CONTEXT`
+- `CROSS-CONNECTOR CONTEXT != AI ANSWER`
+- `AI ANSWER != ACTION AUTHORITY`
+- `AI ANSWER != AUTOMATION`
+- `EMAIL / CALENDAR DATA == UNTRUSTED EXTERNAL DATA`
+- `UNTRUSTED DATA != TOOL/CONNECTOR SELECTION`
+- `UNTRUSTED DATA != EXECUTION PARAMETERS`
+- `UNTRUSTED DATA != OWNER APPROVAL`
+- `MISSING OR STALE CONTEXT -> ZERO AI`
+- `D78 REQUEST -> ZERO GMAIL/CALENDAR NETWORK`
+- `D78 REQUEST -> ZERO CREDENTIAL RESOLUTION`
+- `D78 AI -> PLANNER -> GUARD -> AIRUNTIME`
+- `D78 AI != DIRECT PROVIDER BYPASS`
+- `D78 SYNTHESIS != PROJECT SIDE EFFECT`
+- `D78 SYNTHESIS != TOOL/MODULE SIDE EFFECT`
+- `D78 SYNTHESIS != CALENDAR/GMAIL WRITE`
+- `CURRENT DISPLAY != FUTURE AI HISTORY`
+- `PROCESS-LOCAL SNAPSHOT != DURABLE MEMORY`
+- `LIVE MULTI-CONNECTOR FAN-OUT REMAINS UNSUPPORTED`
