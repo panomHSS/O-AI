@@ -105,6 +105,108 @@ _THIS_MONTH_PHRASES = frozenset(
     }
 )
 
+
+_TODAY_MORNING_PHRASES = frozenset(
+    {
+        "วันนี้ตอนเช้ามีนัดอะไรบ้าง",
+        "วันนี้ช่วงเช้ามีนัดอะไรบ้าง",
+        "วันนี้ตอนเช้ามีอะไรในปฏิทิน",
+        "วันนี้ช่วงเช้ามีอะไรในปฏิทิน",
+        "วันนี้ตอนเช้ามีนัดไหม",
+        "วันนี้ช่วงเช้ามีนัดไหม",
+        "what's on my calendar this morning",
+        "what is on my calendar this morning",
+        "show my calendar this morning",
+    }
+)
+_TODAY_AFTERNOON_PHRASES = frozenset(
+    {
+        "วันนี้ตอนบ่ายมีนัดอะไรบ้าง",
+        "วันนี้ช่วงบ่ายมีนัดอะไรบ้าง",
+        "วันนี้ตอนบ่ายมีอะไรในปฏิทิน",
+        "วันนี้ช่วงบ่ายมีอะไรในปฏิทิน",
+        "วันนี้ตอนบ่ายมีนัดไหม",
+        "วันนี้ช่วงบ่ายมีนัดไหม",
+        "what's on my calendar this afternoon",
+        "what is on my calendar this afternoon",
+        "show my calendar this afternoon",
+    }
+)
+_TODAY_EVENING_PHRASES = frozenset(
+    {
+        "วันนี้ตอนเย็นมีนัดอะไรบ้าง",
+        "วันนี้ช่วงเย็นมีนัดอะไรบ้าง",
+        "วันนี้ตอนเย็นมีอะไรในปฏิทิน",
+        "วันนี้ช่วงเย็นมีอะไรในปฏิทิน",
+        "วันนี้ตอนเย็นมีนัดไหม",
+        "วันนี้ช่วงเย็นมีนัดไหม",
+        "what's on my calendar this evening",
+        "what is on my calendar this evening",
+        "show my calendar this evening",
+    }
+)
+_TOMORROW_MORNING_PHRASES = frozenset(
+    {
+        "พรุ่งนี้ตอนเช้ามีนัดอะไรบ้าง",
+        "พรุ่งนี้ช่วงเช้ามีนัดอะไรบ้าง",
+        "พรุ่งนี้ตอนเช้ามีอะไรในปฏิทิน",
+        "พรุ่งนี้ช่วงเช้ามีอะไรในปฏิทิน",
+        "พรุ่งนี้ตอนเช้ามีนัดไหม",
+        "พรุ่งนี้ช่วงเช้ามีนัดไหม",
+        "what's on my calendar tomorrow morning",
+        "what is on my calendar tomorrow morning",
+        "show my calendar tomorrow morning",
+    }
+)
+_TOMORROW_AFTERNOON_PHRASES = frozenset(
+    {
+        "พรุ่งนี้ตอนบ่ายมีนัดอะไรบ้าง",
+        "พรุ่งนี้ช่วงบ่ายมีนัดอะไรบ้าง",
+        "พรุ่งนี้ตอนบ่ายมีอะไรในปฏิทิน",
+        "พรุ่งนี้ช่วงบ่ายมีอะไรในปฏิทิน",
+        "พรุ่งนี้ตอนบ่ายมีนัดไหม",
+        "พรุ่งนี้ช่วงบ่ายมีนัดไหม",
+        "what's on my calendar tomorrow afternoon",
+        "what is on my calendar tomorrow afternoon",
+        "show my calendar tomorrow afternoon",
+    }
+)
+_TOMORROW_EVENING_PHRASES = frozenset(
+    {
+        "พรุ่งนี้ตอนเย็นมีนัดอะไรบ้าง",
+        "พรุ่งนี้ช่วงเย็นมีนัดอะไรบ้าง",
+        "พรุ่งนี้ตอนเย็นมีอะไรในปฏิทิน",
+        "พรุ่งนี้ช่วงเย็นมีอะไรในปฏิทิน",
+        "พรุ่งนี้ตอนเย็นมีนัดไหม",
+        "พรุ่งนี้ช่วงเย็นมีนัดไหม",
+        "what's on my calendar tomorrow evening",
+        "what is on my calendar tomorrow evening",
+        "show my calendar tomorrow evening",
+    }
+)
+_UPCOMING_WEEKEND_PHRASES = frozenset(
+    {
+        "เสาร์-อาทิตย์มีนัดอะไรบ้าง",
+        "เสาร์-อาทิตย์มีอะไรในปฏิทิน",
+        "สุดสัปดาห์นี้มีนัดอะไรบ้าง",
+        "สุดสัปดาห์นี้มีอะไรในปฏิทิน",
+        "ดูนัดสุดสัปดาห์นี้",
+        "what's on my calendar this weekend",
+        "what is on my calendar this weekend",
+        "show my calendar this weekend",
+    }
+)
+_NEXT_WEEKEND_PHRASES = frozenset(
+    {
+        "สุดสัปดาห์หน้ามีนัดอะไรบ้าง",
+        "สุดสัปดาห์หน้ามีอะไรในปฏิทิน",
+        "ดูนัดสุดสัปดาห์หน้า",
+        "what's on my calendar next weekend",
+        "what is on my calendar next weekend",
+        "show my calendar next weekend",
+    }
+)
+
 _NON_ACTION_MARKERS = (
     "สมมติ",
     "ตัวอย่าง",
@@ -132,6 +234,14 @@ _WINDOW_SIGNALS = {
     "this_week": ("this week", "สัปดาห์นี้", "อาทิตย์นี้"),
     "next_week": ("next week", "สัปดาห์หน้า", "อาทิตย์หน้า"),
     "this_month": ("this month", "เดือนนี้"),
+    "today_morning": ("this morning", "today morning", "วันนี้ตอนเช้า", "วันนี้ช่วงเช้า"),
+    "today_afternoon": ("this afternoon", "today afternoon", "วันนี้ตอนบ่าย", "วันนี้ช่วงบ่าย"),
+    "today_evening": ("this evening", "today evening", "วันนี้ตอนเย็น", "วันนี้ช่วงเย็น"),
+    "tomorrow_morning": ("tomorrow morning", "พรุ่งนี้ตอนเช้า", "พรุ่งนี้ช่วงเช้า"),
+    "tomorrow_afternoon": ("tomorrow afternoon", "พรุ่งนี้ตอนบ่าย", "พรุ่งนี้ช่วงบ่าย"),
+    "tomorrow_evening": ("tomorrow evening", "พรุ่งนี้ตอนเย็น", "พรุ่งนี้ช่วงเย็น"),
+    "upcoming_weekend": ("this weekend", "weekend", "เสาร์-อาทิตย์", "สุดสัปดาห์นี้"),
+    "next_weekend": ("next weekend", "สุดสัปดาห์หน้า"),
 }
 _TERMINAL_PUNCTUATION_RE = re.compile(r"[.?!。！？]+$")
 
@@ -174,6 +284,14 @@ class CalendarWindowSnapshot:
             "this_week",
             "next_week",
             "this_month",
+            "today_morning",
+            "today_afternoon",
+            "today_evening",
+            "tomorrow_morning",
+            "tomorrow_afternoon",
+            "tomorrow_evening",
+            "upcoming_weekend",
+            "next_weekend",
         }:
             raise ValueError("Unsupported Calendar window.")
         for value in (self.start, self.end):
@@ -246,6 +364,22 @@ class CalendarChatIntentRouter:
             return "next_week"
         if candidate in _THIS_MONTH_PHRASES:
             return "this_month"
+        if candidate in _TODAY_MORNING_PHRASES:
+            return "today_morning"
+        if candidate in _TODAY_AFTERNOON_PHRASES:
+            return "today_afternoon"
+        if candidate in _TODAY_EVENING_PHRASES:
+            return "today_evening"
+        if candidate in _TOMORROW_MORNING_PHRASES:
+            return "tomorrow_morning"
+        if candidate in _TOMORROW_AFTERNOON_PHRASES:
+            return "tomorrow_afternoon"
+        if candidate in _TOMORROW_EVENING_PHRASES:
+            return "tomorrow_evening"
+        if candidate in _UPCOMING_WEEKEND_PHRASES:
+            return "upcoming_weekend"
+        if candidate in _NEXT_WEEKEND_PHRASES:
+            return "next_weekend"
         return None
 
 
@@ -279,6 +413,40 @@ class CalendarChatWindowResolver:
                 start=now,
                 end=now + timedelta(days=7),
             )
+
+        daypart_windows = {
+            "today_morning": (0, time(6, 0), time(12, 0)),
+            "today_afternoon": (0, time(12, 0), time(17, 0)),
+            "today_evening": (0, time(17, 0), time(21, 0)),
+            "tomorrow_morning": (1, time(6, 0), time(12, 0)),
+            "tomorrow_afternoon": (1, time(12, 0), time(17, 0)),
+            "tomorrow_evening": (1, time(17, 0), time(21, 0)),
+        }
+        daypart = daypart_windows.get(window)
+        if daypart is not None:
+            day_offset, start_time, end_time = daypart
+            target_date = now.date() + timedelta(days=day_offset)
+            start = datetime.combine(target_date, start_time, tzinfo=zone)
+            end = datetime.combine(target_date, end_time, tzinfo=zone)
+            return CalendarWindowSnapshot(window=window, start=start, end=end)
+
+        if window in {"upcoming_weekend", "next_weekend"}:
+            weekday = now.weekday()
+            if weekday == 5:
+                saturday = now.date()
+            elif weekday == 6:
+                saturday = now.date() - timedelta(days=1)
+            else:
+                saturday = now.date() + timedelta(days=5 - weekday)
+            if window == "next_weekend":
+                saturday += timedelta(days=7)
+            start = datetime.combine(saturday, time.min, tzinfo=zone)
+            end = datetime.combine(
+                saturday + timedelta(days=2),
+                time.min,
+                tzinfo=zone,
+            )
+            return CalendarWindowSnapshot(window=window, start=start, end=end)
 
         if window in {"today", "tomorrow"}:
             target_date = now.date()
@@ -505,6 +673,14 @@ class CalendarChatCompletionComposer:
             "this_week": "สัปดาห์นี้",
             "next_week": "สัปดาห์หน้า",
             "this_month": "เดือนนี้",
+            "today_morning": "วันนี้ช่วงเช้า",
+            "today_afternoon": "วันนี้ช่วงบ่าย",
+            "today_evening": "วันนี้ช่วงเย็น",
+            "tomorrow_morning": "พรุ่งนี้ช่วงเช้า",
+            "tomorrow_afternoon": "พรุ่งนี้ช่วงบ่าย",
+            "tomorrow_evening": "พรุ่งนี้ช่วงเย็น",
+            "upcoming_weekend": "สุดสัปดาห์นี้",
+            "next_weekend": "สุดสัปดาห์หน้า",
         }
         return labels[window]
 
@@ -526,6 +702,8 @@ class CalendarChatCompletionComposer:
             "this_week",
             "next_week",
             "this_month",
+            "upcoming_weekend",
+            "next_weekend",
         }
         if event.all_day:
             if multi_day_window:

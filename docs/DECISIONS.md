@@ -1994,3 +1994,38 @@ D70 invariants:
 - `RAW ERROR != DIAGNOSTIC RESPONSE`
 - `HEALTH != READINESS TO EXECUTE`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## ADR-064: Calendar Read UX v2
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the deterministic Google Calendar read grammar with bounded owner-timezone
+dayparts and weekend windows. Morning is fixed at 06:00-12:00, afternoon at
+12:00-17:00, and evening at 17:00-21:00. `upcoming_weekend` resolves to the
+current Saturday/Sunday when already inside that weekend, otherwise to the next
+Saturday 00:00 through Monday 00:00; `next_weekend` is the following Saturday
+00:00 through Monday 00:00.
+
+The grammar remains an explicit Thai/English allowlist. It does not accept
+caller-selected timestamps or free-form date expressions and does not use an AI
+model to infer time. A recognized relative window must be resolved to exact
+owner-timezone-aware absolute boundaries before the existing owner-approval
+proposal is created. Those exact boundaries are retained in the Calendar binding
+and remain subject to the existing D45 approval and D36 authorization gates.
+
+Calendar data continues to be validated and rendered deterministically without
+being returned to an AI model. D71 adds no Calendar write capability, database
+migration, dependency, scheduler, OAuth authority, or execution bypass.
+
+**Invariants**
+
+- `NATURAL CALENDAR TEXT != FREE-FORM TIME AUTHORITY`
+- `CALENDAR INTENT != EXECUTION AUTHORITY`
+- `RELATIVE TIME != EXECUTION PARAMETER UNTIL RESOLVED`
+- `APPROVAL BINDS EXACT ABSOLUTE WINDOW`
+- `CALENDAR DATA != AI PROMPT`
+- `AMBIGUOUS INPUT == FAIL CLOSED`
+- `READ UX != WRITE CAPABILITY`
+- `APPROVED != AUTHORIZED != EXECUTED`

@@ -2011,3 +2011,36 @@ exception text or arbitrary provider data.
 `HEALTH != READINESS TO EXECUTE`
 
 `APPROVED != AUTHORIZED != EXECUTED`
+
+## D71 - Calendar Read UX v2
+
+D71 extends the existing authenticated Google Calendar read path with a bounded,
+deterministic natural-language time grammar. Calendar reads now recognize fixed
+owner-timezone dayparts for today and tomorrow (`morning` 06:00-12:00,
+`afternoon` 12:00-17:00, and `evening` 17:00-21:00) plus bounded current/upcoming
+and next-weekend windows. Thai and English phrases are explicit allowlisted
+forms; quoted examples, negation, unsupported wording, and ambiguous free-form
+time remain fail closed.
+
+Relative Calendar language never becomes execution authority. The D71 resolver
+converts one recognized window into exact timezone-aware absolute `time_min` and
+`time_max` values before the D45 approval proposal is created, and the same
+snapshot is retained in the Calendar action binding. D36 authorization and the
+existing ModuleRuntime path remain unchanged. Calendar result data is still
+validated, filtered, and rendered deterministically without being sent to an AI
+model.
+
+D71 is read-only. It adds no create/update/delete Calendar capability, no
+free-form timestamp parsing, no LLM time interpretation, no database migration,
+and no new external side effect.
+
+D71 invariants:
+
+- `NATURAL CALENDAR TEXT != FREE-FORM TIME AUTHORITY`
+- `CALENDAR INTENT != EXECUTION AUTHORITY`
+- `RELATIVE TIME != EXECUTION PARAMETER UNTIL RESOLVED`
+- `APPROVAL BINDS EXACT ABSOLUTE WINDOW`
+- `CALENDAR DATA != AI PROMPT`
+- `AMBIGUOUS INPUT == FAIL CLOSED`
+- `READ UX != WRITE CAPABILITY`
+- `APPROVED != AUTHORIZED != EXECUTED`

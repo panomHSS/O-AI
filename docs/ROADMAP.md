@@ -154,6 +154,8 @@ The following capabilities are implemented in the current codebase but have not 
 
 - D70 adds Safe Runtime Diagnostics v1: a separate read-only `/api/v1/diagnostics` surface projects only allowlisted service, database, D69 execution-audit wiring, and non-secret Google Calendar status data; component failures fail closed without raw errors, while diagnostics never resolve credentials, refresh OAuth tokens, call external providers, or create execution authority.
 
+- D71 adds Calendar Read UX v2: deterministic bounded Thai/English natural Calendar reads now support fixed owner-timezone morning/afternoon/evening windows for today/tomorrow plus current/upcoming and next-weekend windows; recognized relative text is resolved into exact absolute approval-bound time ranges before execution, while ambiguous/free-form time remains fail closed and no Calendar write capability is added.
+
 ## Planned
 
 ### 0.6.2 - OCR Foundation

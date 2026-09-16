@@ -16,6 +16,14 @@ CalendarChatWindow: TypeAlias = Literal[
     "this_week",
     "next_week",
     "this_month",
+    "today_morning",
+    "today_afternoon",
+    "today_evening",
+    "tomorrow_morning",
+    "tomorrow_afternoon",
+    "tomorrow_evening",
+    "upcoming_weekend",
+    "next_weekend",
 ]
 
 _CALENDAR_WINDOWS = frozenset(
@@ -26,6 +34,14 @@ _CALENDAR_WINDOWS = frozenset(
         "this_week",
         "next_week",
         "this_month",
+        "today_morning",
+        "today_afternoon",
+        "today_evening",
+        "tomorrow_morning",
+        "tomorrow_afternoon",
+        "tomorrow_evening",
+        "upcoming_weekend",
+        "next_weekend",
     }
 )
 
