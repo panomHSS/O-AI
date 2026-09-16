@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -8,7 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.exception_handlers import register_exception_handlers, unexpected_error_response
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.db.session import SessionLocal
 from app.db.verification import verify_database
+from app.services.automation_run_service import AutomationRunService
+from app.services.automation_scheduler import AutomationScheduler
 from app.core.logging import configure_logging
 
 settings = get_settings()
@@ -16,13 +20,31 @@ configure_logging(settings.log_level)
 logger = logging.getLogger(__name__)
 
 
+def create_automation_scheduler() -> AutomationScheduler:
+    return AutomationScheduler(
+        AutomationRunService(SessionLocal)
+    )
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logger.info("Starting %s in %s", settings.app_name, settings.environment)
     verification = verify_database(settings.oai_database_url)
     app.state.database_revision = verification.revision
-    yield
-    logger.info("Stopping %s", settings.app_name)
+    scheduler = None
+    scheduler_task = None
+    if settings.oai_automation_enabled:
+        scheduler = create_automation_scheduler()
+        scheduler_task = asyncio.create_task(scheduler.run())
+        app.state.automation_scheduler_task = scheduler_task
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            await scheduler.stop()
+        if scheduler_task is not None:
+            await scheduler_task
+        logger.info("Stopping %s", settings.app_name)
 
 
 app = FastAPI(

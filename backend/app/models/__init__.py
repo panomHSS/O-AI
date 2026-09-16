@@ -1,5 +1,7 @@
 """SQLAlchemy persistence models."""
 
+from app.models.automation_definition import AutomationDefinitionRecord
+from app.models.automation_run import AutomationRunRecord
 from app.models.conversation import Conversation
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
@@ -15,6 +17,8 @@ from app.models.project_revision import ProjectRevision
 from app.models.project_update_proposal import ProjectUpdateProposal
 
 __all__ = [
+    "AutomationDefinitionRecord",
+    "AutomationRunRecord",
     "Conversation",
     "Document",
     "DocumentChunk",

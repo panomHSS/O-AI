@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0010_oauth_credentials"
+REVISION = "0011_automation_foundation"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -37,6 +37,8 @@ EXPECTED_TABLES = {
     "project_action_execution_proposals",
     "execution_audit_events",
     "oauth_credentials",
+    "automation_definitions",
+    "automation_runs",
 }
 
 EXPECTED_INDEXES = {
@@ -52,6 +54,12 @@ EXPECTED_INDEXES = {
     "memory_versions": {"ix_memory_versions_memory_id"},
     "projects": {"ix_projects_status", "ix_projects_updated_at"},
     "project_revisions": {"ix_project_revisions_project_id"},
+    "automation_definitions": {
+        "ix_automation_definitions_status_due",
+    },
+    "automation_runs": {
+        "ix_automation_runs_automation_due",
+    },
 }
 
 
@@ -197,6 +205,73 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
                 for index in inspector.get_indexes("oauth_credentials")
             },
             set(),
+        )
+
+        automation_definition_columns = {
+            column["name"]
+            for column in inspector.get_columns("automation_definitions")
+        }
+        self.assertEqual(
+            automation_definition_columns,
+            {
+                "id",
+                "contract_version",
+                "kind",
+                "message",
+                "schedule_kind",
+                "run_at_iso",
+                "daily_local_time",
+                "timezone",
+                "max_runs",
+                "definition_digest",
+                "status",
+                "approval_expires_at",
+                "approved_at",
+                "terminal_at",
+                "next_due_at_utc",
+                "created_at",
+                "updated_at",
+            },
+        )
+        automation_run_columns = {
+            column["name"]
+            for column in inspector.get_columns("automation_runs")
+        }
+        self.assertEqual(
+            automation_run_columns,
+            {
+                "id",
+                "automation_id",
+                "definition_digest",
+                "due_at_utc",
+                "status",
+                "claimed_at",
+                "delivered_at",
+                "created_at",
+                "updated_at",
+            },
+        )
+        run_unique_constraints = {
+            tuple(item["column_names"])
+            for item in inspector.get_unique_constraints("automation_runs")
+        }
+        self.assertIn(
+            ("automation_id", "due_at_utc"),
+            run_unique_constraints,
+        )
+        run_foreign_keys = inspector.get_foreign_keys("automation_runs")
+        self.assertEqual(len(run_foreign_keys), 1)
+        self.assertEqual(
+            run_foreign_keys[0]["constrained_columns"],
+            ["automation_id"],
+        )
+        self.assertEqual(
+            run_foreign_keys[0]["referred_table"],
+            "automation_definitions",
+        )
+        self.assertEqual(
+            run_foreign_keys[0]["options"].get("ondelete"),
+            "RESTRICT",
         )
 
         with self.engine.connect() as connection:

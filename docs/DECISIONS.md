@@ -2404,3 +2404,101 @@ D78 invariants:
 - `AI OUTPUT != TOOL/MODULE/WRITE/AUTOMATION AUTHORITY`
 - `CURRENT DISPLAY != FUTURE AI HISTORY`
 - `LIVE MULTI-CONNECTOR FAN-OUT REMAINS UNSUPPORTED`
+
+## ADR-072: Automation Authority & Scheduler Foundation v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a durable automation authority boundary whose only v1 capability is
+`local_reminder`. Automation is a new long-lived authority type and remains
+separate from D45 execution approval, D73 Calendar write approval, AI planning,
+Tool/Module execution, connector access, and credential resolution.
+
+An automation request is strictly validated and projected into a deterministic
+owner preview plus a canonical lowercase SHA-256 `definition_digest`. The digest
+binds the exact contract version, `local_reminder` kind, reminder message,
+schedule, deployment-owned timezone snapshot, and `max_runs`. Explicit approval
+requires the automation id and exact digest. Approved definitions are immutable;
+changing a bound field requires terminal cancellation and a new
+proposal/approval. Pending approval expires after ten minutes. Denial and
+cancellation are terminal and v1 has no re-enable path.
+
+Support exactly `once` and `daily` schedules. `once` requires a timezone-aware
+absolute timestamp between one minute and 365 days in the future and
+`max_runs == 1`. `daily` accepts only `HH:MM` minute resolution and at most 31
+runs. Caller-selected timezone, cron, RRULE, weekday/monthly rules, seconds, and
+natural-language scheduling are rejected. The timezone comes only from
+`OAI_OWNER_TIMEZONE` and is snapshotted into the exact approved definition.
+
+Persist definitions and immutable run history in SQLite using one Alembic
+migration. `automation_runs` has a unique `(automation_id, due_at_utc)`
+constraint so the database is the exact due-slot claim boundary. Durable run
+state separates `due`, `claimed`, and `delivered`. A stale claim older than five
+minutes becomes `indeterminate` without retry. A due slot older than the
+five-minute misfire grace becomes `missed`; recurring schedules advance without
+catch-up backlog.
+
+Run the scheduler only when `OAI_AUTOMATION_ENABLED=true`; the deployment default
+is false. FastAPI lifespan explicitly owns scheduler start/stop. The loop polls
+every sixty seconds and processes at most 32 due items in deterministic order.
+No Celery, APScheduler, Redis, webhook, external notification provider, or
+network delivery is added.
+
+Delivery means only a durable local reminder run visible through the bounded
+local-owner automation API. Reminder text is owner data, not executable content:
+it is never interpreted as a command, never sent to AI, never used for
+Tool/Module/connector selection or execution planning, and never emitted into
+execution audit/log metadata.
+
+All owner automation endpoints require `X-OAI-Local-Request: 1`; that marker
+remains an explicit local-browser intent marker rather than authentication.
+When automation execution is disabled, creation/approval is unavailable and no
+scheduler task starts, while listing and cancellation remain available so
+existing durable authority can still be inspected and revoked.
+
+The scheduler and run service must not depend on `AIRuntime`,
+`ExecutionPlanner`, `ExecutionGuard`, `ToolRuntime`, `ModuleRuntime`,
+`GmailPlugin`, `GoogleCalendarPlugin`, `CredentialAccessBroker`,
+`CrossConnectorContextStore`, `ConversationService`, or Project services.
+Future automated Gmail, Calendar, AI, Tool, or Module capabilities require a
+separate owner-approved integration specification and may not silently reuse
+D45 or D73 authority.
+
+**Rationale**
+
+Recurring automation survives beyond one request and across process restarts.
+Combining a new scheduler with recurring connector credentials, network
+execution, or model/tool authority in the same change would widen the security
+boundary too far. A local-only reminder proves durable grant, revocation,
+scheduling, exact claim, crash, misfire, and bounded recurrence semantics before
+future capabilities are admitted.
+
+**Consequences**
+
+D79 adds one database migration and durable automation state, an explicit
+default-off scheduler, strict local-owner automation APIs, and local reminder run
+history. It adds no automated Gmail/Calendar access, Calendar/Gmail writes, D78
+automatic synthesis, AI-generated automation, natural-language scheduling,
+Tool/Module automation, webhook, cron/RRULE, automatic retry, external
+notification provider, frontend, Docker change, or dependency change.
+
+D79 invariants:
+
+- `AUTOMATION DEFINITION != OWNER APPROVAL != ACTIVE GRANT`
+- `ACTIVE GRANT != DUE SLOT != CLAIMED RUN != DELIVERED RUN`
+- `SCHEDULE != EXECUTION AUTHORITY`
+- `AUTOMATION APPROVAL != D45 EXECUTION APPROVAL`
+- `AUTOMATION APPROVAL != D73 CALENDAR WRITE APPROVAL`
+- `DIGEST BINDS EXACT AUTOMATION`
+- `AUTOMATION ID ALONE != APPROVAL AUTHORITY`
+- `APPROVED DEFINITION == IMMUTABLE`
+- `DUE != CLAIMED != DELIVERED`
+- `CLAIMED RUN != RETRY AUTHORITY`
+- `AUTOMATION FAILURE != RETRY`
+- `MISFIRE -> MISSED -> NO CATCH-UP`
+- `STALE CLAIM -> INDETERMINATE -> NO RETRY`
+- `REMINDER TEXT == DATA`
+- `REMINDER TEXT != COMMAND != AI PROMPT`
+- `AUTOMATION AUTHORITY != COMMAND EXECUTION AUTHORITY`

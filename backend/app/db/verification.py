@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0010_oauth_credentials"
+TARGET_REVISION = "0011_automation_foundation"
 EXPECTED_TABLES = {
     "alembic_version",
     "conversations",
@@ -27,6 +27,8 @@ EXPECTED_TABLES = {
     "project_action_execution_proposals",
     "execution_audit_events",
     "oauth_credentials",
+    "automation_definitions",
+    "automation_runs",
 }
 EXPECTED_COLUMNS = {
     "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0)],
@@ -90,6 +92,36 @@ EXPECTED_COLUMNS = {
         ("created_at", "DATETIME", 0),
         ("updated_at", "DATETIME", 0),
     ],
+    "automation_definitions": [
+        ("id", "VARCHAR(36)", 1),
+        ("contract_version", "VARCHAR(16)", 0),
+        ("kind", "VARCHAR(32)", 0),
+        ("message", "TEXT", 0),
+        ("schedule_kind", "VARCHAR(16)", 0),
+        ("run_at_iso", "TEXT", 0),
+        ("daily_local_time", "VARCHAR(5)", 0),
+        ("timezone", "VARCHAR(128)", 0),
+        ("max_runs", "INTEGER", 0),
+        ("definition_digest", "VARCHAR(64)", 0),
+        ("status", "VARCHAR(16)", 0),
+        ("approval_expires_at", "DATETIME", 0),
+        ("approved_at", "DATETIME", 0),
+        ("terminal_at", "DATETIME", 0),
+        ("next_due_at_utc", "DATETIME", 0),
+        ("created_at", "DATETIME", 0),
+        ("updated_at", "DATETIME", 0),
+    ],
+    "automation_runs": [
+        ("id", "VARCHAR(36)", 1),
+        ("automation_id", "VARCHAR(36)", 0),
+        ("definition_digest", "VARCHAR(64)", 0),
+        ("due_at_utc", "DATETIME", 0),
+        ("status", "VARCHAR(16)", 0),
+        ("claimed_at", "DATETIME", 0),
+        ("delivered_at", "DATETIME", 0),
+        ("created_at", "DATETIME", 0),
+        ("updated_at", "DATETIME", 0),
+    ],
 }
 EXPECTED_INDEXES = {
     "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False)},
@@ -115,6 +147,12 @@ EXPECTED_INDEXES = {
         "ix_execution_audit_events_occurred_at": (["occurred_at"], False),
     },
     "oauth_credentials": {},
+    "automation_definitions": {
+        "ix_automation_definitions_status_due": (["status", "next_due_at_utc"], False),
+    },
+    "automation_runs": {
+        "ix_automation_runs_automation_due": (["automation_id", "due_at_utc"], False),
+    },
 }
 EXPECTED_FOREIGN_KEYS = {
     "messages": {("conversation_id", "conversations", "id", "CASCADE")},
@@ -129,6 +167,10 @@ EXPECTED_FOREIGN_KEYS = {
     },
     "execution_audit_events": set(),
     "oauth_credentials": set(),
+    "automation_definitions": set(),
+    "automation_runs": {
+        ("automation_id", "automation_definitions", "id", "RESTRICT")
+    },
 }
 NULLABLE_COLUMNS = {
     "documents": {"error_message", "indexed_at"},
@@ -156,6 +198,17 @@ NULLABLE_COLUMNS = {
     },
     "oauth_credentials": {
         "refresh_token_expires_at",
+    },
+    "automation_definitions": {
+        "run_at_iso",
+        "daily_local_time",
+        "approved_at",
+        "terminal_at",
+        "next_due_at_utc",
+    },
+    "automation_runs": {
+        "claimed_at",
+        "delivered_at",
     },
 }
 
@@ -299,6 +352,49 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
     ):
         raise DatabaseVerificationError(
             "Configured database is missing execution audit constraints."
+        )
+
+    automation_definition_sql = connection.execute(
+        "SELECT sql FROM sqlite_schema "
+        "WHERE type = 'table' AND name = 'automation_definitions'"
+    ).fetchone()[0].upper()
+    required_automation_definition_constraints = (
+        "KIND = 'LOCAL_REMINDER'",
+        "SCHEDULE_KIND IN ('ONCE', 'DAILY')",
+        "STATUS IN ('PENDING', 'APPROVED', 'DENIED', 'CANCELLED', 'COMPLETED')",
+        "MAX_RUNS >= 1 AND MAX_RUNS <= 31",
+    )
+    if not all(
+        constraint in automation_definition_sql
+        for constraint in required_automation_definition_constraints
+    ):
+        raise DatabaseVerificationError(
+            "Configured database is missing automation definition constraints."
+        )
+    automation_run_sql = connection.execute(
+        "SELECT sql FROM sqlite_schema "
+        "WHERE type = 'table' AND name = 'automation_runs'"
+    ).fetchone()[0].upper()
+    if "STATUS IN ('CLAIMED', 'DELIVERED', 'MISSED', 'INDETERMINATE')" not in automation_run_sql:
+        raise DatabaseVerificationError(
+            "Configured database is missing automation run constraints."
+        )
+    automation_run_unique_indexes = [
+        row[1]
+        for row in connection.execute("PRAGMA index_list(automation_runs)")
+        if row[2]
+    ]
+    if not any(
+        [
+            row[2]
+            for row in connection.execute(
+                f"PRAGMA index_info({index_name})"
+            )
+        ] == ["automation_id", "due_at_utc"]
+        for index_name in automation_run_unique_indexes
+    ):
+        raise DatabaseVerificationError(
+            "Configured database is missing automation due-slot uniqueness."
         )
 
     memory_foreign_keys = connection.execute("PRAGMA foreign_key_list(memories)").fetchall()

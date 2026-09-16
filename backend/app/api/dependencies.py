@@ -54,6 +54,7 @@ from app.readers import create_document_reader_registry
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.memories import MemoryRepository
+from app.repositories.automations import AutomationRepository
 from app.repositories.oauth_credentials import OAuthCredentialRepository
 from app.repositories.message_citations import MessageCitationRepository
 from app.repositories.project_action_execution_proposals import (
@@ -64,6 +65,7 @@ from app.repositories.project_update_proposals import (
 )
 from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
+from app.services.automation_approval import AutomationApprovalService
 from app.services.chat import ChatService
 from app.services.capability_permission_policy import (
     CapabilityPermissionPolicy,
@@ -257,6 +259,17 @@ def get_chatgpt_adapter() -> ChatGPTAdapter:
 def get_chat_service() -> ChatService:
     """Compose the legacy chat service behind its ChatGPT compatibility adapter."""
     return ChatService(provider=get_chatgpt_adapter())
+
+
+def get_automation_approval_service(
+    database_session: Session = Depends(get_db),
+) -> AutomationApprovalService:
+    settings = get_settings()
+    return AutomationApprovalService(
+        AutomationRepository(database_session),
+        enabled=settings.oai_automation_enabled,
+        owner_timezone=settings.oai_owner_timezone,
+    )
 
 
 def get_conversation_service(

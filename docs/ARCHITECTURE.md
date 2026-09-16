@@ -2389,3 +2389,92 @@ Frozen invariants:
 - `CURRENT DISPLAY != FUTURE AI HISTORY`
 - `PROCESS-LOCAL SNAPSHOT != DURABLE MEMORY`
 - `LIVE MULTI-CONNECTOR FAN-OUT REMAINS UNSUPPORTED`
+
+## D79 Automation Authority & Scheduler Foundation v1
+
+D79 introduces a durable, owner-approved automation authority boundary whose
+first and only v1 capability is `local_reminder`. It deliberately does not grant
+AI, Tool, Module, Gmail, Calendar, credential, connector, or arbitrary command
+execution authority.
+
+The frozen lifecycle is:
+
+`AUTOMATION DEFINITION != OWNER APPROVAL != ACTIVE GRANT != DUE SLOT != CLAIMED RUN != DELIVERED RUN`
+
+Automation creation uses strict contracts, a deterministic preview, and a
+canonical lowercase SHA-256 `definition_digest` that binds the exact
+`contract_version`, `kind`, reminder message, schedule, owner-timezone snapshot,
+and `max_runs`. Approval requires the exact automation id plus exact digest.
+Approved definitions are immutable. Changing any bound field requires
+cancelling the old automation and creating/approving a new proposal.
+
+D79 supports exactly two schedule kinds. `once` requires one timezone-aware
+absolute datetime, must be at least one minute in the future and no more than
+365 days ahead, and requires `max_runs == 1`. `daily` accepts only minute
+resolution `HH:MM` and is bounded to at most 31 runs. Cron, RRULE, weekday,
+monthly, seconds, caller-selected timezones, and natural-language scheduling are
+outside v1. The timezone is snapshotted from `OAI_OWNER_TIMEZONE`; later
+deployment timezone changes do not silently mutate an approved grant.
+
+Automation authority is durable in SQLite through one Alembic migration,
+`automation_definitions`, and `automation_runs`. A unique
+`(automation_id, due_at_utc)` constraint is the due-slot claim boundary.
+Definitions use `pending`, `approved`, `denied`, `cancelled`, and `completed`
+lifecycle states. Pending approval expires after ten minutes. Denial and
+cancellation are terminal; there is no re-enable path. Listing and cancellation
+remain available when automation execution is disabled so the owner can inspect
+and revoke existing authority.
+
+The scheduler is explicit and disabled by default through
+`OAI_AUTOMATION_ENABLED=false`. FastAPI lifespan owns scheduler startup and
+shutdown. Enabled deployments poll every 60 seconds, read at most 32 due
+automations in deterministic order, claim the exact due slot, and create only a
+durable local reminder run. No Celery, APScheduler, Redis, external notification
+provider, webhook, or network delivery is introduced.
+
+Run semantics are intentionally separated:
+
+`DUE != CLAIMED != DELIVERED`
+
+A claim is durable before delivery state is recorded. A stale claim older than
+five minutes becomes `indeterminate` and is never retried automatically. A due
+slot older than the five-minute misfire grace becomes `missed`; daily schedules
+advance without catch-up backlog. Automation failure does not create retry
+authority.
+
+Reminder text is owner data only. The scheduler may persist and expose it through
+the bounded local owner automation API but never interprets it, sends it to AI,
+uses it for Tool/Module or connector selection, treats it as a command, or emits
+it into execution audit/log metadata.
+
+The D79 automation scheduler has no dependency on `AIRuntime`,
+`ExecutionPlanner`, `ExecutionGuard`, `ToolRuntime`, `ModuleRuntime`,
+`GmailPlugin`, `GoogleCalendarPlugin`, `CredentialAccessBroker`,
+`CrossConnectorContextStore`, `ConversationService`, or Project services.
+Future automated connector or model capabilities therefore require a separate
+approved integration design; D79 automation approval does not silently reuse D45
+execution approval or D73 Calendar write approval.
+
+Frozen v1 resource bounds are: 32 active automations, 64 pending proposals,
+1000-character reminder text, daily `max_runs <= 31`, once `max_runs == 1`,
+60-second poll interval, due batch at most 32, ten-minute pending approval
+lifetime, five-minute misfire/stale-claim windows, and a 365-day one-time
+horizon.
+
+D79 invariants:
+
+- `SCHEDULE != EXECUTION AUTHORITY`
+- `AUTOMATION APPROVAL != D45 EXECUTION APPROVAL`
+- `AUTOMATION APPROVAL != D73 CALENDAR WRITE APPROVAL`
+- `REMINDER TEXT == DATA`
+- `REMINDER TEXT != COMMAND`
+- `REMINDER TEXT != AI PROMPT`
+- `APPROVED DEFINITION == IMMUTABLE EXACT DIGEST`
+- `AUTOMATION ID ALONE != APPROVAL AUTHORITY`
+- `DUE != CLAIMED != DELIVERED`
+- `CLAIMED RUN != RETRY AUTHORITY`
+- `AUTOMATION FAILURE != RETRY`
+- `MISFIRE -> MISSED -> NO CATCH-UP`
+- `STALE CLAIM -> INDETERMINATE -> NO RETRY`
+- `AUTOMATION AUTHORITY != COMMAND EXECUTION AUTHORITY`
+- `LOCAL REMINDER DELIVERY != EXTERNAL SIDE EFFECT`
