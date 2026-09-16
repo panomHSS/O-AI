@@ -156,6 +156,8 @@ The following capabilities are implemented in the current codebase but have not 
 
 - D71 adds Calendar Read UX v2: deterministic bounded Thai/English natural Calendar reads now support fixed owner-timezone morning/afternoon/evening windows for today/tomorrow plus current/upcoming and next-weekend windows; recognized relative text is resolved into exact absolute approval-bound time ranges before execution, while ambiguous/free-form time remains fail closed and no Calendar write capability is added.
 
+- D72 adds Calendar Write Contract v1: immutable provider-neutral `create_event`/`update_event`/`delete_event` contracts describe only bounded timed events on the fixed primary calendar; update/delete require an exact opaque event id, time changes require paired timezone-aware absolute boundaries, and the existing Calendar Plugin/adapter/OAuth production path remains read-only with no write capability, provider mutation, credential scope, API route, migration, dependency, or frontend change.
+
 ## Planned
 
 ### 0.6.2 - OCR Foundation

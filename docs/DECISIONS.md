@@ -2029,3 +2029,55 @@ migration, dependency, scheduler, OAuth authority, or execution bypass.
 - `AMBIGUOUS INPUT == FAIL CLOSED`
 - `READ UX != WRITE CAPABILITY`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## ADR-065: Calendar Write Contract v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a separate immutable `google_calendar_write` contract module for future
+`create_event`, `update_event`, and `delete_event` proposals. The contract module
+is provider-neutral and has no connector, credential, OAuth, approval, Planner,
+Guard, Runtime, network, or persistence dependency.
+
+Create requests contain one exact bounded timed-event draft on the fixed
+`primary` calendar. Time values must already be timezone-aware absolute
+datetimes, `end` must be later than `start`, and duration is capped at thirty-two
+elapsed days. The contract does not interpret natural-language or relative time.
+
+Update and delete requests bind one exact opaque `event_id`. Fuzzy event lookup,
+title matching, date matching, or model inference cannot become mutation
+authority. Update fields are allowlisted to summary, paired start/end,
+description, and location. Empty patches fail closed.
+
+Keep attendees/invitations, recurrence, reminders, conference creation,
+attachments, organizer mutation, multiple calendars, ACL/sharing, all-day
+events, and arbitrary provider payloads outside v1.
+
+**Consequences**
+
+D72 provides a deterministic language for later owner-visible Calendar write
+proposals while granting no execution capability. No write adapter, Plugin
+capability, credential profile, OAuth scope, provider mutation, API route,
+database migration, frontend control, Docker change, or dependency is added.
+
+The existing Google Calendar production route remains
+`list_upcoming_events` with the fixed
+`https://www.googleapis.com/auth/calendar.events.readonly` scope.
+
+D72 invariants:
+
+- `CALENDAR WRITE CONTRACT != CALENDAR WRITE CAPABILITY`
+- `CONTRACT CREATION != PROPOSAL`
+- `PROPOSAL != APPROVAL`
+- `APPROVAL != AUTHORIZATION`
+- `AUTHORIZATION != EXECUTION`
+- `WRITE REQUEST != PROVIDER REQUEST`
+- `EVENT TARGET == EXACT EVENT ID`
+- `RELATIVE TIME != WRITE CONTRACT TIME`
+- `CONTRACT != CREDENTIAL ACCESS`
+- `CONTRACT != OAUTH SCOPE`
+- `CONTRACT != NETWORK ACCESS`
+- `READ CAPABILITY REMAINS READ-ONLY`
+- `APPROVED != AUTHORIZED != EXECUTED`

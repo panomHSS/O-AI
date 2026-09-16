@@ -2044,3 +2044,48 @@ D71 invariants:
 - `AMBIGUOUS INPUT == FAIL CLOSED`
 - `READ UX != WRITE CAPABILITY`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## D72 - Calendar Write Contract v1
+
+D72 introduces immutable provider-neutral contracts for future Google Calendar
+create, update, and delete proposals without adding any write capability to the
+production runtime.
+
+The write vocabulary is isolated in `app.contracts.google_calendar_write`.
+`GoogleCalendarEventDraft` describes one exact timed event on the fixed
+`primary` calendar. Start and end values must already be timezone-aware absolute
+datetimes, must be ordered, and may span at most thirty-two elapsed days.
+Summary, description, and location are bounded before a contract can exist.
+
+Update and delete requests require a `GoogleCalendarEventTarget` containing one
+exact opaque `event_id`. Title, date, natural-language description, fuzzy search,
+or AI inference can never substitute for that identifier. Update uses an
+allowlisted `GoogleCalendarEventPatch`; an empty patch is invalid and time
+changes must carry start and end together.
+
+D72 deliberately defines no Calendar write capability id, AdapterRegistry
+registration, Plugin capability, credential binding, OAuth scope, API route, or
+provider request. The existing `google_calendar/1.0.0/upcoming_events` production
+path therefore remains read-only with the fixed
+`calendar.events.readonly` credential scope.
+
+Attendees/invitations, recurrence, reminders, conference creation, attachments,
+organizer mutation, multiple calendars, ACL/sharing, all-day events, and raw
+provider-specific payloads remain outside v1.
+
+D72 invariants:
+
+- `CALENDAR WRITE CONTRACT != CALENDAR WRITE CAPABILITY`
+- `CONTRACT CREATION != PROPOSAL`
+- `PROPOSAL != APPROVAL`
+- `APPROVAL != AUTHORIZATION`
+- `AUTHORIZATION != EXECUTION`
+- `WRITE REQUEST != PROVIDER REQUEST`
+- `EVENT TARGET == EXACT EVENT ID`
+- `RELATIVE TIME != WRITE CONTRACT TIME`
+- `WRITE CONTRACT TIME == ABSOLUTE TIMEZONE-AWARE TIME`
+- `CONTRACT != CREDENTIAL ACCESS`
+- `CONTRACT != OAUTH SCOPE`
+- `CONTRACT != NETWORK ACCESS`
+- `READ CAPABILITY REMAINS READ-ONLY`
+- `APPROVED != AUTHORIZED != EXECUTED`
