@@ -8,6 +8,7 @@ from app.contracts.command import CommandRequest, Result
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.services.adapter_registry import AdapterRegistry
 from app.services.execution_audit import ExecutionAuditTrail
+from app.services.execution_audit_reason import execution_result_audit_reason
 
 
 class ToolRuntime:
@@ -188,6 +189,10 @@ class ToolRuntime:
         return self._completed(
             request.request_id,
             result,
+            reason_code=execution_result_audit_reason(
+                result,
+                target_kind="tool",
+            ),
             plan_digest=digest,
             adapter_id=plan.adapter_id,
         )

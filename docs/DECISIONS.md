@@ -1856,3 +1856,45 @@ D67 adds no Calendar write capability, arbitrary custom range, multiple-calendar
 selection, OAuth scope change, credential-selection authority, AI-generated
 execution parameters, migration, dependency, background execution or frontend
 redesign.
+
+### ADR-061: Sensitive Log & Execution Audit Hardening v1
+
+**Status:** Accepted
+
+D68 hardens two operational-security boundaries without changing execution
+authority, OAuth scopes, credential ownership, or connector capabilities.
+
+Google Calendar OAuth callback requests may contain short-lived authorization
+material in the query string. Uvicorn access logging therefore applies an
+O-AI-owned callback filter to the exact Google Calendar OAuth callback path.
+For a recognized standard Uvicorn access record, the entire callback query
+string is removed before formatting. Unexpected callback-shaped records fail
+closed rather than emitting raw callback request data. Non-callback request
+targets are not rewritten by this filter.
+
+Execution audit completion events may project adapter Result.error into
+reason_code only when the value is a bounded machine-safe code matching:
+
+`^[a-z][a-z0-9_]{0,127}$`
+
+Successful execution has no failure reason code. Failed or blocked results with
+a safe machine code preserve that code. Free-form or otherwise unsafe error
+text is replaced with a generic target-specific reason such as
+`tool_result_failed` or `module_result_failed`.
+
+The caller-visible Result remains unchanged. Audit remains non-authoritative
+and audit sink failure must not alter or repeat business execution.
+
+D68 invariants:
+
+- `OAUTH CALLBACK QUERY != ACCESS LOG DATA`
+- `SAFE ERROR CODE != RAW ERROR TEXT`
+- `RESULT ERROR != AUTOMATIC LOG CONTENT`
+- `AUDIT != EXECUTION AUTHORITY`
+- `AUDIT FAILURE != BUSINESS EXECUTION FAILURE`
+- `LOGGING != CREDENTIAL ACCESS`
+- `APPROVED != AUTHORIZED != EXECUTED`
+
+D68 does not add Calendar writes, new OAuth scopes, token persistence changes,
+database migrations, dependencies, Gmail integration, custom date ranges,
+background refresh, public authentication, or AI/model execution authority.

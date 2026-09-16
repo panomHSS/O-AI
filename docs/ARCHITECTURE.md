@@ -1838,3 +1838,58 @@ Frozen invariants:
 `USER PHRASE != ARBITRARY DATE RANGE`
 
 `PLAN WINDOW == APPROVED WINDOW == EXECUTED WINDOW`
+
+## D68 ? Sensitive Log & Execution Audit Hardening v1
+
+D68 strengthens operational logging and execution observability while
+preserving the existing Planner -> Guard -> Runtime authority boundaries.
+
+### OAuth callback access-log boundary
+
+The exact Google Calendar OAuth callback path is protected at the
+`uvicorn.access` logging boundary.
+
+For the normal Uvicorn access-record shape:
+
+`/api/v1/oauth/google-calendar/callback?code=...&state=...`
+
+is logged only as:
+
+`/api/v1/oauth/google-calendar/callback`
+
+The callback query is removed as a whole rather than selectively redacting
+known parameter names. Unexpected callback-shaped log records fail closed.
+Other request targets retain their existing access-log behavior.
+
+The filter does not read credentials, refresh tokens, OAuth persistence, or
+Calendar data.
+
+### Safe execution audit reason projection
+
+ToolRuntime and ModuleRuntime derive audit completion reason codes only after an
+adapter Result has passed the existing structural validation boundary.
+
+- `succeeded` -> no failure reason code
+- `failed` or `blocked` with a bounded machine-safe Result.error -> preserve the
+  exact safe code
+- free-form or unsafe Result.error -> target-specific generic reason code
+
+The Result returned to the caller is not rewritten. Audit observation does not
+grant execution authority and audit failure remains isolated from business
+execution.
+
+### D68 invariants
+
+`OAUTH CALLBACK QUERY != ACCESS LOG DATA`
+
+`SAFE ERROR CODE != RAW ERROR TEXT`
+
+`RESULT ERROR != AUTOMATIC LOG CONTENT`
+
+`AUDIT != EXECUTION AUTHORITY`
+
+`AUDIT FAILURE != BUSINESS EXECUTION FAILURE`
+
+`LOGGING != CREDENTIAL ACCESS`
+
+`APPROVED != AUTHORIZED != EXECUTED`

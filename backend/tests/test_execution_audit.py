@@ -55,8 +55,9 @@ class StubModuleAdapter:
     module_name = "audit"
     contract_version = TOOL_MODULE_ADAPTER_CONTRACT_VERSION
 
-    def __init__(self) -> None:
+    def __init__(self, result: Result | None = None) -> None:
         self.calls = 0
+        self.result = result
 
     def execute(
         self,
@@ -64,7 +65,7 @@ class StubModuleAdapter:
         plan: ExecutionPlan,
     ) -> Result:
         self.calls += 1
-        return Result(
+        return self.result or Result(
             request_id=request.request_id,
             status="succeeded",
             output={"module-secret": "not audited"},
@@ -317,10 +318,39 @@ class ExecutionAuditTests(unittest.TestCase):
             [(event.action, event.status) for event in sink.events],
             [("started", "started"), ("completed", "failed")],
         )
-        self.assertIsNone(sink.events[-1].reason_code)
+        self.assertEqual(
+            sink.events[-1].reason_code,
+            "tool_result_failed",
+        )
         serialized = repr(sink.events)
         self.assertNotIn("private-adapter-secret", serialized)
         self.assertNotIn("not-audited", serialized)
+
+    def test_tool_runtime_records_safe_adapter_reason_code(self) -> None:
+        sink = InMemoryAuditSink()
+        adapter = StubToolAdapter(
+            Result(
+                "req-tool",
+                "failed",
+                error="calendar_connector_timeout",
+            )
+        )
+        runtime = ToolRuntime(
+            registry=AdapterRegistry((adapter,)),
+            audit=self.trail(sink),
+        )
+        plan = self.tool_plan(approval_required=False)
+
+        result = runtime.execute(
+            CommandRequest("req-tool", "tool.execute"),
+            self.tool_authorization(plan),
+        )
+
+        self.assertEqual(result.error, "calendar_connector_timeout")
+        self.assertEqual(
+            sink.events[-1].reason_code,
+            "calendar_connector_timeout",
+        )
 
     def test_tool_runtime_audit_failure_preserves_exactly_once_execution(self) -> None:
         adapter = StubToolAdapter()
@@ -363,7 +393,72 @@ class ExecutionAuditTests(unittest.TestCase):
             [(event.action, event.status) for event in sink.events],
             [("started", "started"), ("completed", "succeeded")],
         )
+        self.assertIsNone(sink.events[-1].reason_code)
         self.assertNotIn("hidden", repr(sink.events))
+
+    def test_module_runtime_records_safe_adapter_reason_code(self) -> None:
+        sink = InMemoryAuditSink()
+        adapter = StubModuleAdapter(
+            Result(
+                "req-module",
+                "failed",
+                error="calendar_authentication_failed",
+            )
+        )
+        runtime = ModuleRuntime(
+            registry=AdapterRegistry((adapter,)),
+            audit=self.trail(sink),
+        )
+        plan = ExecutionPlan(
+            request_id="req-module",
+            adapter_id="module.audit",
+            steps=(ExecutionStep(1, "inspect", {}),),
+            owner_approval_required=False,
+        )
+
+        result = runtime.execute(
+            CommandRequest("req-module", "module.execute"),
+            self.module_authorization(plan),
+        )
+
+        self.assertEqual(result.error, "calendar_authentication_failed")
+        self.assertEqual(
+            sink.events[-1].reason_code,
+            "calendar_authentication_failed",
+        )
+
+    def test_module_runtime_replaces_unsafe_reason_with_generic_code(self) -> None:
+        sink = InMemoryAuditSink()
+        unsafe_error = "Google returned token abc123 for user@example.com"
+        adapter = StubModuleAdapter(
+            Result(
+                "req-module",
+                "failed",
+                error=unsafe_error,
+            )
+        )
+        runtime = ModuleRuntime(
+            registry=AdapterRegistry((adapter,)),
+            audit=self.trail(sink),
+        )
+        plan = ExecutionPlan(
+            request_id="req-module",
+            adapter_id="module.audit",
+            steps=(ExecutionStep(1, "inspect", {}),),
+            owner_approval_required=False,
+        )
+
+        result = runtime.execute(
+            CommandRequest("req-module", "module.execute"),
+            self.module_authorization(plan),
+        )
+
+        self.assertEqual(result.error, unsafe_error)
+        self.assertEqual(
+            sink.events[-1].reason_code,
+            "module_result_failed",
+        )
+        self.assertNotIn(unsafe_error, repr(sink.events))
 
 
 if __name__ == "__main__":
