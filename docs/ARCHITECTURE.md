@@ -1893,3 +1893,68 @@ execution.
 `LOGGING != CREDENTIAL ACCESS`
 
 `APPROVED != AUTHORIZED != EXECUTED`
+
+## D69 - Structured Execution Observability v2
+
+D69 makes the existing D39/D68 execution-audit payload visible as a bounded,
+machine-parseable log record without widening execution authority or log data.
+
+### Dedicated execution-audit lane
+
+`LoggingAuditSink` continues to emit the existing
+`extra["execution_audit"]` allowlisted payload. Logging configuration routes the
+exact `oai.execution_audit` logger to a dedicated
+`execution_audit_console` handler using `SafeExecutionAuditFormatter`.
+
+The audit logger has `propagate = false`, so one audit event is formatted once
+and is not duplicated through the root application logger. Normal application
+logging keeps the existing human-readable default formatter. The D68 OAuth
+callback access-log filter remains installed independently on the Uvicorn
+access lane.
+
+### Allowlisted one-line JSON
+
+A valid audit log contains only the fixed `event = "oai.execution_audit"`
+marker plus the ten D39 fields: `contract_version`, `request_id`, `stage`,
+`action`, `status`, `occurred_at`, `target_kind`, `adapter_id`, `reason_code`,
+and `plan_digest`. Optional fields remain present deterministically as JSON
+`null`.
+
+The formatter ignores arbitrary `LogRecord` extras and payload keys outside the
+D39 allowlist. It never serializes command arguments, execution-step parameters,
+Result output, raw unsafe Result errors, OAuth material, credentials, provider
+response bodies, or arbitrary logging extras.
+
+### Fail-closed malformed audit data
+
+The formatter validates the allowlisted projection against the existing D39
+`ExecutionAuditEvent` contract. Missing, non-mapping, incomplete, invalid, or
+otherwise unvalidated audit payloads produce only:
+
+`{"event":"oai.execution_audit","status":"malformed_payload"}`
+
+The fallback does not use `record.__dict__`, arbitrary extras, or
+`record.getMessage()`. D69 does not change `ExecutionAuditEvent`,
+`ExecutionAuditTrail`, or the public `LoggingAuditSink` contract. D68 safe
+reason-code projection remains upstream of formatting and cannot be bypassed by
+the logger.
+
+### D69 invariants
+
+`AUDIT != EXECUTION AUTHORITY`
+
+`AUDIT LOG == ALLOWLISTED AUDIT EVENT`
+
+`RESULT OUTPUT != AUDIT LOG DATA`
+
+`RAW ERROR TEXT != AUDIT LOG DATA`
+
+`MALFORMED AUDIT PAYLOAD != RAW LOG CONTENT`
+
+`ONE AUDIT EVENT -> ONE LOG RECORD`
+
+`LOGGING FAILURE != BUSINESS EXECUTION FAILURE`
+
+`OAUTH CALLBACK QUERY != ACCESS LOG DATA`
+
+`APPROVED != AUTHORIZED != EXECUTED`

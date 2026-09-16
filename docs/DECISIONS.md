@@ -1898,3 +1898,58 @@ D68 invariants:
 D68 does not add Calendar writes, new OAuth scopes, token persistence changes,
 database migrations, dependencies, Gmail integration, custom date ranges,
 background refresh, public authentication, or AI/model execution authority.
+
+## ADR-062: Structured Execution Observability v2
+
+**Status:** Accepted
+
+**Decision**
+
+Keep the D39 `ExecutionAuditEvent`, `ExecutionAuditTrail`, and
+`LoggingAuditSink` public contracts unchanged. Make the existing allowlisted
+`extra["execution_audit"]` payload observable through a dedicated
+`oai.execution_audit` logging lane.
+
+Configure `oai.execution_audit` with its own console handler and
+`SafeExecutionAuditFormatter`, with propagation disabled. The formatter emits
+one-line JSON containing only the fixed event marker plus the ten D39 audit
+fields. Arbitrary `LogRecord` extras and non-allowlisted payload keys are never
+serialized.
+
+Validate the projection against the existing D39 audit contract before
+serialization. Missing, non-mapping, incomplete, invalid, or otherwise
+unvalidated payloads fail closed to the fixed record:
+
+`{"event":"oai.execution_audit","status":"malformed_payload"}`
+
+The malformed fallback never serializes `record.__dict__`, raw message text, or
+payload values.
+
+Keep D68 safe execution-result reason projection unchanged. Machine-safe reason
+codes may reach the D69 JSON record, while free-form Result errors remain
+replaced upstream by generic target-specific reason codes. Caller-visible
+Results are unchanged.
+
+Preserve the default application logging formatter and the independent D68
+OAuth callback access-log filter. Logging remains observational and
+non-authoritative; logging or audit sink failure must not alter or repeat
+business execution.
+
+**Consequences**
+
+Execution audit events become directly parseable by log ingestion without
+adding an external log server, tracing, telemetry backend, dashboard, audit
+schema migration, frontend diagnostics, Gmail, Calendar writes, log rotation,
+or any new dependency.
+
+D69 invariants:
+
+- `AUDIT != EXECUTION AUTHORITY`
+- `AUDIT LOG == ALLOWLISTED AUDIT EVENT`
+- `RESULT OUTPUT != AUDIT LOG DATA`
+- `RAW ERROR TEXT != AUDIT LOG DATA`
+- `MALFORMED AUDIT PAYLOAD != RAW LOG CONTENT`
+- `ONE AUDIT EVENT -> ONE LOG RECORD`
+- `LOGGING FAILURE != BUSINESS EXECUTION FAILURE`
+- `OAUTH CALLBACK QUERY != ACCESS LOG DATA`
+- `APPROVED != AUTHORIZED != EXECUTED`
