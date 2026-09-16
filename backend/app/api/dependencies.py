@@ -124,6 +124,10 @@ from app.services.execution_approval_service import (
     ExecutionApprovalService,
     PendingExecutionApprovalStore,
 )
+from app.services.calendar_write_approval import (
+    CalendarWriteApprovalService,
+    CalendarWriteApprovalStore,
+)
 from app.services.execution_planner import ExecutionPlanner
 from app.services.execution_guard import ExecutionGuard
 from app.services.execution_audit import ExecutionAuditTrail, LoggingAuditSink
@@ -924,6 +928,20 @@ def get_command_execution_coordinator(
         module_runtime=module_runtime,
     )
 
+
+
+@lru_cache
+def get_calendar_write_approval_store() -> CalendarWriteApprovalStore:
+    """Compose the process-local D73 Calendar write approval store."""
+    return CalendarWriteApprovalStore()
+
+
+@lru_cache
+def get_calendar_write_approval_service() -> CalendarWriteApprovalService:
+    """Compose D73 approval without execution or credential dependencies."""
+    return CalendarWriteApprovalService(
+        store=get_calendar_write_approval_store()
+    )
 
 def get_execution_approval_service(
     planner: ExecutionPlanner = Depends(get_execution_planner),

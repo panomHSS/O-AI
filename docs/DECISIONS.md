@@ -2081,3 +2081,66 @@ D72 invariants:
 - `CONTRACT != NETWORK ACCESS`
 - `READ CAPABILITY REMAINS READ-ONLY`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## ADR-066: Calendar Write Approval v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a Calendar-specific approval boundary after the D72 immutable write
+contracts and before any future Calendar write authorization or execution.
+
+The boundary deterministically projects each exact D72 create/update/delete
+request into an owner-reviewable structured preview and a canonical SHA-256
+`write_digest`. The digest binds the exact contract version, operation, primary
+calendar, event identity where required, allowlisted field values, and absolute
+timezone-aware timestamps. Update omission is preserved and explicit empty
+strings remain distinct from absent fields.
+
+Keep this approval lane separate from D45 `ExecutionApprovalService` decision
+semantics. D45 approval may proceed into `CommandExecutionCoordinator`; D73
+approval must not. D73 approval or denial changes only the Calendar-specific
+process-local approval record. An approved record stores the exact immutable D72
+request snapshot for D74 but grants no authorization or execution authority.
+
+Use a bounded, thread-safe, process-local store with a ten-minute default TTL
+and one hundred active records. Require approval ID plus exact digest for
+decisions, use constant-time digest comparison, and fail closed on mismatch,
+expiry, or replay.
+
+Expose strict local-owner create/approve/deny API endpoints under
+`/api/v1/calendar-write-approvals` using the explicit
+`X-OAI-Local-Request: 1` intent marker. Transport validation must construct D72
+contracts before proposal creation. The API response may report pending,
+approved, or denied state but must not imply provider execution.
+
+**Consequences**
+
+D73 creates a deterministic review and owner-decision artifact without adding a
+Calendar write adapter, provider mutation, execution plan, D36 authorization,
+Runtime call, credential read, write OAuth scope, network request, frontend,
+database migration, persistence, Docker change, or dependency.
+
+D45 execution approval behavior remains unchanged. The existing Google Calendar
+production Plugin/adapter remains read-only with
+`calendar.events.readonly`. D74 may later consume an exact approved snapshot
+through a separately designed controlled create-event execution boundary.
+
+D73 invariants:
+
+- `WRITE CONTRACT != PROPOSAL`
+- `PROPOSAL != APPROVAL`
+- `APPROVAL != AUTHORIZATION`
+- `AUTHORIZATION != EXECUTION`
+- `PREVIEW != WRITE AUTHORITY`
+- `WRITE DIGEST BINDS EXACT WRITE REQUEST`
+- `WRITE DIGEST != EXECUTION PLAN DIGEST`
+- `OWNER APPROVAL != PROVIDER MUTATION`
+- `OWNER APPROVAL != CREDENTIAL ACCESS`
+- `OWNER APPROVAL != NETWORK ACCESS`
+- `APPROVAL ID ALONE != EXECUTION AUTHORITY`
+- `APPROVED WRITE SNAPSHOT != EXECUTED WRITE`
+- `D45 EXECUTION APPROVAL SEMANTICS REMAIN UNCHANGED`
+- `READ CAPABILITY REMAINS READ-ONLY`
+- `APPROVED != AUTHORIZED != EXECUTED`

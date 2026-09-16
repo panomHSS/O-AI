@@ -158,6 +158,8 @@ The following capabilities are implemented in the current codebase but have not 
 
 - D72 adds Calendar Write Contract v1: immutable provider-neutral `create_event`/`update_event`/`delete_event` contracts describe only bounded timed events on the fixed primary calendar; update/delete require an exact opaque event id, time changes require paired timezone-aware absolute boundaries, and the existing Calendar Plugin/adapter/OAuth production path remains read-only with no write capability, provider mutation, credential scope, API route, migration, dependency, or frontend change.
 
+- D73 adds Calendar Write Approval v1: exact D72 create/update/delete requests now produce deterministic structured previews and canonical write digests for explicit local-owner approve/deny decisions; approved records retain the exact immutable write snapshot for D74 while stopping before authorization, credentials, network access, provider mutation, or any Calendar write execution.
+
 ## Planned
 
 ### 0.6.2 - OCR Foundation

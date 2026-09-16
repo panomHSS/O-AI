@@ -2089,3 +2089,64 @@ D72 invariants:
 - `CONTRACT != NETWORK ACCESS`
 - `READ CAPABILITY REMAINS READ-ONLY`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## D73 - Calendar Write Approval v1
+
+D73 adds a separate Calendar-specific owner approval boundary on top of the
+immutable D72 write contracts. It deliberately does not reuse the D45 approval
+decision path because D45 approval proceeds into the execution coordinator,
+while a D73 Calendar write approval must stop at an exact approved snapshot.
+
+The D73 flow is:
+
+`D72 write request -> deterministic preview -> pending approval -> explicit owner decision -> approved snapshot -> STOP`
+
+Preview generation is deterministic and provider-neutral. It uses only the D72
+request and never queries Google Calendar, credentials, OAuth state, an AI model,
+or any network resource. Create previews show the exact timed-event fields;
+update previews bind one exact opaque event ID and show only allowlisted changed
+fields; delete previews bind only the exact target. A preview is display data,
+not write authority.
+
+Each proposal is bound to a lowercase SHA-256 `write_digest` over a canonical
+JSON projection of the exact D72 request. Canonicalization includes the D72
+contract version, operation, primary calendar, exact event ID when present,
+exact strings, and timezone-aware ISO timestamps. Update fields that are absent
+are omitted; an explicit empty string remains distinct from absence. This write
+digest is intentionally separate from the D45 execution-plan digest because D73
+creates no execution plan.
+
+Pending and decided records live in a bounded, process-local, thread-safe store
+with a default ten-minute lifetime and one hundred active records. Approval and
+denial require both the approval ID and exact write digest. Digest mismatch,
+expiry, and replay fail closed. An approved record retains the exact immutable
+D72 request, its preview, digest, approval time, and expiry for a later D74
+authorization/execution boundary. D73 exposes no execution method.
+
+The local-owner API adds create/approve/deny endpoints under
+`/api/v1/calendar-write-approvals` and requires the same explicit
+`X-OAI-Local-Request: 1` browser-intent marker used by the existing owner
+approval surface. This marker is not authentication. API transport schemas are
+strict and create the D72 dataclasses before a proposal can exist. No frontend,
+database, migration, persistence, connector mutation, write adapter, credential
+access, OAuth-scope expansion, Docker change, or dependency is added.
+
+D73 invariants:
+
+- `WRITE CONTRACT != PROPOSAL`
+- `PROPOSAL != APPROVAL`
+- `APPROVAL != AUTHORIZATION`
+- `AUTHORIZATION != EXECUTION`
+- `PREVIEW != WRITE AUTHORITY`
+- `PREVIEW == DETERMINISTIC PROJECTION OF EXACT WRITE REQUEST`
+- `WRITE DIGEST BINDS EXACT WRITE REQUEST`
+- `WRITE DIGEST != EXECUTION PLAN DIGEST`
+- `OWNER APPROVAL != PROVIDER MUTATION`
+- `OWNER APPROVAL != CREDENTIAL ACCESS`
+- `OWNER APPROVAL != OAUTH SCOPE`
+- `OWNER APPROVAL != NETWORK ACCESS`
+- `APPROVAL ID ALONE != EXECUTION AUTHORITY`
+- `APPROVED WRITE SNAPSHOT != EXECUTED WRITE`
+- `D45 EXECUTION APPROVAL SEMANTICS REMAIN UNCHANGED`
+- `READ CAPABILITY REMAINS READ-ONLY`
+- `APPROVED != AUTHORIZED != EXECUTED`
