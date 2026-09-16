@@ -12,7 +12,8 @@ from app.contracts.chat_plugin_action import ChatPluginActionBinding
 from app.services.chat_calendar import (
     GOOGLE_CALENDAR_CHAT_ADAPTER_ID,
     GOOGLE_CALENDAR_CHAT_OPERATION,
-    GOOGLE_CALENDAR_CHAT_REQUEST_SENTINEL,
+    GOOGLE_CALENDAR_CHAT_TIME_MAX_PARAMETER,
+    GOOGLE_CALENDAR_CHAT_TIME_MIN_PARAMETER,
     CalendarChatWindowResolver,
 )
 from app.services.chat_plugin_action import (
@@ -57,7 +58,7 @@ CALENDAR_REAUTH_REPLY = (
 )
 CALENDAR_INVALID_REPLY = (
     "คำขอ Google Calendar นี้ยังไม่อยู่ในช่วงเวลาที่รองรับ "
-    "(วันนี้, พรุ่งนี้ หรือ 7 วันข้างหน้า) ครับ"
+    "(วันนี้, พรุ่งนี้, 7 วันข้างหน้า, สัปดาห์นี้, สัปดาห์หน้า หรือเดือนนี้) ครับ"
 )
 CALENDAR_STATUS_UNAVAILABLE_REPLY = (
     "ไม่สามารถตรวจสถานะการเชื่อมต่อ Google Calendar ได้ในครั้งนี้ครับ"
@@ -398,7 +399,12 @@ class ChatActionBridge:
             adapter_id=GOOGLE_CALENDAR_CHAT_ADAPTER_ID,
             operation=GOOGLE_CALENDAR_CHAT_OPERATION,
             parameters={
-                "content": GOOGLE_CALENDAR_CHAT_REQUEST_SENTINEL,
+                GOOGLE_CALENDAR_CHAT_TIME_MIN_PARAMETER: snapshot.start.isoformat(
+                    timespec="seconds"
+                ),
+                GOOGLE_CALENDAR_CHAT_TIME_MAX_PARAMETER: snapshot.end.isoformat(
+                    timespec="seconds"
+                ),
             },
             pending_reply=CALENDAR_PENDING_REPLY,
             complete_pending=False,

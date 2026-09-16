@@ -5,11 +5,19 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
+from app.adapters.google_calendar_module import GoogleCalendarModuleAdapter
 from app.adapters.projected_plugin_module import (
     PLUGIN_MODULE_INVOCATION_ERROR_EXECUTION_FAILED,
     PLUGIN_MODULE_INVOCATION_ERROR_INACTIVE,
     PluginModuleInvocationError,
     ProjectedPluginModuleAdapter,
+)
+from app.contracts.google_calendar import (
+    GOOGLE_CALENDAR_ADAPTER_ID,
+    GOOGLE_CALENDAR_CAPABILITY_NAME,
+    GOOGLE_CALENDAR_OPERATION,
+    GOOGLE_CALENDAR_PLUGIN_ID,
+    GOOGLE_CALENDAR_PLUGIN_VERSION,
 )
 from app.contracts.plugin_candidate import PLUGIN_CANDIDATE_STATUS_PROJECTED_MATCH, PluginDiscoveryCandidate
 from app.contracts.plugin_governance import PLUGIN_GOVERNANCE_STATE_ADMITTED
@@ -152,7 +160,18 @@ class PluginModuleExposureService:
                 raise PluginModuleExposureError(PLUGIN_MODULE_EXPOSURE_ERROR_DUPLICATE_TARGET)
             if not self._store.has_capacity_for(plugin_id, plugin_version, capability_name):
                 raise PluginModuleExposureError(PLUGIN_MODULE_EXPOSURE_ERROR_STORE_FULL)
-            adapter = ProjectedPluginModuleAdapter(
+            adapter_class = (
+                GoogleCalendarModuleAdapter
+                if (
+                    plugin_id == GOOGLE_CALENDAR_PLUGIN_ID
+                    and plugin_version == GOOGLE_CALENDAR_PLUGIN_VERSION
+                    and capability_name == GOOGLE_CALENDAR_CAPABILITY_NAME
+                    and current.record.module_adapter_id == GOOGLE_CALENDAR_ADAPTER_ID
+                    and current.record.operation == GOOGLE_CALENDAR_OPERATION
+                )
+                else ProjectedPluginModuleAdapter
+            )
+            adapter = adapter_class(
                 plugin_id=plugin_id,
                 plugin_version=plugin_version,
                 projected_capability_names=current.record.projected_capability_names,

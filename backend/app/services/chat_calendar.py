@@ -20,11 +20,15 @@ from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_ADAPTER_ID,
     GOOGLE_CALENDAR_OPERATION,
     GOOGLE_CALENDAR_REQUEST_SENTINEL,
+    GOOGLE_CALENDAR_TIME_MAX_PARAMETER,
+    GOOGLE_CALENDAR_TIME_MIN_PARAMETER,
 )
 
 GOOGLE_CALENDAR_CHAT_ADAPTER_ID = GOOGLE_CALENDAR_ADAPTER_ID
 GOOGLE_CALENDAR_CHAT_OPERATION = GOOGLE_CALENDAR_OPERATION
 GOOGLE_CALENDAR_CHAT_REQUEST_SENTINEL = GOOGLE_CALENDAR_REQUEST_SENTINEL
+GOOGLE_CALENDAR_CHAT_TIME_MIN_PARAMETER = GOOGLE_CALENDAR_TIME_MIN_PARAMETER
+GOOGLE_CALENDAR_CHAT_TIME_MAX_PARAMETER = GOOGLE_CALENDAR_TIME_MAX_PARAMETER
 
 _ALLOWED_EVENT_STATUSES = frozenset({"confirmed", "tentative", "cancelled"})
 _EVENT_KEYS = frozenset({"all_day", "end", "start", "status", "summary"})
@@ -68,6 +72,38 @@ _NEXT_7_DAYS_PHRASES = frozenset(
         "show my calendar for the next 7 days",
     }
 )
+_THIS_WEEK_PHRASES = frozenset(
+    {
+        "สัปดาห์นี้มีนัดอะไรบ้าง",
+        "อาทิตย์นี้มีนัดอะไรบ้าง",
+        "สัปดาห์นี้มีอะไรในปฏิทิน",
+        "ดูนัดสัปดาห์นี้",
+        "what's on my calendar this week",
+        "what is on my calendar this week",
+        "show my calendar this week",
+    }
+)
+_NEXT_WEEK_PHRASES = frozenset(
+    {
+        "สัปดาห์หน้ามีนัดอะไรบ้าง",
+        "อาทิตย์หน้ามีนัดอะไรบ้าง",
+        "สัปดาห์หน้ามีอะไรในปฏิทิน",
+        "ดูนัดสัปดาห์หน้า",
+        "what's on my calendar next week",
+        "what is on my calendar next week",
+        "show my calendar next week",
+    }
+)
+_THIS_MONTH_PHRASES = frozenset(
+    {
+        "เดือนนี้มีนัดอะไรบ้าง",
+        "เดือนนี้มีอะไรในปฏิทิน",
+        "ดูนัดเดือนนี้",
+        "what's on my calendar this month",
+        "what is on my calendar this month",
+        "show my calendar this month",
+    }
+)
 
 _NON_ACTION_MARKERS = (
     "สมมติ",
@@ -93,8 +129,35 @@ _WINDOW_SIGNALS = {
         "7 วันข้างหน้า",
         "7 วันข้างหน้",
     ),
+    "this_week": ("this week", "สัปดาห์นี้", "อาทิตย์นี้"),
+    "next_week": ("next week", "สัปดาห์หน้า", "อาทิตย์หน้า"),
+    "this_month": ("this month", "เดือนนี้"),
 }
 _TERMINAL_PUNCTUATION_RE = re.compile(r"[.?!。！？]+$")
+
+
+_POLITE_SUFFIXES = (
+    "\u0e04\u0e23\u0e31\u0e1a\u0e1c\u0e21",
+    "\u0e04\u0e23\u0e31\u0e1a",
+    "\u0e04\u0e48\u0e30",
+    "\u0e04\u0e30",
+    "\u0e2b\u0e19\u0e48\u0e2d\u0e22",
+)
+_VOCATIVE_SUFFIX_RE = re.compile(r"\s+\u0e42\u0e2d$")
+
+
+def _strip_bounded_calendar_suffixes(value: str) -> str:
+    candidate = _VOCATIVE_SUFFIX_RE.sub("", value).rstrip()
+
+    for _ in range(2):
+        for suffix in _POLITE_SUFFIXES:
+            if candidate.endswith(suffix):
+                candidate = candidate[:-len(suffix)].rstrip()
+                break
+        else:
+            break
+
+    return candidate
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +167,14 @@ class CalendarWindowSnapshot:
     end: datetime
 
     def __post_init__(self) -> None:
-        if self.window not in {"today", "tomorrow", "next_7_days"}:
+        if self.window not in {
+            "today",
+            "tomorrow",
+            "next_7_days",
+            "this_week",
+            "next_week",
+            "this_month",
+        }:
             raise ValueError("Unsupported Calendar window.")
         for value in (self.start, self.end):
             if value.tzinfo is None or value.utcoffset() is None:
@@ -162,13 +232,22 @@ class CalendarChatIntentRouter:
 
     @staticmethod
     def _exact_window(normalized: str) -> CalendarChatWindow | None:
-        if normalized in _TODAY_PHRASES:
+        candidate = _strip_bounded_calendar_suffixes(normalized)
+
+        if candidate in _TODAY_PHRASES:
             return "today"
-        if normalized in _TOMORROW_PHRASES:
+        if candidate in _TOMORROW_PHRASES:
             return "tomorrow"
-        if normalized in _NEXT_7_DAYS_PHRASES:
+        if candidate in _NEXT_7_DAYS_PHRASES:
             return "next_7_days"
+        if candidate in _THIS_WEEK_PHRASES:
+            return "this_week"
+        if candidate in _NEXT_WEEK_PHRASES:
+            return "next_week"
+        if candidate in _THIS_MONTH_PHRASES:
+            return "this_month"
         return None
+
 
 
 class CalendarChatWindowResolver:
@@ -192,7 +271,7 @@ class CalendarChatWindowResolver:
 
     def snapshot(self, window: CalendarChatWindow) -> CalendarWindowSnapshot:
         zone = self._zone()
-        now = self._now().astimezone(zone)
+        now = self._now().astimezone(zone).replace(microsecond=0)
 
         if window == "next_7_days":
             return CalendarWindowSnapshot(
@@ -201,19 +280,46 @@ class CalendarChatWindowResolver:
                 end=now + timedelta(days=7),
             )
 
-        target_date = now.date()
-        if window == "tomorrow":
-            target_date += timedelta(days=1)
-        elif window != "today":
-            raise ValueError("Unsupported Calendar window.")
+        if window in {"today", "tomorrow"}:
+            target_date = now.date()
+            if window == "tomorrow":
+                target_date += timedelta(days=1)
+            start = datetime.combine(target_date, time.min, tzinfo=zone)
+            end = datetime.combine(
+                target_date + timedelta(days=1),
+                time.min,
+                tzinfo=zone,
+            )
+            return CalendarWindowSnapshot(window=window, start=start, end=end)
 
-        start = datetime.combine(target_date, time.min, tzinfo=zone)
-        end = datetime.combine(
-            target_date + timedelta(days=1),
-            time.min,
-            tzinfo=zone,
-        )
-        return CalendarWindowSnapshot(window=window, start=start, end=end)
+        if window in {"this_week", "next_week"}:
+            week_start_date = now.date() - timedelta(days=now.weekday())
+            if window == "next_week":
+                week_start_date += timedelta(days=7)
+            start = datetime.combine(week_start_date, time.min, tzinfo=zone)
+            end = datetime.combine(
+                week_start_date + timedelta(days=7),
+                time.min,
+                tzinfo=zone,
+            )
+            return CalendarWindowSnapshot(window=window, start=start, end=end)
+
+        if window == "this_month":
+            month_start_date = now.date().replace(day=1)
+            if month_start_date.month == 12:
+                next_month_date = month_start_date.replace(
+                    year=month_start_date.year + 1,
+                    month=1,
+                )
+            else:
+                next_month_date = month_start_date.replace(
+                    month=month_start_date.month + 1,
+                )
+            start = datetime.combine(month_start_date, time.min, tzinfo=zone)
+            end = datetime.combine(next_month_date, time.min, tzinfo=zone)
+            return CalendarWindowSnapshot(window=window, start=start, end=end)
+
+        raise ValueError("Unsupported Calendar window.")
 
     def _zone(self):
         try:
@@ -268,9 +374,10 @@ class CalendarChatCompletionComposer:
         ):
             return self.FAILURE_REPLY
 
-        events = self._validated_events(result.output, binding)
-        if events is None:
+        validated = self._validated_payload(result.output, binding)
+        if validated is None:
             return self.FAILURE_REPLY
+        events, truncated = validated
 
         filtered = tuple(
             event
@@ -281,7 +388,10 @@ class CalendarChatCompletionComposer:
         filtered = tuple(sorted(filtered, key=lambda item: (item.start, item.end)))
 
         if not filtered:
-            return self._empty_reply(binding.calendar_window)
+            return self._with_truncation_note(
+                self._empty_reply(binding.calendar_window),
+                truncated,
+            )
 
         header = self._header(binding.calendar_window, len(filtered))
         lines = [header, ""]
@@ -291,13 +401,13 @@ class CalendarChatCompletionComposer:
                 f"— {self._safe_summary(event.summary)}"
                 f"{self._status_suffix(event.status)}"
             )
-        return "\n".join(lines)
+        return self._with_truncation_note("\n".join(lines), truncated)
 
-    def _validated_events(
+    def _validated_payload(
         self,
         output: object,
         binding: ChatPluginActionBinding,
-    ) -> tuple[_DisplayEvent, ...] | None:
+    ) -> tuple[tuple[_DisplayEvent, ...], bool] | None:
         if not isinstance(output, Mapping) or set(output) != {"content"}:
             return None
         content = output.get("content")
@@ -307,10 +417,15 @@ class CalendarChatCompletionComposer:
             payload = json.loads(content)
         except json.JSONDecodeError:
             return None
-        if not isinstance(payload, dict) or set(payload) != {"events"}:
+        if not isinstance(payload, dict) or set(payload) != {"events", "truncated"}:
             return None
         raw_events = payload.get("events")
-        if not isinstance(raw_events, list) or len(raw_events) > _MAX_EVENTS:
+        truncated = payload.get("truncated")
+        if (
+            not isinstance(raw_events, list)
+            or len(raw_events) > _MAX_EVENTS
+            or type(truncated) is not bool
+        ):
             return None
 
         zone = binding.calendar_window_start.tzinfo
@@ -323,7 +438,7 @@ class CalendarChatCompletionComposer:
             if event is None:
                 return None
             events.append(event)
-        return tuple(events)
+        return tuple(events), truncated
 
     @classmethod
     def _validated_event(cls, raw: object, zone) -> _DisplayEvent | None:
@@ -382,37 +497,55 @@ class CalendarChatCompletionComposer:
         )
 
     @staticmethod
-    def _header(window: CalendarChatWindow, count: int) -> str:
-        if window == "today":
-            return f"วันนี้มี {count} รายการครับ"
-        if window == "tomorrow":
-            return f"พรุ่งนี้มี {count} รายการครับ"
-        return f"7 วันข้างหน้ามี {count} รายการครับ"
+    def _window_label(window: CalendarChatWindow) -> str:
+        labels = {
+            "today": "วันนี้",
+            "tomorrow": "พรุ่งนี้",
+            "next_7_days": "7 วันข้างหน้า",
+            "this_week": "สัปดาห์นี้",
+            "next_week": "สัปดาห์หน้า",
+            "this_month": "เดือนนี้",
+        }
+        return labels[window]
 
-    @staticmethod
-    def _empty_reply(window: CalendarChatWindow) -> str:
-        if window == "today":
-            label = "วันนี้"
-        elif window == "tomorrow":
-            label = "พรุ่งนี้"
-        else:
-            label = "7 วันข้างหน้า"
+    @classmethod
+    def _header(cls, window: CalendarChatWindow, count: int) -> str:
+        return f"{cls._window_label(window)}มี {count} รายการครับ"
+
+    @classmethod
+    def _empty_reply(cls, window: CalendarChatWindow) -> str:
         return (
-            f"{label}ไม่มีนัดใน Google Calendar "
+            f"{cls._window_label(window)}ไม่มีนัดใน Google Calendar "
             "ที่พบในช่วงที่ตรวจสอบครับ"
         )
 
     @staticmethod
     def _event_when(event: _DisplayEvent, window: CalendarChatWindow) -> str:
+        multi_day_window = window in {
+            "next_7_days",
+            "this_week",
+            "next_week",
+            "this_month",
+        }
         if event.all_day:
-            if window == "next_7_days":
+            if multi_day_window:
                 return f"{event.start:%d/%m} ทั้งวัน"
             return "ทั้งวัน"
 
         same_day = event.start.date() == event.end.date()
-        if window != "next_7_days" and same_day:
+        if not multi_day_window and same_day:
             return f"{event.start:%H:%M}–{event.end:%H:%M}"
         return f"{event.start:%d/%m %H:%M}–{event.end:%d/%m %H:%M}"
+
+    @staticmethod
+    def _with_truncation_note(reply: str, truncated: bool) -> str:
+        if not truncated:
+            return reply
+        return (
+            f"{reply}\n\n"
+            "Google Calendar มีรายการเพิ่มเติมในช่วงนี้ "
+            "โดยคำขอนี้แสดงได้สูงสุด 10 รายการครับ"
+        )
 
     @staticmethod
     def _status_suffix(status: str) -> str:

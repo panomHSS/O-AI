@@ -68,39 +68,27 @@ class CalendarChatActionBridgeTests(unittest.TestCase):
         return bridge, conversation, approval, binding, status_reader
 
     def test_disabled_connector_does_not_read_oauth_status_or_propose(self):
-        bridge, _, approval, _, status = self.bridge(
-            enabled=False,
-            status="active",
-        )
+        bridge, _, approval, _, status = self.bridge(enabled=False, status="active")
         outcome = bridge.process(message="วันนี้มีนัดอะไรบ้าง")
         self.assertEqual(outcome.status, "unavailable")
-        self.assertEqual(
-            outcome.reason_code,
-            "google_calendar_connector_disabled",
-        )
+        self.assertEqual(outcome.reason_code, "google_calendar_connector_disabled")
         self.assertEqual(status.calls, 0)
         self.assertEqual(approval.calls, [])
 
     def test_disconnected_or_reauthorization_required_does_not_propose(self):
         for state, reason in (
             ("disconnected", "google_calendar_not_connected"),
-            (
-                "reauthorization_required",
-                "google_calendar_reauthorization_required",
-            ),
+            ("reauthorization_required", "google_calendar_reauthorization_required"),
         ):
             with self.subTest(state=state):
-                bridge, _, approval, _, status = self.bridge(
-                    enabled=True,
-                    status=state,
-                )
+                bridge, _, approval, _, status = self.bridge(enabled=True, status=state)
                 outcome = bridge.process(message="พรุ่งนี้มีนัดอะไรบ้าง")
                 self.assertEqual(outcome.status, "unavailable")
                 self.assertEqual(outcome.reason_code, reason)
                 self.assertEqual(status.calls, 1)
                 self.assertEqual(approval.calls, [])
 
-    def test_active_connection_creates_exact_d45_proposal_and_binding(self):
+    def test_active_connection_approves_the_exact_snapshot_used_by_binding(self):
         bridge, _, approval, binding_store, status = self.bridge(
             enabled=True,
             status="active",
@@ -115,7 +103,10 @@ class CalendarChatActionBridgeTests(unittest.TestCase):
                 "target_kind": "module",
                 "adapter_id": "module.plugin.google_calendar",
                 "operation": "list_upcoming_events",
-                "parameters": {"content": "upcoming"},
+                "parameters": {
+                    "time_min": "2026-09-16T00:00:00+07:00",
+                    "time_max": "2026-09-17T00:00:00+07:00",
+                },
             },
         )
         binding = binding_store.resolve("approval-calendar-1")
@@ -124,12 +115,26 @@ class CalendarChatActionBridgeTests(unittest.TestCase):
         self.assertEqual(binding.calendar_window, "tomorrow")
         self.assertEqual(
             binding.calendar_window_start.isoformat(),
-            "2026-09-16T00:00:00+07:00",
+            approval.calls[0]["parameters"]["time_min"],
         )
         self.assertEqual(
             binding.calendar_window_end.isoformat(),
-            "2026-09-17T00:00:00+07:00",
+            approval.calls[0]["parameters"]["time_max"],
         )
+
+    def test_new_relative_window_is_snapshotted_before_proposal(self):
+        bridge, _, approval, binding_store, _ = self.bridge(enabled=True, status="active")
+        outcome = bridge.process(message="สัปดาห์หน้ามีนัดอะไรบ้าง")
+        self.assertEqual(outcome.status, "pending_approval")
+        self.assertEqual(
+            approval.calls[0]["parameters"],
+            {
+                "time_min": "2026-09-21T00:00:00+07:00",
+                "time_max": "2026-09-28T00:00:00+07:00",
+            },
+        )
+        binding = binding_store.resolve("approval-calendar-1")
+        self.assertEqual(binding.calendar_window, "next_week")
 
 
 if __name__ == "__main__":

@@ -1788,3 +1788,71 @@ Keep disconnect explicit and local-owner marked. D64 remains responsible for
 Google revocation and encrypted credential deletion. D66 adds no new scope,
 Calendar write authority, Gmail capability, migration, dependency, background
 refresh, public authentication or AI-controlled OAuth action.
+
+## ADR-060: Natural Calendar Window Intent v1
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the deterministic Google Calendar Chat grammar from `today`, `tomorrow`
+and `next_7_days` to six exact semantic windows: `today`, `tomorrow`,
+`next_7_days`, `this_week`, `next_week`, and `this_month`.
+
+Resolve relative Calendar language once in `OAI_OWNER_TIMEZONE` when the Chat
+request is classified. The resulting timezone-aware absolute `time_min` and
+`time_max` values become the exact D45 proposal parameters. The owner therefore
+approves the same absolute range that later reaches the Calendar execution
+boundary.
+
+Use a Calendar-specific `GoogleCalendarModuleAdapter` for only the exact
+`google_calendar/1.0.0/upcoming_events` subject. Do not broaden the generic D56
+Plugin Module parameter contract. The Calendar adapter accepts only exact
+`time_min` and `time_max` execution parameters and converts them to the internal
+Plugin request after the existing approval and authorization gates.
+
+Upgrade the D63 connector from its internally selected execution-time seven-day
+range to caller-supplied approved absolute bounds. Validate both boundaries as
+timezone-aware timestamps, require `time_max > time_min`, and cap the accepted
+elapsed range at thirty-two days. Calendar ID, Google host, HTTP method, OAuth
+scope and result maximum remain fixed by O-AI.
+
+Calendar natural-language recognition remains deterministic and fail closed.
+Only explicitly supported phrases plus a bounded set of Thai polite/vocative
+suffixes may match. Quoted, hypothetical, negated, ambiguous, unsupported, or
+arbitrarily extended text does not become Calendar execution authority. An AI
+model is not used to select the Calendar capability, semantic window,
+credential, scope or execution parameters.
+
+Keep Google result retrieval bounded to ten events. Request `nextPageToken`
+only to determine an internal `truncated` boolean; never propagate the token to
+Chat, Plugin output consumers or an AI model. Deterministic Calendar rendering
+may tell the owner that additional items exist beyond the first ten.
+
+The semantic window label retained in the Chat binding is presentation and
+correlation metadata only. Execution is governed by the approved absolute
+timestamps carried in the plan.
+
+**Consequences**
+
+Calendar requests such as `?????????????????????????? ?`,
+`What's on my calendar this week?`, next-week requests and current-month
+requests can use the same owner-controlled D45/D36 execution lane while querying
+the exact approved range rather than a broader connector-owned seven-day range.
+
+The authority invariants remain:
+
+`INTENT MATCHED != APPROVED != AUTHORIZED != EXECUTED`
+
+`OAUTH CONNECTED != CALENDAR READ`
+
+`MODEL TEXT != CALENDAR AUTHORITY`
+
+`USER PHRASE != ARBITRARY DATE RANGE`
+
+`PLAN WINDOW == APPROVED WINDOW == EXECUTED WINDOW`
+
+D67 adds no Calendar write capability, arbitrary custom range, multiple-calendar
+selection, OAuth scope change, credential-selection authority, AI-generated
+execution parameters, migration, dependency, background execution or frontend
+redesign.

@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from app.adapters.google_calendar_module import GoogleCalendarModuleAdapter
 from app.api import dependencies
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_ADAPTER_ID,
@@ -82,6 +83,10 @@ class GoogleCalendarD63IntegrationTests(unittest.TestCase):
         self.assertEqual(
             tuple(adapter.adapter_id for adapter in snapshot.adapters),
             (GOOGLE_CALENDAR_ADAPTER_ID,),
+        )
+        self.assertIsInstance(
+            snapshot.adapters[0]._delegate,
+            GoogleCalendarModuleAdapter,
         )
         self.assertEqual(
             tuple(

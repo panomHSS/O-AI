@@ -4,7 +4,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 from pydantic import SecretStr
@@ -14,6 +14,7 @@ from app.connectors.google_calendar import (
     GOOGLE_CALENDAR_ERROR_HTTP,
     GOOGLE_CALENDAR_ERROR_INVALID_CREDENTIAL,
     GOOGLE_CALENDAR_ERROR_INVALID_JSON,
+    GOOGLE_CALENDAR_ERROR_INVALID_REQUEST,
     GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE,
     GOOGLE_CALENDAR_ERROR_NETWORK,
     GOOGLE_CALENDAR_ERROR_RESPONSE_TOO_LARGE,
@@ -63,23 +64,13 @@ class FakeResponse:
 
 
 class RecordingTransport:
-    def __init__(
-        self,
-        *,
-        payload=None,
-        body: bytes | None = None,
-        status: int = 200,
-        error: Exception | None = None,
-    ) -> None:
+    def __init__(self, *, payload=None, body=None, status=200, error=None) -> None:
         self.calls = 0
         self.requests = []
         self.timeouts = []
         self.error = error
-        if body is not None:
-            self.body = body
-        else:
-            source = valid_payload() if payload is None else payload
-            self.body = json.dumps(source).encode("utf-8")
+        source = valid_payload() if payload is None else payload
+        self.body = body if body is not None else json.dumps(source).encode("utf-8")
         self.status = status
 
     def __call__(self, request, timeout):
@@ -93,22 +84,22 @@ class RecordingTransport:
 
 class GoogleCalendarConnectorTests(unittest.TestCase):
     TOKEN = "secret-calendar-token-never-log"
-
-    @staticmethod
-    def clock():
-        return datetime(2026, 9, 15, 12, 0, 0, tzinfo=timezone.utc)
+    TIME_MIN = datetime.fromisoformat("2026-09-16T00:00:00+07:00")
+    TIME_MAX = datetime.fromisoformat("2026-09-17T00:00:00+07:00")
 
     def client(self, transport):
-        return GoogleCalendarClient(
-            transport=transport,
-            clock=self.clock,
+        return GoogleCalendarClient(transport=transport)
+
+    def read(self, client, credential=None, *, time_min=None, time_max=None):
+        return client.list_upcoming_events(
+            SecretStr(self.TOKEN) if credential is None else credential,
+            time_min=self.TIME_MIN if time_min is None else time_min,
+            time_max=self.TIME_MAX if time_max is None else time_max,
         )
 
-    def test_request_is_one_fixed_primary_calendar_get(self) -> None:
+    def test_request_is_one_fixed_primary_calendar_get_for_exact_window(self):
         transport = RecordingTransport()
-        self.client(transport).list_upcoming_events(
-            SecretStr(self.TOKEN)
-        )
+        self.read(self.client(transport))
         self.assertEqual(transport.calls, 1)
         request = transport.requests[0]
         parsed = urllib.parse.urlsplit(request.full_url)
@@ -118,8 +109,8 @@ class GoogleCalendarConnectorTests(unittest.TestCase):
         )
         self.assertEqual(request.get_method(), "GET")
         query = urllib.parse.parse_qs(parsed.query)
-        self.assertEqual(query["timeMin"], ["2026-09-15T12:00:00Z"])
-        self.assertEqual(query["timeMax"], ["2026-09-22T12:00:00Z"])
+        self.assertEqual(query["timeMin"], ["2026-09-15T17:00:00Z"])
+        self.assertEqual(query["timeMax"], ["2026-09-16T17:00:00Z"])
         self.assertEqual(query["maxResults"], ["10"])
         self.assertEqual(query["singleEvents"], ["true"])
         self.assertEqual(query["orderBy"], ["startTime"])
@@ -127,29 +118,18 @@ class GoogleCalendarConnectorTests(unittest.TestCase):
         self.assertEqual(query["fields"], [GOOGLE_CALENDAR_FIELDS])
         self.assertEqual(transport.timeouts, [5.0])
 
-    def test_access_token_is_header_only_and_not_in_url(self) -> None:
+    def test_access_token_is_header_only_and_not_in_url(self):
         transport = RecordingTransport()
-        self.client(transport).list_upcoming_events(
-            SecretStr(self.TOKEN)
-        )
+        self.read(self.client(transport))
         request = transport.requests[0]
         self.assertNotIn(self.TOKEN, request.full_url)
-        headers = {
-            key.casefold(): value
-            for key, value in request.header_items()
-        }
-        self.assertEqual(
-            headers["authorization"],
-            f"Bearer {self.TOKEN}",
-        )
+        headers = {key.casefold(): value for key, value in request.header_items()}
+        self.assertEqual(headers["authorization"], f"Bearer {self.TOKEN}")
         self.assertNotIn("cookie", headers)
         self.assertNotIn("proxy-authorization", headers)
 
-    def test_default_transport_disables_proxy_and_redirects(self) -> None:
-        request = urllib.request.Request(
-            GOOGLE_CALENDAR_EVENTS_URL,
-            method="GET",
-        )
+    def test_default_transport_disables_proxy_and_redirects(self):
+        request = urllib.request.Request(GOOGLE_CALENDAR_EVENTS_URL, method="GET")
         opener = Mock()
         sentinel = object()
         opener.open.return_value = sentinel
@@ -158,7 +138,6 @@ class GoogleCalendarConnectorTests(unittest.TestCase):
             return_value=opener,
         ) as build_opener:
             result = _open_without_redirects(request, 5.0)
-
         self.assertIs(result, sentinel)
         handlers = build_opener.call_args.args
         self.assertEqual(len(handlers), 2)
@@ -167,211 +146,130 @@ class GoogleCalendarConnectorTests(unittest.TestCase):
         self.assertIsInstance(handlers[1], _NoRedirectHandler)
         opener.open.assert_called_once_with(request, timeout=5.0)
 
-    def test_response_is_normalized_to_whitelist_only(self) -> None:
+    def test_response_is_normalized_and_truncation_is_boolean_only(self):
+        payload = valid_payload()
+        payload["nextPageToken"] = "opaque-token-never-expose"
+        result = self.read(self.client(RecordingTransport(payload=payload)))
+        self.assertTrue(result.truncated)
+        self.assertEqual(len(result.events), 2)
+        self.assertEqual(result.events[0].summary, "Planning")
+        self.assertEqual(result.events[1].summary, "Holiday")
+        self.assertFalse(hasattr(result, "next_page_token"))
+
+    def test_empty_or_missing_items_is_valid(self):
+        for payload in ({"items": []}, {}):
+            with self.subTest(payload=payload):
+                result = self.read(self.client(RecordingTransport(payload=payload)))
+                self.assertEqual(result.events, ())
+                self.assertFalse(result.truncated)
+
+    def test_invalid_window_fails_before_network(self):
         transport = RecordingTransport()
-        events = self.client(transport).list_upcoming_events(
-            SecretStr(self.TOKEN)
+        cases = (
+            (datetime(2026, 9, 16), self.TIME_MAX),
+            (self.TIME_MAX, self.TIME_MIN),
+            (self.TIME_MIN, self.TIME_MIN + timedelta(days=33)),
         )
-        self.assertEqual(len(events), 2)
-        self.assertEqual(events[0].summary, "Planning")
-        self.assertEqual(events[0].status, "confirmed")
-        self.assertEqual(events[0].start, "2026-09-16T09:00:00+07:00")
-        self.assertEqual(events[0].end, "2026-09-16T10:00:00+07:00")
-        self.assertFalse(events[0].all_day)
-        self.assertEqual(events[1].summary, "Holiday")
-        self.assertTrue(events[1].all_day)
-        self.assertEqual(
-            set(events[0].as_dict()),
-            {"summary", "status", "start", "end", "all_day"},
-        )
+        for time_min, time_max in cases:
+            with self.subTest(time_min=time_min, time_max=time_max):
+                with self.assertRaises(GoogleCalendarConnectorError) as caught:
+                    self.read(
+                        self.client(transport),
+                        time_min=time_min,
+                        time_max=time_max,
+                    )
+                self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_INVALID_REQUEST)
+        self.assertEqual(transport.calls, 0)
 
-    def test_empty_calendar_is_valid(self) -> None:
-        transport = RecordingTransport(payload={"items": []})
-        events = self.client(transport).list_upcoming_events(
-            SecretStr(self.TOKEN)
-        )
-        self.assertEqual(events, ())
-
-    def test_missing_items_is_treated_as_empty(self) -> None:
-        transport = RecordingTransport(payload={})
-        events = self.client(transport).list_upcoming_events(
-            SecretStr(self.TOKEN)
-        )
-        self.assertEqual(events, ())
-
-    def test_invalid_credential_fails_before_network(self) -> None:
+    def test_invalid_credential_fails_before_network(self):
         transport = RecordingTransport()
         for credential in ("plain", SecretStr("")):
             with self.subTest(type=type(credential).__name__):
-                with self.assertRaises(
-                    GoogleCalendarConnectorError
-                ) as caught:
-                    self.client(transport).list_upcoming_events(
-                        credential  # type: ignore[arg-type]
-                    )
-                self.assertEqual(
-                    caught.exception.code,
-                    GOOGLE_CALENDAR_ERROR_INVALID_CREDENTIAL,
-                )
+                with self.assertRaises(GoogleCalendarConnectorError) as caught:
+                    self.read(self.client(transport), credential=credential)
+                self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_INVALID_CREDENTIAL)
         self.assertEqual(transport.calls, 0)
 
-    def test_header_injection_or_excessive_token_fails_before_network(self) -> None:
+    def test_header_injection_or_excessive_token_fails_before_network(self):
         transport = RecordingTransport()
-        for token in (
-            SecretStr("bad\r\nInjected: yes"),
-            SecretStr("x" * 8193),
-        ):
+        for token in (SecretStr("bad\r\nInjected: yes"), SecretStr("x" * 8193)):
             with self.subTest(length=len(token.get_secret_value())):
-                with self.assertRaises(
-                    GoogleCalendarConnectorError
-                ) as caught:
-                    self.client(transport).list_upcoming_events(token)
-                self.assertEqual(
-                    caught.exception.code,
-                    GOOGLE_CALENDAR_ERROR_INVALID_CREDENTIAL,
-                )
+                with self.assertRaises(GoogleCalendarConnectorError) as caught:
+                    self.read(self.client(transport), credential=token)
+                self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_INVALID_CREDENTIAL)
         self.assertEqual(transport.calls, 0)
 
-    def test_authentication_failure_is_safe_and_no_retry(self) -> None:
-        transport = RecordingTransport(status=401)
-        with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
-            )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_AUTHENTICATION,
+    def test_transport_failures_are_safe_and_never_retry(self):
+        cases = (
+            (RecordingTransport(status=401), GOOGLE_CALENDAR_ERROR_AUTHENTICATION),
+            (RecordingTransport(status=500), GOOGLE_CALENDAR_ERROR_HTTP),
+            (RecordingTransport(error=socket.timeout(self.TOKEN)), GOOGLE_CALENDAR_ERROR_TIMEOUT),
+            (RecordingTransport(error=urllib.error.URLError(self.TOKEN)), GOOGLE_CALENDAR_ERROR_NETWORK),
         )
-        self.assertEqual(transport.calls, 1)
-        self.assertNotIn(self.TOKEN, str(caught.exception))
+        for transport, expected in cases:
+            with self.subTest(expected=expected):
+                with self.assertRaises(GoogleCalendarConnectorError) as caught:
+                    self.read(self.client(transport))
+                self.assertEqual(caught.exception.code, expected)
+                self.assertEqual(transport.calls, 1)
+                self.assertNotIn(self.TOKEN, str(caught.exception))
 
-    def test_http_failure_is_safe_and_no_retry(self) -> None:
-        transport = RecordingTransport(status=500)
-        with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
-            )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_HTTP,
-        )
-        self.assertEqual(transport.calls, 1)
-
-    def test_http_error_401_is_authentication_failure(self) -> None:
+    def test_http_error_401_is_authentication_failure(self):
         error = urllib.error.HTTPError(
-            GOOGLE_CALENDAR_EVENTS_URL,
-            401,
-            self.TOKEN,
-            hdrs=None,
-            fp=None,
+            GOOGLE_CALENDAR_EVENTS_URL, 401, self.TOKEN, hdrs=None, fp=None
         )
-        transport = RecordingTransport(error=error)
         with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
-            )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_AUTHENTICATION,
-        )
+            self.read(self.client(RecordingTransport(error=error)))
+        self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_AUTHENTICATION)
         self.assertNotIn(self.TOKEN, str(caught.exception))
 
-    def test_timeout_is_normalized_without_retry(self) -> None:
-        transport = RecordingTransport(
-            error=socket.timeout(self.TOKEN)
-        )
+    def test_response_size_and_json_are_bounded(self):
         with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
+            self.read(
+                self.client(
+                    RecordingTransport(
+                        body=b"x" * (GOOGLE_CALENDAR_MAX_RESPONSE_BYTES + 1)
+                    )
+                )
             )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_TIMEOUT,
-        )
-        self.assertEqual(transport.calls, 1)
-
-    def test_url_error_is_normalized_without_retry(self) -> None:
-        transport = RecordingTransport(
-            error=urllib.error.URLError(self.TOKEN)
-        )
+        self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_RESPONSE_TOO_LARGE)
         with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
-            )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_NETWORK,
-        )
-        self.assertEqual(transport.calls, 1)
+            self.read(self.client(RecordingTransport(body=b"{not-json")))
+        self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_INVALID_JSON)
 
-    def test_response_size_is_bounded(self) -> None:
-        transport = RecordingTransport(
-            body=b"x" * (GOOGLE_CALENDAR_MAX_RESPONSE_BYTES + 1)
-        )
-        with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
-            )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_RESPONSE_TOO_LARGE,
-        )
-
-    def test_invalid_json_fails_closed(self) -> None:
-        transport = RecordingTransport(body=b"{not-json")
-        with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
-            )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_INVALID_JSON,
-        )
-
-    def test_invalid_event_shapes_fail_closed(self) -> None:
+    def test_invalid_event_shapes_and_excessive_results_fail_closed(self):
         bad_events = (
-            {"summary": "", "status": "confirmed",
-             "start": {"dateTime": "2026-09-16T09:00:00+07:00"},
-             "end": {"dateTime": "2026-09-16T10:00:00+07:00"}},
-            {"summary": "x", "status": "unknown",
-             "start": {"dateTime": "2026-09-16T09:00:00+07:00"},
-             "end": {"dateTime": "2026-09-16T10:00:00+07:00"}},
-            {"summary": "x", "status": "confirmed",
-             "start": {"dateTime": "2026-09-16T10:00:00+07:00"},
-             "end": {"dateTime": "2026-09-16T09:00:00+07:00"}},
-            {"summary": "x", "status": "confirmed",
-             "start": {"date": "2026-09-16"},
-             "end": {"dateTime": "2026-09-17T00:00:00+07:00"}},
+            {
+                "summary": "",
+                "status": "confirmed",
+                "start": {"dateTime": "2026-09-16T09:00:00+07:00"},
+                "end": {"dateTime": "2026-09-16T10:00:00+07:00"},
+            },
+            {
+                "summary": "x",
+                "status": "unknown",
+                "start": {"dateTime": "2026-09-16T09:00:00+07:00"},
+                "end": {"dateTime": "2026-09-16T10:00:00+07:00"},
+            },
         )
         for event in bad_events:
             with self.subTest(event=event):
-                transport = RecordingTransport(
-                    payload={"items": [event]}
-                )
-                with self.assertRaises(
-                    GoogleCalendarConnectorError
-                ) as caught:
-                    self.client(transport).list_upcoming_events(
-                        SecretStr(self.TOKEN)
-                    )
-                self.assertEqual(
-                    caught.exception.code,
-                    GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE,
-                )
-
-    def test_more_than_ten_events_fails_closed(self) -> None:
+                with self.assertRaises(GoogleCalendarConnectorError) as caught:
+                    self.read(self.client(RecordingTransport(payload={"items": [event]})))
+                self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE)
         event = valid_payload()["items"][0]
-        transport = RecordingTransport(
-            payload={"items": [event] * 11}
-        )
         with self.assertRaises(GoogleCalendarConnectorError) as caught:
-            self.client(transport).list_upcoming_events(
-                SecretStr(self.TOKEN)
-            )
-        self.assertEqual(
-            caught.exception.code,
-            GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE,
-        )
+            self.read(self.client(RecordingTransport(payload={"items": [event] * 11})))
+        self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE)
+
+    def test_invalid_next_page_token_fails_closed(self):
+        for token in ("", 123, "x" * 4097):
+            with self.subTest(token=type(token).__name__):
+                payload = valid_payload()
+                payload["nextPageToken"] = token
+                with self.assertRaises(GoogleCalendarConnectorError) as caught:
+                    self.read(self.client(RecordingTransport(payload=payload)))
+                self.assertEqual(caught.exception.code, GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE)
 
 
 if __name__ == "__main__":

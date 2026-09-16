@@ -9,9 +9,25 @@ from uuid import UUID
 
 
 ChatPluginIntentStatus: TypeAlias = Literal["none", "matched", "invalid"]
-CalendarChatWindow: TypeAlias = Literal["today", "tomorrow", "next_7_days"]
+CalendarChatWindow: TypeAlias = Literal[
+    "today",
+    "tomorrow",
+    "next_7_days",
+    "this_week",
+    "next_week",
+    "this_month",
+]
 
-_CALENDAR_WINDOWS = frozenset({"today", "tomorrow", "next_7_days"})
+_CALENDAR_WINDOWS = frozenset(
+    {
+        "today",
+        "tomorrow",
+        "next_7_days",
+        "this_week",
+        "next_week",
+        "this_month",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)

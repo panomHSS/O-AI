@@ -1,5 +1,7 @@
 import unittest
 from dataclasses import FrozenInstanceError
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from app.adapters.activated_plugin_module import PLUGIN_REGISTRATION_INACTIVE
 from app.api.dependencies import (
@@ -162,12 +164,28 @@ class PluginRegistrationActivationTests(unittest.TestCase):
     def test_production_defaults_to_no_dynamic_activation(self):
         get_plugin_registration_activation_store().clear()
         get_plugin_permission_binding_store().clear()
-        snapshot = get_plugin_runtime_activation_snapshot()
+        settings = SimpleNamespace(
+            oai_github_public_repo_connector_enabled=False,
+            oai_google_calendar_connector_enabled=False,
+        )
+        with patch(
+            "app.api.dependencies.get_settings",
+            return_value=settings,
+        ):
+            snapshot = get_plugin_runtime_activation_snapshot()
+
         self.assertEqual(snapshot.adapters, ())
         self.assertEqual(snapshot.permissions, ())
         with self.assertRaises(PluginRegistrationActivationError) as caught:
-            get_plugin_registration_activation_service().activate("echo", "1.0.0", "echo")
-        self.assertEqual(caught.exception.code, PLUGIN_REGISTRATION_ACTIVATION_ERROR_BINDING_NOT_FOUND)
+            get_plugin_registration_activation_service().activate(
+                "echo",
+                "1.0.0",
+                "echo",
+            )
+        self.assertEqual(
+            caught.exception.code,
+            PLUGIN_REGISTRATION_ACTIVATION_ERROR_BINDING_NOT_FOUND,
+        )
 
     def test_exact_current_binding_and_adapter_activate(self):
         service, bs, es, store, adapter = self.service()

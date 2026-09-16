@@ -1774,3 +1774,67 @@ Frozen invariants:
 `CALLBACK RESULT != EXECUTION AUTHORITY`
 
 `D66 UI CONTROL SURFACE -> D64 OAUTH LIFECYCLE ONLY`
+
+## D67 ? Natural Calendar Window Intent v1
+
+D67 makes the Calendar window that the owner sees and approves the exact window
+that the connector executes. Relative Calendar language is resolved once in
+`OAI_OWNER_TIMEZONE` before the D45 proposal is created.
+
+The deterministic grammar supports six bounded windows:
+
+- `today`: local midnight today to local midnight tomorrow.
+- `tomorrow`: local midnight tomorrow to the following local midnight.
+- `next_7_days`: request-time snapshot through exactly seven days later.
+- `this_week`: current local Monday 00:00 through next Monday 00:00.
+- `next_week`: next local Monday 00:00 through the following Monday 00:00.
+- `this_month`: first local day of the current month through the first day of
+  the next month.
+
+Supported exact Thai and English phrases may include only a bounded set of
+recognized polite/vocative suffixes. For example,
+`?????????????????????????? ?` resolves to `this_week`. Arbitrary trailing
+text, quotation/example contexts, negation and unsupported ranges remain
+fail-closed. No AI model participates in Calendar range authority.
+
+The execution flow is:
+
+`Chat -> deterministic Calendar intent -> owner-timezone snapshot -> D45 proposal
+with exact time_min/time_max -> owner approval -> D36 authorization ->
+GoogleCalendarModuleAdapter -> google_calendar Plugin -> D62/D64 credential ->
+fixed primary-calendar Google GET -> deterministic result composition`
+
+D67 does not widen the generic D56 projected Plugin adapter parameter surface.
+Only the exact Google Calendar capability receives the specialized adapter that
+accepts `time_min` and `time_max`. The Plugin and connector independently
+validate the same bounded absolute range before Google access.
+
+The Google Calendar connector keeps its fixed primary Calendar, fixed
+`www.googleapis.com` endpoint, read-only OAuth scope, one GET attempt, ten-event
+maximum, bounded response and no retry/fallback behavior. Caller-provided ranges
+must be timezone-aware, ordered and no longer than thirty-two elapsed days.
+
+The Google partial response may include `nextPageToken`, but that token never
+leaves the connector boundary. It is reduced to `truncated: true|false`, allowing
+the deterministic Chat reply to state that more than the first ten events exist
+without introducing pagination authority.
+
+The semantic `calendar_window` stored in the Chat binding remains
+non-authoritative presentation metadata. The approved absolute plan parameters
+are the execution authority.
+
+Frozen invariants:
+
+`INTENT MATCHED != APPROVED`
+
+`APPROVED != AUTHORIZED`
+
+`AUTHORIZED != EXECUTED`
+
+`OAUTH CONNECTED != CALENDAR READ`
+
+`MODEL TEXT != CALENDAR AUTHORITY`
+
+`USER PHRASE != ARBITRARY DATE RANGE`
+
+`PLAN WINDOW == APPROVED WINDOW == EXECUTED WINDOW`
