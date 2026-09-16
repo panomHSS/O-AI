@@ -36,9 +36,11 @@ class CredentialProfileCatalogTests(unittest.TestCase):
             secret_ref=secret_ref,
         )
 
-    def test_production_catalog_contains_exact_d63_google_profile(self) -> None:
-        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 1)
-        profile = PRODUCTION_CREDENTIAL_PROFILES[0]
+    def test_production_catalog_contains_exact_calendar_profiles(self) -> None:
+        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 2)
+        profile = CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES).resolve(
+            "google_calendar", "1.0.0", "upcoming_events"
+        )
         self.assertEqual(profile.profile_id, "google_calendar.events.readonly")
         self.assertEqual(profile.plugin_id, "google_calendar")
         self.assertEqual(profile.plugin_version, "1.0.0")
@@ -49,19 +51,23 @@ class CredentialProfileCatalogTests(unittest.TestCase):
             profile.required_scopes,
             (
                 "https://www.googleapis.com/auth/"
-                "calendar.events.readonly",
+                "calendar.events.owned",
             ),
         )
         self.assertEqual(
             profile.secret_ref,
             "google_calendar.access_token",
         )
-        self.assertEqual(
-            CredentialProfileCatalog(
-                PRODUCTION_CREDENTIAL_PROFILES
-            ).profiles,
-            PRODUCTION_CREDENTIAL_PROFILES,
+        catalog = CredentialProfileCatalog(PRODUCTION_CREDENTIAL_PROFILES)
+        create_profile = catalog.resolve(
+            "google_calendar", "1.0.0", "create_event"
         )
+        self.assertEqual(create_profile.profile_id, "google_calendar.events.create")
+        self.assertEqual(
+            create_profile.required_scopes,
+            ("https://www.googleapis.com/auth/calendar.events.owned",),
+        )
+        self.assertEqual(catalog.profiles, PRODUCTION_CREDENTIAL_PROFILES)
 
     def test_exact_subject_resolves_profile(self) -> None:
         profile = self.profile()

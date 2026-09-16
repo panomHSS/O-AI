@@ -237,6 +237,25 @@ class GoogleOAuthLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(record.status, "reauthorization_required")
 
+    def test_old_readonly_scope_requires_reauthorization(self):
+        _, state = self.service.start_authorization()
+        self.service.complete_authorization(
+            query_state=state,
+            cookie_state=state,
+            code="authorization-code",
+            oauth_error=None,
+        )
+        record = self.repository.get(
+            GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID
+        )
+        record.granted_scopes = (
+            "https://www.googleapis.com/auth/calendar.events.readonly"
+        )
+        self.repository.commit()
+        result = self.service.status()
+        self.assertFalse(result.connected)
+        self.assertEqual(result.status, "reauthorization_required")
+
     def test_revoke_failure_keeps_local_ciphertext(self):
         _, state = self.service.start_authorization()
         self.service.complete_authorization(

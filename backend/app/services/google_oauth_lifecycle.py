@@ -242,10 +242,23 @@ class GoogleOAuthLifecycleService:
                 status="disconnected",
                 scope=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
             )
-        connected = record.status == "active"
+        exact_subject = (
+            record.provider_id == GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID
+            and record.plugin_id == GOOGLE_CALENDAR_PLUGIN_ID
+            and record.plugin_version == GOOGLE_CALENDAR_PLUGIN_VERSION
+            and record.capability_name == GOOGLE_CALENDAR_CAPABILITY_NAME
+            and record.granted_scopes == GOOGLE_CALENDAR_CREDENTIAL_SCOPE
+            and record.cipher_version == "aesgcm-v1"
+        )
+        if record.status != "active" or not exact_subject:
+            return GoogleOAuthStatus(
+                connected=False,
+                status="reauthorization_required",
+                scope=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
+            )
         return GoogleOAuthStatus(
-            connected=connected,
-            status=record.status,
+            connected=True,
+            status="active",
             scope=GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
         )
 

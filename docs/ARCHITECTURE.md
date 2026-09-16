@@ -2150,3 +2150,23 @@ D73 invariants:
 - `D45 EXECUTION APPROVAL SEMANTICS REMAIN UNCHANGED`
 - `READ CAPABILITY REMAINS READ-ONLY`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## D74 - Calendar Create Event v1
+
+D74 adds the first Google Calendar provider mutation, limited to one timed
+`create_event` on the fixed primary calendar. Execution starts only from an
+exact D73-approved D72 create snapshot. The snapshot is deterministically
+projected to a private single-step Module plan, checked against the independent
+D73 write digest, authorized by D36, atomically claimed once, and only then
+executed through D37.
+
+The D74 adapter is absent from the global AdapterRegistry and production D44
+permission catalog. Claim occurs after authorization and before credential or
+network access; claims never roll back. The fixed write connector performs one
+bounded no-retry POST and returns only a validated opaque event id. Ambiguous
+post-dispatch failures are `indeterminate`.
+
+Calendar OAuth advances to exact `calendar.events.owned`; existing read-only
+grants require explicit owner reauthorization. The Calendar read Plugin and GET
+connector remain read-only. Core invariant:
+`APPROVED != AUTHORIZED != CLAIMED != EXECUTED`.

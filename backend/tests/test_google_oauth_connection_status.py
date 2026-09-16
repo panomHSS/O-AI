@@ -22,7 +22,7 @@ class TrapRecord:
     plugin_id = "google_calendar"
     plugin_version = "1.0.0"
     capability_name = "upcoming_events"
-    granted_scopes = "https://www.googleapis.com/auth/calendar.events.readonly"
+    granted_scopes = "https://www.googleapis.com/auth/calendar.events.owned"
     cipher_version = "aesgcm-v1"
     status = "active"
 

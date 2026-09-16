@@ -1,4 +1,4 @@
-"""D63/D67 exact Google Calendar authenticated read connector identity."""
+"""D63/D67/D74 exact Google Calendar credential and capability identity."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 GOOGLE_CALENDAR_PLUGIN_ID = "google_calendar"
 GOOGLE_CALENDAR_PLUGIN_VERSION = "1.0.0"
 GOOGLE_CALENDAR_CAPABILITY_NAME = "upcoming_events"
+GOOGLE_CALENDAR_CREATE_CAPABILITY_NAME = "create_event"
+GOOGLE_CALENDAR_CREATE_CREDENTIAL_PROFILE_ID = "google_calendar.events.create"
 GOOGLE_CALENDAR_ADAPTER_ID = "module.plugin.google_calendar"
 GOOGLE_CALENDAR_OPERATION = "list_upcoming_events"
 GOOGLE_CALENDAR_CAPABILITY_ID = "exec.plugin.google_calendar.upcoming_events"
@@ -17,7 +19,7 @@ GOOGLE_CALENDAR_CREDENTIAL_PROFILE_ID = "google_calendar.events.readonly"
 GOOGLE_CALENDAR_CREDENTIAL_PROVIDER_ID = "google"
 GOOGLE_CALENDAR_CREDENTIAL_AUTH_SCHEME = "oauth2_bearer"
 GOOGLE_CALENDAR_CREDENTIAL_SCOPE = (
-    "https://www.googleapis.com/auth/calendar.events.readonly"
+    "https://www.googleapis.com/auth/calendar.events.owned"
 )
 GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF = "google_calendar.access_token"
 

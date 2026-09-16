@@ -180,7 +180,7 @@ class GoogleCalendarWriteContractTests(unittest.TestCase):
         self.assertEqual(GOOGLE_CALENDAR_OPERATION, "list_upcoming_events")
         self.assertEqual(
             GOOGLE_CALENDAR_CREDENTIAL_SCOPE,
-            "https://www.googleapis.com/auth/calendar.events.readonly",
+            "https://www.googleapis.com/auth/calendar.events.owned",
         )
 
         plugin_source = inspect.getsource(GoogleCalendarPlugin)

@@ -47,6 +47,10 @@ class CalendarWriteApprovalNotApprovedError(CalendarWriteApprovalError):
     reason_code = "calendar_write_approval_not_approved"
 
 
+class CalendarWriteApprovalAlreadyClaimedError(CalendarWriteApprovalError):
+    reason_code = "calendar_write_approval_already_claimed"
+
+
 class CalendarWriteApprovalExpiredError(CalendarWriteApprovalError):
     reason_code = "calendar_write_approval_expired"
 
@@ -225,7 +229,7 @@ def calendar_write_preview(
 @dataclass(slots=True)
 class _CalendarWriteApprovalRecord:
     pending: PendingCalendarWriteApproval
-    state: Literal["pending", "approved", "denied"] = "pending"
+    state: Literal["pending", "approved", "claimed", "denied"] = "pending"
     approved: ApprovedCalendarWriteApproval | None = None
 
 
@@ -375,6 +379,41 @@ class CalendarWriteApprovalStore:
                 )
             return record.approved
 
+    def claim_approved(
+        self,
+        approval_id: str,
+        write_digest: str,
+    ) -> ApprovedCalendarWriteApproval:
+        now = self._clock()
+        with self._lock:
+            record = self._items.get(approval_id)
+            if record is None:
+                raise CalendarWriteApprovalNotApprovedError(
+                    "Calendar write approval is not approved."
+                )
+            if now >= record.pending.expires_at:
+                self._items.pop(approval_id, None)
+                raise CalendarWriteApprovalExpiredError(
+                    "Calendar write approval has expired."
+                )
+            if not hmac.compare_digest(
+                record.pending.write_digest,
+                write_digest,
+            ):
+                raise CalendarWriteApprovalDigestMismatchError(
+                    "Calendar write digest does not match."
+                )
+            if record.state == "claimed":
+                raise CalendarWriteApprovalAlreadyClaimedError(
+                    "Calendar write approval has already been claimed."
+                )
+            if record.state != "approved" or record.approved is None:
+                raise CalendarWriteApprovalNotApprovedError(
+                    "Calendar write approval is not approved."
+                )
+            record.state = "claimed"
+            return record.approved
+
     def clear(self) -> None:
         with self._lock:
             self._items.clear()
@@ -489,6 +528,7 @@ class CalendarWriteApprovalService:
 
 
 __all__ = [
+    "CalendarWriteApprovalAlreadyClaimedError",
     "CalendarWriteApprovalDigestMismatchError",
     "CalendarWriteApprovalError",
     "CalendarWriteApprovalExpiredError",

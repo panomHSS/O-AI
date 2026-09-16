@@ -2144,3 +2144,23 @@ D73 invariants:
 - `D45 EXECUTION APPROVAL SEMANTICS REMAIN UNCHANGED`
 - `READ CAPABILITY REMAINS READ-ONLY`
 - `APPROVED != AUTHORIZED != EXECUTED`
+
+## ADR-067: Calendar Create Event v1
+
+**Status:** Accepted
+
+D74 introduces a private Calendar create lane after D72/D73. Only an exact
+approved `create_event` snapshot may be deterministically projected, bound to a
+separate D36 execution-plan digest, authorized, atomically claimed, and then
+executed through D37. The create adapter remains outside the global D45 lane.
+
+The claim is terminal and occurs before credential resolution or provider
+network. The Google Calendar write connector performs one bounded no-retry POST
+and exposes only a validated opaque event id; ambiguous post-dispatch failures
+are `indeterminate`.
+
+The Calendar OAuth grant changes from `calendar.events.readonly` to exact
+`calendar.events.owned`; old-scope grants require explicit owner
+reauthorization. Update/delete remain non-executable until D75. No DB migration,
+Docker/dependency, frontend, Chat write routing, attendees, recurrence,
+conference, all-day, secondary-calendar, or automatic retry capability is added.
