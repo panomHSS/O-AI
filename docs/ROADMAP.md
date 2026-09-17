@@ -275,7 +275,7 @@ approved Design/Implementation Spec before implementation.
 
 ## D81 — Runtime Capability Truth v1
 
-Status: **IMPLEMENTED — repository finalization complete; manual real-use acceptance A/B/C/D/E/F required before final COMPLETE declaration**
+Status: **COMPLETE**
 
 D81 extends D70 safe diagnostics into an explicit capability-truth model and
 adds a bounded deterministic status lane before generic AI.
@@ -303,14 +303,20 @@ Repository acceptance:
 - Full backend regression at the Batch 03 checkpoint: 1463 tests PASS, 4 skipped
 - Final Batch 04 regression: required and performed by the finalization helper before commit/push
 
-Manual acceptance still required after repository finalization:
+Manual acceptance: **COMPLETE**
 
-- A — `สถานะระบบ` returns deterministic real runtime/capability truth with no generic AI.
-- B — `สถานะ Calendar` reports real read/connection state and write backend yes / Chat write no.
-- C — `สถานะ Gmail` reports real safe OAuth/read state and no send/write capability.
-- D — `สถานะ Automation` reports local-reminder truth and no connector/AI authority.
-- E — ordinary chat and existing deterministic action routing remain unchanged.
-- F — status requests demonstrate zero connector network, credential resolution, OAuth refresh, AI call, approval, authorization, and execution state.
+- A — `สถานะระบบ`: PASS — deterministic runtime/capability snapshot.
+- B — `สถานะ Calendar`: PASS — connected/read-ready; write backend present; write via Chat unsupported.
+- C — `สถานะ Gmail`: PASS after Manual Acceptance Remediation 01 — connected/read-ready; write/send unsupported; status is no longer hijacked by the Gmail Action classifier.
+- D — `สถานะ Automation`: PASS — local-reminder implementation reported separately from unsupported Chat/connector/AI actions.
+- E — routing regression: PASS — deterministic Calendar read remains functional and ordinary chat still reaches the normal AI lane.
+- F — authority sanity: PASS — status responses remain status-only with no owner Action/approval surface, and the D81 regression/security guards preserve zero connector/credential/OAuth-refresh/AI/execution authority for the status lane.
+
+Manual Acceptance Remediation 01 was finalized at
+`075f95c9e4b157d835fbe228044e8363a490c30e`. The remediation reserves only
+exact bounded D81 status phrases before broad Plugin Action signal detection;
+it does not add connector, credential, approval, authorization, write, or
+execution authority.
 
 D81 does not authorize D82 implementation automatically. D82 requires its own
 Design/Implementation Spec and owner approval.
