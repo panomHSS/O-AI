@@ -364,7 +364,7 @@ its own approved Design/Implementation Spec before implementation.
 
 ## D83 — Calendar Write Chat Bridge v1
 
-Status: **IMPLEMENTED — MANUAL ACCEPTANCE PENDING**
+Status: **COMPLETE**
 
 D83 adds the first deterministic normal-Chat bridge for Calendar mutation
 intent while stopping before the existing D73 write-approval boundary.
@@ -397,8 +397,28 @@ Repository acceptance:
 - Batch 04: PASS before this finalization commit/push
 - Final Batch 04 full backend regression: PASS before commit/push
 
-Manual acceptance A-F remains required before D83 may be declared COMPLETE.
+Manual acceptance: **COMPLETE**
 
-D83 does not authorize D84 implementation automatically. D84 requires its own
+- A — Thai relative create candidate: PASS — `สร้างนัด ประชุมทีม พรุ่งนี้ เวลา 10:00-11:00`
+  produced the deterministic D83 create candidate for 19/09/2026 10:00–11:00
+  in `Asia/Bangkok`, explicitly stating that no D73 structured approval was
+  created and Calendar was unchanged.
+- B — exact-date create candidate: PASS — `สร้างนัด ตรวจงาน วันที่ 20/09/2026
+  เวลา 09:30-10:15` resolved exactly and remained candidate-only.
+- C — plaintext approval guard: PASS — `อนุมัติครับ` in the same conversation
+  was blocked as non-authoritative Chat text; no D73 approval or Calendar write.
+- D — unsupported mutation targeting: PASS — natural-language update and delete
+  were rejected deterministically because exact opaque `event_id` targeting is
+  required; no Calendar mutation occurred.
+- E — routing regression: PASS — Calendar read remained functional, D81 Calendar
+  status remained deterministic with `Write via Chat: ยังไม่รองรับ`, and an
+  ordinary O-AI explanation still reached normal AI Chat.
+- F — authority sanity: PASS — manual A-D exposed no D45 Action card, D73
+  preview/approval, or write-success surface; Batch 03 security regression
+  independently preserved zero D73/D36/credential/connector/AI/Automation
+  authority expansion for the D83 lane.
+
+D83 completion freezes the create-only candidate bridge at this authority level.
+It does not authorize D84 implementation automatically. D84 requires its own
 approved Design/Implementation Spec and owns the separately reviewed
 D73 preview / structured approval / execution-result Chat UX.

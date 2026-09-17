@@ -2777,3 +2777,25 @@ D83 invariants:
 - `D83 CANDIDATE -> ZERO PROVIDER WRITE`
 - `UPDATE/DELETE CHAT -> NO FUZZY EVENT TARGETING`
 - `D83 GUARD MARKER != AUTHORITY`
+
+**Manual acceptance completion**
+
+Manual acceptance A-F completed on 2026-09-18.
+
+- A PASS — Thai relative create intent produced only the deterministic D83
+  create candidate with owner-timezone resolution and explicit no-write wording.
+- B PASS — exact Gregorian date/time create intent produced the exact bounded
+  candidate and no provider mutation.
+- C PASS — plaintext `อนุมัติครับ` after a candidate remained non-authoritative
+  and did not create a D73 structured approval.
+- D PASS — natural-language update/delete remained unsupported and required an
+  exact opaque `event_id`; no fuzzy or hidden read-before-write targeting was used.
+- E PASS — Calendar read, D81 Calendar status, and ordinary AI Chat routing all
+  remained on their pre-existing lanes.
+- F PASS — no D45 Action card, D73 preview/approval, or Calendar write-success
+  surface appeared during manual mutation tests; D83 Batch 03 security regression
+  separately preserved zero D73/D36/credential/connector/AI/Automation authority
+  expansion.
+
+D83 is COMPLETE at the create-candidate bridge boundary. This acceptance record
+does not expand ADR-077 authority and does not authorize D84.
