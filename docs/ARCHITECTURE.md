@@ -2478,3 +2478,42 @@ D79 invariants:
 - `STALE CLAIM -> INDETERMINATE -> NO RETRY`
 - `AUTOMATION AUTHORITY != COMMAND EXECUTION AUTHORITY`
 - `LOCAL REMINDER DELIVERY != EXTERNAL SIDE EFFECT`
+
+## D80 Integration Security Review v2
+
+D80 is a cross-integration security checkpoint after D79. It adds no new product
+capability. It freezes the production authority graph across Calendar read/write,
+Gmail read, OAuth/credential resolution, D78 cross-connector AI context, D79
+automation, execution audit, and diagnostics.
+
+The integration constitution is:
+
+```text
+CALENDAR READ AUTHORITY
+!= CALENDAR WRITE AUTHORITY
+!= GMAIL READ AUTHORITY
+!= CROSS-CONNECTOR AI AUTHORITY
+!= AUTOMATION AUTHORITY
+!= TOOL/MODULE EXECUTION AUTHORITY
+
+DATA != AUTHORITY
+APPROVAL != AUTHORIZATION
+AUTHORIZATION != CLAIM
+CLAIM != SUCCESS
+FAILURE != RETRY AUTHORITY
+```
+
+Calendar writes remain private approval-bound execution lanes outside the general
+D45 production catalog. Gmail remains read-only. D78 may use only fresh, already
+approved connector projections and performs no connector network or credential
+resolution during its explicit summarize/compare request. D79 remains
+`local_reminder` only and has no connector, credential, AI, Tool, or Module
+execution authority.
+
+D80 confirmed no `ISR2-xxx` finding requiring production remediation. Its durable
+outputs are the approved D80 Spec, integration security regression matrix,
+`docs/INTEGRATION_SECURITY_REVIEW_V2.md`, ADR-073, and this architecture freeze.
+
+The supported threat model is unchanged: trusted local single-owner, loopback-only
+deployment. `X-OAI-Local-Request` remains an explicit local-owner intent marker,
+not authentication.

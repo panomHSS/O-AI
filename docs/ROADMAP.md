@@ -205,3 +205,31 @@ Gmail API connector, message read, Chat routing, execution adapter/permission,
 automation, migration, Docker change, or dependency change.
 
 Next roadmap baseline after D76 is D77: bounded Gmail read intent/capability.
+
+## D80 — Integration Security Review v2 — COMPLETE
+
+D80 completed the post-D79 cross-integration security checkpoint.
+
+Delivered:
+
+- approved D80 Design/Implementation Spec v1;
+- Calendar/Gmail authority, credential, and egress regression freeze;
+- D78 cross-connector zero-network / zero-credential isolation freeze;
+- D79 automation zero-AI / zero-connector / zero-credential isolation freeze;
+- Calendar-write replay/claim/indeterminate negative matrix;
+- audit / OAuth-callback-log / diagnostics security regression coverage;
+- `docs/INTEGRATION_SECURITY_REVIEW_V2.md`;
+- ADR-073.
+
+Review result:
+
+```text
+Confirmed ISR2 findings: NONE
+Production code changes: NONE
+New capability: NONE
+Threat model expansion: NONE
+```
+
+D80 does not add Gmail writes, automated connector actions, automation-to-AI or
+automation-to-connector bridges, retry authority, new OAuth scope, migration,
+dependency, Docker, or frontend changes.

@@ -2502,3 +2502,72 @@ D79 invariants:
 - `REMINDER TEXT == DATA`
 - `REMINDER TEXT != COMMAND != AI PROMPT`
 - `AUTOMATION AUTHORITY != COMMAND EXECUTION AUTHORITY`
+
+## ADR-073: Integration Security Review v2 authority freeze
+
+**Decision**
+
+Treat D80 as a security reconciliation and regression-freeze milestone across the
+integrated Calendar, Gmail, OAuth/credential, cross-connector AI context,
+automation, audit, and diagnostics boundaries. D80 grants no new capability.
+
+The production authority domains remain separate:
+
+```text
+CALENDAR READ AUTHORITY
+!= CALENDAR WRITE AUTHORITY
+!= GMAIL READ AUTHORITY
+!= CROSS-CONNECTOR AI AUTHORITY
+!= AUTOMATION AUTHORITY
+!= TOOL/MODULE EXECUTION AUTHORITY
+```
+
+Calendar write continues to require its own exact D73 approval and private
+D74/D75 execution lane. Gmail remains read-only. D78 uses only fresh captured
+connector context and does not perform connector network or credential resolution.
+D79 remains local-reminder-only and cannot invoke AI, Tool/Module, Gmail, Calendar,
+or credential execution.
+
+**Context**
+
+D79 completed the first durable scheduler/automation authority. At that point O-AI
+contained multiple distinct approval and execution domains that could become unsafe
+if composition accidentally allowed one authority to substitute for another.
+
+D80 reviewed the integrated authority graph, credential identities, OAuth subjects,
+fixed egress behavior, replay/claim semantics, prompt-injection boundaries, audit
+allowlisting, diagnostics, and automation isolation.
+
+**Alternatives**
+
+Proceed directly to additional integrations; merge approval domains for
+convenience; allow automation to invoke existing connector authority; or rely only
+on individual milestone tests without a cross-integration negative matrix.
+
+**Rationale**
+
+A dedicated integration checkpoint catches composition failures that unit reviews
+of individual milestones may miss. Keeping each authority domain explicit
+preserves least privilege, owner control, revocation, replay safety, and the
+difference between external data and executable authority.
+
+The D80 review confirmed no `ISR2-xxx` finding requiring production remediation.
+Therefore D80 completes without production-code, migration, dependency, Docker, or
+frontend changes.
+
+**Consequences**
+
+D80 adds an approved Spec, cross-integration security regression coverage, and a
+durable review report. The regression matrix freezes Calendar/Gmail credential and
+egress isolation, Calendar-write claim/replay behavior, D78 zero-network and
+zero-credential behavior, D79 scheduler isolation, audit field allowlisting, OAuth
+callback query sanitization, and diagnostics read-only behavior.
+
+The supported deployment threat model remains trusted local single-owner and
+loopback-only. `X-OAI-Local-Request` is not authentication. LAN/public deployment,
+multi-user authentication/authorization, hostile local processes, and untrusted
+third-party Plugin sandboxing still require separate architecture work.
+
+Any future bridge between automation and AI/connectors, any Gmail write capability,
+new OAuth scope, retry engine, or expansion of deployment trust boundaries requires
+separate owner-approved design and security review.
