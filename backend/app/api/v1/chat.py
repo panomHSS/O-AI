@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from app.api.dependencies import (
     get_chat_action_bridge,
     get_cross_connector_chat_service,
+    get_runtime_capability_chat_service,
     get_command_input_pipeline,
     get_command_orchestrator,
     get_project_update_turn_orchestrator,
 )
+from app.db.verification import TARGET_REVISION
 from app.schemas.api import ApiSuccess
 from app.schemas.chat import (
     ChatActionResponse,
@@ -21,6 +23,7 @@ from app.schemas.execution_approvals import (
 )
 from app.services.chat_action_bridge import ChatActionBridge
 from app.services.chat_cross_connector import CrossConnectorChatService
+from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.command_orchestrator import (
     CommandOrchestrator,
@@ -64,6 +67,9 @@ def send_chat_message(
         CrossConnectorChatService,
         Depends(get_cross_connector_chat_service),
     ],
+    runtime_capability_chat_service: RuntimeCapabilityChatService = Depends(
+        get_runtime_capability_chat_service
+    ),
     x_oai_local_request: Annotated[
         str | None,
         Header(),
@@ -202,6 +208,37 @@ def send_chat_message(
                     reason_code=action_outcome.reason_code,
                     approval=None,
                 ),
+            )
+        )
+
+    runtime_status_classifier = getattr(
+        runtime_capability_chat_service,
+        "is_request",
+        None,
+    )
+    if (
+        callable(runtime_status_classifier)
+        and runtime_status_classifier(payload.message)
+    ):
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        revision = getattr(
+            request.app.state,
+            "database_revision",
+            TARGET_REVISION,
+        )
+        runtime_outcome = runtime_capability_chat_service.process(
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+            database_revision=revision,
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=runtime_outcome.reply,
+                conversation_id=runtime_outcome.conversation_id,
             )
         )
 

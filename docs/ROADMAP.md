@@ -233,19 +233,83 @@ Threat model expansion: NONE
 D80 does not add Gmail writes, automated connector actions, automation-to-AI or
 automation-to-connector bridges, retry authority, new OAuth scope, migration,
 dependency, Docker, or frontend changes.
+
 ## Pre-D81 Stabilization
 
-Status: **IMPLEMENTED — manual real-use acceptance A/B/C/D required before final COMPLETE declaration**
+Status: **COMPLETE**
 
-The approved Pre-D81 Stabilization closes the Calendar arbitrary-date and conversational-approval gaps found during post-D80 manual acceptance while preserving the frozen D69-D80 authority model.
+The approved Pre-D81 Stabilization closes the Calendar arbitrary-date and
+conversational-approval gaps found during post-D80 manual acceptance while
+preserving the frozen D69-D80 authority model.
 
 - Batch 01 — contract + deterministic exact-date parser/resolver: PASS
 - Batch 02 — bounded missing-year clarification + resume into existing D45 proposal path: PASS
 - Batch 03 — plaintext Calendar approval truthfulness guard: PASS
-- Batch 04 — integration/security regression, architecture/ADR/roadmap documentation, exact-path finalization: implemented by the finalization helper
-- Manual A — explicit date -> real Action proposal -> structured approval -> exact-day result: required
-- Manual B — missing year -> confirmation -> `ใช่ครับ` -> real Action proposal: required
-- Manual C — typed `อนุมัติครับ` after proposal -> zero approval/execution -> structured approval still works: required
-- Manual D — both `พรุ่งนี้มีนัดอะไรบ้าง` and `พรุ่งนี้ผมมีนัดอะไรบ้าง` remain deterministic: required
+- Batch 04 — integration/security regression, architecture/ADR/roadmap documentation, exact-path finalization: PASS
+- Manual A — explicit date -> real Action proposal -> structured approval -> exact-day result: PASS
+- Manual B — missing year -> confirmation -> `ใช่ครับ` -> real Action proposal: PASS
+- Manual C — typed `อนุมัติครับ` after proposal -> zero approval/execution -> structured approval still works: PASS
+- Manual D — both `พรุ่งนี้มีนัดอะไรบ้าง` and `พรุ่งนี้ผมมีนัดอะไรบ้าง` remain deterministic: PASS
 
-No new Calendar write authority, connector, OAuth scope, dependency, migration, Docker change, frontend authority, or public deployment surface is part of this stabilization.
+No new Calendar write authority, connector, OAuth scope, dependency, migration,
+Docker change, frontend authority, or public deployment surface is part of this
+stabilization.
+
+## O-AI D81-D90 — Owner Productivity & Controlled Action Phase
+
+Roadmap status: **APPROVED**
+
+- D81 — Runtime Capability Truth v1
+- D82 — Safe Connector Error Semantics v1
+- D83 — Calendar Write Chat Bridge v1
+- D84 — Calendar Write Chat UX v1
+- D85 — Gmail Read UX v2
+- D86 — Gmail Send Contract v1
+- D87 — Gmail Send Approval v1
+- D88 — Gmail Send Execution v1
+- D89 — Automation Delivery UX v2
+- D90 — Integration Security Review v3
+
+The roadmap fixes direction and sequencing only. Each milestone requires its own
+approved Design/Implementation Spec before implementation.
+
+## D81 — Runtime Capability Truth v1
+
+Status: **IMPLEMENTED — repository finalization complete; manual real-use acceptance A/B/C/D/E/F required before final COMPLETE declaration**
+
+D81 extends D70 safe diagnostics into an explicit capability-truth model and
+adds a bounded deterministic status lane before generic AI.
+
+Delivered:
+
+- explicit capability distinctions for implemented/enabled/configured/connected/chat-routable/execution-authority state;
+- additive safe diagnostics for Google Calendar, Gmail, D78 cross-connector AI, and D79 Automation;
+- metadata-only Gmail/Calendar connection truth with zero provider probe and zero credential resolution;
+- bounded Thai/English runtime-status intent recognition;
+- deterministic snapshot-only status response composition;
+- Chat integration after D78 / Calendar clarification / Action / plaintext-approval guard and before generic AI;
+- Calendar Write backend truth kept separate from Calendar Write via Chat, which remains unsupported in D81;
+- Gmail write/send remains unsupported;
+- Automation-to-Connector and Automation-to-AI remain unsupported;
+- ADR-075 and D81 architecture documentation.
+
+Repository acceptance:
+
+- Batch 01: PASS
+- Batch 02: PASS
+- Batch 03: PASS
+- Batch 04: PASS
+- Full backend regression at the Batch 03 checkpoint: 1463 tests PASS, 4 skipped
+- Final Batch 04 regression: required and performed by the finalization helper before commit/push
+
+Manual acceptance still required after repository finalization:
+
+- A — `สถานะระบบ` returns deterministic real runtime/capability truth with no generic AI.
+- B — `สถานะ Calendar` reports real read/connection state and write backend yes / Chat write no.
+- C — `สถานะ Gmail` reports real safe OAuth/read state and no send/write capability.
+- D — `สถานะ Automation` reports local-reminder truth and no connector/AI authority.
+- E — ordinary chat and existing deterministic action routing remain unchanged.
+- F — status requests demonstrate zero connector network, credential resolution, OAuth refresh, AI call, approval, authorization, and execution state.
+
+D81 does not authorize D82 implementation automatically. D82 requires its own
+Design/Implementation Spec and owner approval.

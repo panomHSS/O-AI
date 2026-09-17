@@ -1,18 +1,23 @@
-"""D70 safe, read-only runtime diagnostics composition."""
+"""D70 safe diagnostics, extended by D81 runtime capability truth."""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
 
+from app.contracts.runtime_capability import ConnectorReadCapabilityTruth
 from app.core.config import Settings
 from app.core.logging import (
     EXECUTION_AUDIT_LOGGER_NAME,
     SafeExecutionAuditFormatter,
 )
 from app.schemas.diagnostics import (
+    AutomationDiagnostics,
+    CrossConnectorAIDiagnostics,
     ExecutionAuditDiagnostics,
+    GmailDiagnostics,
     GoogleCalendarDiagnostics,
+    RuntimeCapabilityDiagnostics,
     RuntimeDiagnosticsResponse,
 )
 from app.services.google_oauth_config import (
@@ -33,10 +38,16 @@ class RuntimeDiagnosticsService:
         settings: Settings,
         google_oauth_status_reader: GoogleOAuthConnectionStatusReader,
         google_oauth_config_factory: Callable[[], GoogleOAuthRuntimeConfig],
+        gmail_oauth_status_reader: GoogleOAuthConnectionStatusReader | None = None,
+        gmail_oauth_config_factory: (
+            Callable[[], GoogleOAuthRuntimeConfig] | None
+        ) = None,
     ) -> None:
         self._settings = settings
         self._google_oauth_status_reader = google_oauth_status_reader
         self._google_oauth_config_factory = google_oauth_config_factory
+        self._gmail_oauth_status_reader = gmail_oauth_status_reader
+        self._gmail_oauth_config_factory = gmail_oauth_config_factory
 
     def snapshot(self, *, database_revision: str) -> RuntimeDiagnosticsResponse:
         return RuntimeDiagnosticsResponse(
@@ -44,7 +55,16 @@ class RuntimeDiagnosticsService:
             environment=self._settings.environment,
             database_revision=database_revision,
             execution_audit=self._execution_audit_diagnostics(),
+            runtime=RuntimeCapabilityDiagnostics(
+                implemented=True,
+                # Batch 03 wires deterministic status queries before generic AI.
+                status_chat_routable=True,
+                execution_authority=False,
+            ),
             google_calendar=self._google_calendar_diagnostics(),
+            gmail=self._gmail_diagnostics(),
+            cross_connector_ai=self._cross_connector_ai_diagnostics(),
+            automation=self._automation_diagnostics(),
         )
 
     @staticmethod
@@ -62,48 +82,104 @@ class RuntimeDiagnosticsService:
         except Exception:
             return ExecutionAuditDiagnostics(status="unavailable")
 
-    def _google_calendar_diagnostics(self) -> GoogleCalendarDiagnostics:
-        connector_enabled = bool(
-            self._settings.oai_google_calendar_connector_enabled
-        )
+    @staticmethod
+    def _connector_read_truth(
+        *,
+        connector_enabled: bool,
+        config_factory: Callable[[], GoogleOAuthRuntimeConfig] | None,
+        status_reader: GoogleOAuthConnectionStatusReader | None,
+    ) -> ConnectorReadCapabilityTruth:
+        configuration_present = False
 
-        try:
-            runtime_config = self._google_oauth_config_factory()
-            configuration_present = runtime_config.configuration_present
-        except GoogleOAuthConfigError:
-            return GoogleCalendarDiagnostics(
-                status=("disabled" if not connector_enabled else "not_configured"),
-                connector_enabled=connector_enabled,
-                configuration_present=False,
-            )
-        except Exception:
-            return GoogleCalendarDiagnostics(
-                status=("disabled" if not connector_enabled else "unavailable"),
-                connector_enabled=connector_enabled,
-                configuration_present=False,
+        if config_factory is not None:
+            try:
+                runtime_config = config_factory()
+                configuration_present = bool(
+                    runtime_config.configuration_present
+                )
+            except GoogleOAuthConfigError:
+                return ConnectorReadCapabilityTruth(
+                    status=(
+                        "disabled"
+                        if not connector_enabled
+                        else "not_configured"
+                    ),
+                    implemented=True,
+                    enabled=connector_enabled,
+                    configured=False,
+                    connected=False,
+                    chat_routable=False,
+                    execution_authority=False,
+                )
+            except Exception:
+                return ConnectorReadCapabilityTruth(
+                    status=(
+                        "disabled"
+                        if not connector_enabled
+                        else "unavailable"
+                    ),
+                    implemented=True,
+                    enabled=connector_enabled,
+                    configured=False,
+                    connected=False,
+                    chat_routable=False,
+                    execution_authority=False,
+                )
+        elif connector_enabled:
+            return ConnectorReadCapabilityTruth(
+                status="unavailable",
+                implemented=True,
+                enabled=True,
+                configured=False,
+                connected=False,
+                chat_routable=False,
+                execution_authority=False,
             )
 
         if not connector_enabled:
-            return GoogleCalendarDiagnostics(
+            return ConnectorReadCapabilityTruth(
                 status="disabled",
-                connector_enabled=False,
-                configuration_present=configuration_present,
+                implemented=True,
+                enabled=False,
+                configured=configuration_present,
+                connected=False,
+                chat_routable=False,
+                execution_authority=False,
             )
 
         if not configuration_present:
-            return GoogleCalendarDiagnostics(
+            return ConnectorReadCapabilityTruth(
                 status="not_configured",
-                connector_enabled=True,
-                configuration_present=False,
+                implemented=True,
+                enabled=True,
+                configured=False,
+                connected=False,
+                chat_routable=False,
+                execution_authority=False,
+            )
+
+        if status_reader is None:
+            return ConnectorReadCapabilityTruth(
+                status="unavailable",
+                implemented=True,
+                enabled=True,
+                configured=True,
+                connected=False,
+                chat_routable=False,
+                execution_authority=False,
             )
 
         try:
-            connection_status = self._google_oauth_status_reader.read_status()
+            connection_status = status_reader.read_status()
         except Exception:
-            return GoogleCalendarDiagnostics(
+            return ConnectorReadCapabilityTruth(
                 status="unavailable",
-                connector_enabled=True,
-                configuration_present=True,
+                implemented=True,
+                enabled=True,
+                configured=True,
+                connected=False,
+                chat_routable=False,
+                execution_authority=False,
             )
 
         if connection_status == "active":
@@ -115,8 +191,87 @@ class RuntimeDiagnosticsService:
         else:
             status = "unavailable"
 
-        return GoogleCalendarDiagnostics(
+        connected = status == "connected"
+        return ConnectorReadCapabilityTruth(
             status=status,
-            connector_enabled=True,
-            configuration_present=True,
+            implemented=True,
+            enabled=True,
+            configured=True,
+            connected=connected,
+            chat_routable=connected,
+            execution_authority=False,
+        )
+
+    def _google_calendar_diagnostics(self) -> GoogleCalendarDiagnostics:
+        truth = self._connector_read_truth(
+            connector_enabled=bool(
+                getattr(
+                    self._settings,
+                    "oai_google_calendar_connector_enabled",
+                    False,
+                )
+            ),
+            config_factory=self._google_oauth_config_factory,
+            status_reader=self._google_oauth_status_reader,
+        )
+        return GoogleCalendarDiagnostics(
+            status=truth.status,
+            connector_enabled=truth.enabled,
+            configuration_present=truth.configured,
+            read_implemented=truth.implemented,
+            read_chat_routable=truth.chat_routable,
+            # D72-D75 exist, but D81 must not create normal-Chat write routing.
+            write_backend_implemented=True,
+            write_chat_routable=False,
+            execution_authority=False,
+        )
+
+    def _gmail_diagnostics(self) -> GmailDiagnostics:
+        truth = self._connector_read_truth(
+            connector_enabled=bool(
+                getattr(self._settings, "oai_gmail_connector_enabled", False)
+            ),
+            config_factory=self._gmail_oauth_config_factory,
+            status_reader=self._gmail_oauth_status_reader,
+        )
+        return GmailDiagnostics(
+            status=truth.status,
+            connector_enabled=truth.enabled,
+            configuration_present=truth.configured,
+            read_implemented=truth.implemented,
+            read_chat_routable=truth.chat_routable,
+            write_implemented=False,
+            write_chat_routable=False,
+            execution_authority=False,
+        )
+
+    def _cross_connector_ai_diagnostics(
+        self,
+    ) -> CrossConnectorAIDiagnostics:
+        enabled = bool(
+            getattr(
+                self._settings,
+                "oai_cross_connector_ai_context_enabled",
+                False,
+            )
+        )
+        return CrossConnectorAIDiagnostics(
+            enabled=enabled,
+            implemented=True,
+            chat_routable=enabled,
+            execution_authority=False,
+        )
+
+    def _automation_diagnostics(self) -> AutomationDiagnostics:
+        enabled = bool(
+            getattr(self._settings, "oai_automation_enabled", False)
+        )
+        return AutomationDiagnostics(
+            enabled=enabled,
+            local_reminder_implemented=True,
+            # D79 is exposed by the Automation API, not normal Chat.
+            local_reminder_chat_routable=False,
+            connector_actions_implemented=False,
+            ai_actions_implemented=False,
+            execution_authority=False,
         )

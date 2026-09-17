@@ -136,6 +136,7 @@ from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.chat_action_bridge import ChatActionBridge
 from app.services.chat_calendar_clarification import CalendarClarificationStore
 from app.services.chat_cross_connector import CrossConnectorChatService
+from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.cross_connector_context import (
     CrossConnectorContextStore,
 )
@@ -565,14 +566,33 @@ def get_google_gmail_oauth_connection_status_reader(
 def get_runtime_diagnostics_service(
     database_session: Session = Depends(get_db),
 ) -> RuntimeDiagnosticsService:
-    """Compose D70 diagnostics without credential resolution or execution."""
+    """Compose D70/D81 truth diagnostics without credentials or execution."""
     return RuntimeDiagnosticsService(
         settings=get_settings(),
         google_oauth_status_reader=(
             get_google_oauth_connection_status_reader(database_session)
         ),
         google_oauth_config_factory=get_google_oauth_runtime_config,
+        gmail_oauth_status_reader=(
+            get_google_gmail_oauth_connection_status_reader(database_session)
+        ),
+        gmail_oauth_config_factory=get_google_gmail_oauth_runtime_config,
     )
+
+def get_runtime_capability_chat_service(
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    diagnostics_service: RuntimeDiagnosticsService = Depends(
+        get_runtime_diagnostics_service
+    ),
+) -> RuntimeCapabilityChatService:
+    """Compose deterministic D81 status Chat without AI or execution."""
+    return RuntimeCapabilityChatService(
+        conversation_service=conversation_service,
+        diagnostics_service=diagnostics_service,
+    )
+
 
 
 def get_google_oauth_lifecycle_service(

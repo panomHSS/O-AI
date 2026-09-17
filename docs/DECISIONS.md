@@ -2584,3 +2584,82 @@ Plain chat approval phrases never decide D45. If the same conversation has a pen
 **Authority:** No new approval, authorization, credential, connector, or execution authority is introduced. Exact-date Calendar reads reuse the existing read-only Calendar adapter, D45 owner review, D36 authorization, ModuleRuntime, credential broker, and bounded Calendar GET path.
 
 **Consequences:** Calendar date handling is intentionally narrow and deterministic. Textual month names, natural-language relative dates beyond the existing grammar, arbitrary date ranges, multiple dates, and LLM date interpretation remain out of scope. Clarification state is lost on process restart by design. The change adds no migration, dependency, OAuth scope, Calendar write capability, or autonomous execution path.
+
+## ADR-075: Runtime Capability Truth v1
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the existing D70 safe runtime diagnostics model into a deterministic,
+owner-facing capability-truth boundary. Capability reporting must preserve the
+distinctions `implemented`, `enabled`, `configured`, `connected`,
+`chat_routable`, and `execution_authority` rather than reducing them to one
+ambiguous readiness boolean.
+
+Expand the allowlisted diagnostics snapshot additively with runtime,
+Google Calendar, Gmail, cross-connector AI, and Automation capability facts.
+Calendar/Gmail connection state may use only the existing non-secret OAuth
+connection-status metadata readers and safe configuration-presence projection.
+A diagnostics/status request must not resolve credentials, decrypt or refresh an
+OAuth token for execution, call a connector/provider, create an approval or
+authorization, invoke Automation, or invoke AI.
+
+Calendar status must state separately that the D72-D75 write backend exists and
+that normal-Chat Calendar write routing remains unsupported in D81. Gmail
+remains read-only with no send/modify/delete capability. Cross-connector AI
+status describes the existing D78 explicit answer-only lane without reading
+connector data. Automation status describes the existing D79 local-reminder
+foundation without claiming normal-Chat, connector, or AI automation authority.
+
+Add one narrow deterministic Thai/English status-intent classifier and a
+snapshot-only deterministic response composer. Insert this lane immediately
+before generic AI while preserving the existing higher-priority D78,
+Calendar-clarification, Action/Plugin-Action, and Calendar plaintext-approval
+guard lanes. A matched D81 turn is persisted through
+`ConversationService.begin_turn()` / `complete_turn()` without calling
+`ConversationService.send_message()` or the generic AI orchestrator.
+
+**Rationale**
+
+Post-D80 manual use showed that a normal AI answer could plausibly describe
+O-AI capabilities or endpoints that were not authoritative runtime facts.
+As O-AI gains more connectors and authority domains, conflating code presence,
+feature enablement, OAuth connection, Chat routing, approval and execution
+authority would make self-description unsafe and misleading.
+
+A deterministic local snapshot gives the owner an inspectable truth source
+without turning diagnostics into a new execution plane. Keeping status routing
+before generic AI prevents capability hallucination for the bounded supported
+questions while leaving ordinary chat and all existing action lanes unchanged.
+
+**Consequences**
+
+O-AI can answer the approved runtime-status questions from current local state
+without AI inference. The safe diagnostics API becomes additive while
+`/api/v1/health` stays unchanged.
+
+D81 grants no reusable execution authority. It adds no Calendar Write via Chat,
+Gmail write/send, new OAuth scope, connector, provider health probe, credential
+resolution, OAuth refresh, Automation execution, Automation-to-Connector or
+Automation-to-AI bridge, database migration, dependency, Docker change,
+frontend authority change, or public/LAN deployment.
+
+D81 invariants:
+
+- `STATUS != AUTHORITY`
+- `DIAGNOSTICS != EXECUTION`
+- `IMPLEMENTED != ENABLED`
+- `ENABLED != CONFIGURED`
+- `CONFIGURED != CONNECTED`
+- `CONNECTED != CHAT-ROUTABLE`
+- `CHAT-ROUTABLE != APPROVED`
+- `STATUS QUERY -> EXECUTION AUTHORITY = FALSE`
+- `STATUS QUERY -> ZERO CONNECTOR NETWORK`
+- `STATUS QUERY -> ZERO CREDENTIAL RESOLUTION`
+- `STATUS QUERY -> ZERO OAUTH REFRESH`
+- `STATUS QUERY -> ZERO D45/D36`
+- `STATUS QUERY -> ZERO AI`
+- `CALENDAR WRITE BACKEND != CALENDAR WRITE CHAT ROUTING`
+- `GMAIL READ != GMAIL WRITE`
+- `AUTOMATION GRANT != CONNECTOR EXECUTION AUTHORITY`

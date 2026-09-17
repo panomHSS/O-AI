@@ -2555,3 +2555,93 @@ AI TEXT != EXECUTION STATE
 ```
 
 Security properties remain fail-closed: date parsing and clarification perform zero connector network access and zero credential resolution; plaintext approval performs zero approval and zero connector execution; exact-date reads reuse the existing read-only Calendar capability and exact owner-timezone bounds. No new connector, OAuth scope, database migration, dependency, Docker change, frontend authority, Calendar write bridge, or public deployment surface is introduced.
+
+## D81 Runtime Capability Truth v1
+
+D81 extends the D70 safe diagnostics boundary into an owner-facing deterministic
+runtime-capability truth lane. It does not add execution authority. The system
+now distinguishes capability facts that must not be collapsed into one
+ambiguous "available" state:
+
+```text
+IMPLEMENTED
+!= ENABLED
+!= CONFIGURED
+!= CONNECTED
+!= CHAT-ROUTABLE
+!= EXECUTION AUTHORITY
+```
+
+The D81 diagnostics snapshot remains local, allowlisted, read-only, and
+provider-network-free. It retains the D70 service, environment,
+database-revision and execution-audit facts and adds explicit runtime,
+Google Calendar, Gmail, cross-connector AI, and Automation capability
+projections. Calendar and Gmail connection state reuses the existing non-secret
+OAuth metadata readers only; the status path does not decrypt or refresh a
+token and does not use the credential broker.
+
+Calendar truth deliberately distinguishes the existing read-via-Chat path from
+the D72-D75 write backend. Calendar write implementation may be present while
+`write_chat_routable` remains false. Gmail remains read-only and reports no
+send/modify/delete authority. D78 cross-connector status reports only its
+deployment gate and reviewed Chat lane; it does not read connector data or call
+AI while answering status. D79 Automation reports the local-reminder
+implementation separately from normal Chat routing and continues to expose no
+connector or AI automation authority.
+
+The deterministic status Chat path is:
+
+```text
+bounded status phrase
+-> D81 deterministic classifier
+-> safe local RuntimeDiagnosticsService snapshot
+-> deterministic response composer
+-> persisted conversation turn
+-> response
+```
+
+The lane is placed after all higher-priority existing integration/authority
+lanes and immediately before generic AI:
+
+```text
+D78 explicit cross-connector request
+-> pending Calendar clarification
+-> deterministic Action / Plugin Action
+-> pending Calendar plaintext-approval guard
+-> D81 runtime status
+-> generic AI
+```
+
+Supported v1 status phrases are a fixed Thai/English allowlist such as
+`/status`, `สถานะระบบ`, `สถานะ Calendar`, `สถานะ Gmail`,
+`สถานะ Automation`, `what is the system status`, and
+`what can O-AI do now`. Quoted/example text, ordinary Calendar/Gmail content
+questions, existing action requests, and arbitrary self-reflection questions
+do not enter the D81 lane.
+
+A D81 status request has the following frozen security properties:
+
+```text
+STATUS != AUTHORITY
+DIAGNOSTICS != EXECUTION
+CONFIGURATION != AUTHORIZATION
+CONNECTED != APPROVED
+IMPLEMENTED != CHAT-ROUTABLE
+
+D81 STATUS REQUEST
+-> ZERO CONNECTOR NETWORK
+-> ZERO CREDENTIAL RESOLUTION
+-> ZERO OAUTH TOKEN REFRESH
+-> ZERO D45 PROPOSAL
+-> ZERO D36 AUTHORIZATION
+-> ZERO CALENDAR WRITE APPROVAL
+-> ZERO AUTOMATION APPROVAL/RUN
+-> ZERO AI REQUEST
+-> EXECUTION AUTHORITY = FALSE
+```
+
+Component failures remain fail-closed to bounded status values and do not expose
+raw errors or secret material. `/api/v1/health` remains unchanged. D81 adds no
+OAuth scope, connector, database migration, dependency, Docker change,
+Calendar-write Chat bridge, Gmail mutation, Automation-to-Connector bridge,
+Automation-to-AI bridge, or public/LAN deployment authority.

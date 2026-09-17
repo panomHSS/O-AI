@@ -59,6 +59,9 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
             app_name="O-AI",
             environment="test",
             oai_google_calendar_connector_enabled=enabled,
+            oai_gmail_connector_enabled=False,
+            oai_cross_connector_ai_context_enabled=False,
+            oai_automation_enabled=False,
         )
 
     def service(
@@ -94,17 +97,36 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "environment",
                 "database_revision",
                 "execution_audit",
+                "runtime",
                 "google_calendar",
+                "gmail",
+                "cross_connector_ai",
+                "automation",
             },
         )
         self.assertEqual(set(rendered["execution_audit"]), {"status"})
         self.assertEqual(
             set(rendered["google_calendar"]),
-            {"status", "connector_enabled", "configuration_present"},
+            {
+                "status",
+                "connector_enabled",
+                "configuration_present",
+                "read_implemented",
+                "read_chat_routable",
+                "write_backend_implemented",
+                "write_chat_routable",
+                "execution_authority",
+            },
         )
         self.assertEqual(rendered["contract_version"], "1")
         self.assertEqual(rendered["execution_audit"]["status"], "ok")
         self.assertEqual(rendered["google_calendar"]["status"], "connected")
+        self.assertTrue(rendered["google_calendar"]["read_chat_routable"])
+        self.assertTrue(
+            rendered["google_calendar"]["write_backend_implemented"]
+        )
+        self.assertFalse(rendered["google_calendar"]["write_chat_routable"])
+        self.assertFalse(rendered["google_calendar"]["execution_authority"])
 
     def test_disabled_connector_is_status_only_and_does_not_read_metadata(self) -> None:
         reader = FakeStatusReader()
@@ -113,6 +135,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         )
         self.assertEqual(snapshot.google_calendar.status, "disabled")
         self.assertFalse(snapshot.google_calendar.connector_enabled)
+        self.assertFalse(snapshot.google_calendar.read_chat_routable)
         self.assertEqual(reader.calls, 0)
 
     def test_missing_configuration_does_not_read_connection_metadata(self) -> None:
@@ -123,6 +146,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         ).snapshot(database_revision="0001_test")
         self.assertEqual(snapshot.google_calendar.status, "not_configured")
         self.assertFalse(snapshot.google_calendar.configuration_present)
+        self.assertFalse(snapshot.google_calendar.read_chat_routable)
         self.assertEqual(reader.calls, 0)
 
     def test_connection_states_are_projected_without_secret_data(self) -> None:
@@ -144,6 +168,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         ).snapshot(database_revision="0001_test")
         rendered = snapshot.model_dump_json()
         self.assertEqual(snapshot.google_calendar.status, "unavailable")
+        self.assertFalse(snapshot.google_calendar.read_chat_routable)
         self.assertNotIn(secret_error, rendered)
         self.assertNotIn("error", rendered.lower())
 
@@ -155,6 +180,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         rendered = snapshot.model_dump_json()
         self.assertEqual(snapshot.google_calendar.status, "unavailable")
         self.assertFalse(snapshot.google_calendar.configuration_present)
+        self.assertFalse(snapshot.google_calendar.read_chat_routable)
         self.assertNotIn(secret_error, rendered)
 
     def test_audit_lane_is_inspected_without_reading_any_audit_payload(self) -> None:
