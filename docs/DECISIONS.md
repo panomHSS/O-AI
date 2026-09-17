@@ -2717,3 +2717,63 @@ D82 invariants:
 - `FAILED CONNECTOR RESULT -> ZERO D78 CONTEXT CAPTURE`
 - `ONE AUTHORIZED CONNECTOR INVOCATION == AT MOST ONE EXECUTION ATTEMPT`
 - `ERROR PRESENTATION != APPROVAL != AUTHORIZATION`
+
+## ADR-077: Calendar Write Chat Bridge v1
+
+**Status:** Accepted
+
+**Decision**
+
+Add a deterministic Calendar-write Chat reservation that recognizes only a
+bounded create-event grammar and constructs the existing exact D72
+`GoogleCalendarCreateEventRequest` as a transient candidate.
+
+D83 v1 does not route natural-language update/delete because D75 requires an
+exact opaque provider `event_id`. D83 must not infer event identity, perform a
+hidden Calendar read, fuzzily match title/date/time, or ask AI to select a
+write target.
+
+The D83 lane is inserted after D81 status reservation and before broad
+Action/Plugin Action detection. A matched D83 mutation turn requires the
+existing local-owner request marker, persists only the ordinary deterministic
+conversation turn, returns the unchanged `ChatResponse` shape with no Action
+approval object, and stops before D73.
+
+A bounded process-local guard stores only conversation ID and expiry so that
+plaintext follow-up such as `อนุมัติครับ` cannot be interpreted by generic AI
+as write approval. The marker is non-authoritative, non-durable, and contains
+no write candidate or owner content.
+
+**Rationale**
+
+The write backend already has strong D72-D75 authority boundaries, but normal
+Chat previously had no deterministic write-intent lane. Allowing generic AI
+or the D45 Action surface to improvise that bridge could conflate intent,
+preview, approval, authorization, claim, execution, and success.
+
+A create-only deterministic bridge lets O-AI understand a narrow owner
+Calendar-write intent while preserving D73 as the first write-approval
+boundary and leaving exact-target update/delete closed.
+
+**Consequences**
+
+D83 can acknowledge a safe transient Calendar create candidate, but cannot
+create a D73 proposal, approve, authorize, claim, resolve credentials, call a
+connector, execute a provider mutation, retry, or report write success.
+
+D81 `write_chat_routable` remains false until a separately approved milestone
+provides end-to-end Chat write UX. D82 safe connector error semantics are
+unchanged because D83 performs no connector call.
+
+D83 invariants:
+
+- `CHAT WRITE INTENT != D72 CANDIDATE`
+- `D72 CANDIDATE != D73 PROPOSAL`
+- `PLAINTEXT CHAT APPROVAL != D73 WRITE APPROVAL`
+- `D45 APPROVAL != D73 WRITE APPROVAL`
+- `D83 CANDIDATE -> ZERO CONNECTOR NETWORK`
+- `D83 CANDIDATE -> ZERO CREDENTIAL RESOLUTION`
+- `D83 CANDIDATE -> ZERO AI`
+- `D83 CANDIDATE -> ZERO PROVIDER WRITE`
+- `UPDATE/DELETE CHAT -> NO FUZZY EVENT TARGETING`
+- `D83 GUARD MARKER != AUTHORITY`

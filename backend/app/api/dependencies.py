@@ -135,6 +135,11 @@ from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.chat_action_bridge import ChatActionBridge
 from app.services.chat_calendar_clarification import CalendarClarificationStore
+from app.services.chat_calendar_write import (
+    CalendarWriteChatGuardStore,
+    CalendarWriteChatParser,
+    CalendarWriteChatService,
+)
 from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.cross_connector_context import (
@@ -578,6 +583,31 @@ def get_runtime_diagnostics_service(
         ),
         gmail_oauth_config_factory=get_google_gmail_oauth_runtime_config,
     )
+
+@lru_cache
+def get_calendar_write_chat_guard_store() -> CalendarWriteChatGuardStore:
+    """Keep only the bounded process-local D83 anti-approval marker store."""
+    return CalendarWriteChatGuardStore()
+
+
+def get_calendar_write_chat_service(
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    guard_store: CalendarWriteChatGuardStore = Depends(
+        get_calendar_write_chat_guard_store
+    ),
+) -> CalendarWriteChatService:
+    """Compose deterministic D83 Calendar write Chat without D73/execution."""
+    settings = get_settings()
+    return CalendarWriteChatService(
+        parser=CalendarWriteChatParser(
+            owner_timezone=settings.oai_owner_timezone
+        ),
+        guard_store=guard_store,
+        conversation_service=conversation_service,
+    )
+
 
 def get_runtime_capability_chat_service(
     conversation_service: ConversationService = Depends(

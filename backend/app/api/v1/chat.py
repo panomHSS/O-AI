@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.api.dependencies import (
     get_chat_action_bridge,
+    get_calendar_write_chat_service,
     get_cross_connector_chat_service,
     get_runtime_capability_chat_service,
     get_command_input_pipeline,
@@ -22,6 +23,7 @@ from app.schemas.execution_approvals import (
     ExecutionApprovalProposalResponse,
 )
 from app.services.chat_action_bridge import ChatActionBridge
+from app.services.chat_calendar_write import CalendarWriteChatService
 from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.command_input_pipeline import CommandInputPipeline
@@ -67,6 +69,9 @@ def send_chat_message(
         CrossConnectorChatService,
         Depends(get_cross_connector_chat_service),
     ],
+    calendar_write_chat_service: CalendarWriteChatService = Depends(
+        get_calendar_write_chat_service
+    ),
     runtime_capability_chat_service: RuntimeCapabilityChatService = Depends(
         get_runtime_capability_chat_service
     ),
@@ -149,8 +154,23 @@ def send_chat_message(
         and runtime_status_classifier(payload.message)
     )
 
+    # D83 reserves bounded Calendar mutation intent before broad Action/Plugin
+    # classification.  This parser is deterministic/local-only and creates no
+    # D73 proposal, authorization, credential access, network call, or write.
+    calendar_write_classifier = getattr(
+        calendar_write_chat_service,
+        "is_request",
+        None,
+    )
+    calendar_write_requested = (
+        not runtime_status_requested
+        and callable(calendar_write_classifier)
+        and calendar_write_classifier(payload.message)
+    )
+
     if (
         not runtime_status_requested
+        and not calendar_write_requested
         and (
             chat_action_bridge.is_action_directive(payload.message)
             or chat_action_bridge.is_plugin_action_request(payload.message)
@@ -223,6 +243,79 @@ def send_chat_message(
                     status=action_outcome.status,
                     reason_code=action_outcome.reason_code,
                     approval=None,
+                ),
+            )
+        )
+
+    calendar_write_guard_classifier = getattr(
+        calendar_write_chat_service,
+        "pending_plaintext_approval_disposition",
+        None,
+    )
+    calendar_write_guard_disposition = (
+        calendar_write_guard_classifier(
+            conversation_id=payload.conversation_id,
+            message=payload.message,
+        )
+        if callable(calendar_write_guard_classifier)
+        else "none"
+    )
+    if calendar_write_guard_disposition == "block":
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        if payload.conversation_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        guard_processor = getattr(
+            calendar_write_chat_service,
+            "process_pending_plaintext_approval_turn",
+            None,
+        )
+        if not callable(guard_processor):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        calendar_write_outcome = guard_processor(
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=calendar_write_outcome.reply,
+                conversation_id=(
+                    calendar_write_outcome.conversation_id
+                ),
+            )
+        )
+
+    if calendar_write_requested:
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        calendar_write_processor = getattr(
+            calendar_write_chat_service,
+            "process_chat_turn",
+            None,
+        )
+        if not callable(calendar_write_processor):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        calendar_write_outcome = calendar_write_processor(
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=calendar_write_outcome.reply,
+                conversation_id=(
+                    calendar_write_outcome.conversation_id
                 ),
             )
         )

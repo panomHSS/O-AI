@@ -361,3 +361,44 @@ authority, or public/LAN deployment.
 
 D82 completion does not authorize D83 implementation automatically. D83 requires
 its own approved Design/Implementation Spec before implementation.
+
+## D83 — Calendar Write Chat Bridge v1
+
+Status: **IMPLEMENTED — MANUAL ACCEPTANCE PENDING**
+
+D83 adds the first deterministic normal-Chat bridge for Calendar mutation
+intent while stopping before the existing D73 write-approval boundary.
+
+Delivered:
+
+- bounded Thai/English Calendar create-event intent parsing;
+- explicit owner-timezone date/time resolution;
+- Gregorian and Buddhist Era exact-date support;
+- exact transient D72 `GoogleCalendarCreateEventRequest` construction;
+- create-only v1 scope; natural-language update/delete remain unsupported;
+- quoted/example/negated mutation protection and ambiguous input fail-closed;
+- process-local bounded plaintext-approval anti-hallucination guard;
+- D83 reservation before broad Action/Plugin Action detection;
+- deterministic conversation persistence without generic AI;
+- unchanged public `ChatResponse` schema with no D45 Action approval surface;
+- zero D73 proposal/approval, D36 authorization, credential resolution,
+  connector network, AI request, Automation execution, or provider write;
+- regression coverage for Pre-D81 Calendar read/clarification, D74/D75 write
+  freeze, D78 isolation, D79 Automation isolation, D81 runtime truth, and
+  D82 safe connector errors;
+- ADR-077 and D83 architecture documentation.
+
+Repository acceptance:
+
+- Batch 01: PASS after Repair 01
+- Batch 02: PASS
+- Batch 02 full backend regression: 1523 tests PASS, 4 skipped
+- Batch 03: PASS
+- Batch 04: PASS before this finalization commit/push
+- Final Batch 04 full backend regression: PASS before commit/push
+
+Manual acceptance A-F remains required before D83 may be declared COMPLETE.
+
+D83 does not authorize D84 implementation automatically. D84 requires its own
+approved Design/Implementation Spec and owns the separately reviewed
+D73 preview / structured approval / execution-result Chat UX.

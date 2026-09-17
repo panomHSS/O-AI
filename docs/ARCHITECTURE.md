@@ -2711,3 +2711,90 @@ not generalized by D82.
 D82 adds no connector capability, OAuth scope, Gmail write/send, Calendar write
 Chat bridge, Automation-to-Connector/AI bridge, database migration, dependency,
 Docker change, frontend authority, or public/LAN deployment authority.
+
+## D83 Calendar Write Chat Bridge v1
+
+D83 adds a bounded deterministic normal-Chat bridge for Calendar mutation
+intent without crossing the existing D73 write-approval boundary.
+
+D83 v1 supports only Calendar event creation:
+
+```text
+owner Chat
+-> deterministic bounded create intent
+-> exact transient D72 GoogleCalendarCreateEventRequest
+-> deterministic acknowledgement
+-> STOP
+```
+
+Update and delete remain unsupported through natural Chat because D75 requires
+an exact opaque `event_id`; D83 performs no fuzzy title/date matching, hidden
+Calendar read, AI event selection, or read-before-write lookup.
+
+The D83 create grammar requires one bounded summary, an explicit supported
+date, explicit same-day start/end time, and the configured owner timezone.
+Missing-year numeric dates, default durations, overnight events, recurrence,
+attendees, reminders, location/description fields, secondary calendars,
+multi-event requests, quoted examples, and negated mutation instructions fail
+closed rather than being silently narrowed or guessed.
+
+A successful D83 parse constructs the existing immutable D72
+`GoogleCalendarCreateEventRequest` and retains that structured candidate only
+for the deterministic turn. The candidate is not persisted as approval,
+authorization, execution plan, audit authority, connector context, or memory.
+
+D83 routing is reserved before broad Action/Plugin Action detection and after
+the already-frozen higher-priority lanes:
+
+```text
+D78 cross-connector
+-> pending Calendar read clarification
+-> D81 status reservation
+-> D83 Calendar-write reservation
+-> Action / Plugin Action
+-> Calendar-read plaintext approval guard
+-> D83 plaintext write-approval guard
+-> D83 deterministic write-candidate handling
+-> D81 deterministic status handling
+-> generic AI
+```
+
+D83 mutation turns require the existing local-owner request marker
+`X-OAI-Local-Request: 1`. The marker remains a local-request intent marker,
+not authentication.
+
+D83 uses a bounded process-local anti-hallucination guard after a valid create
+candidate. The guard stores only `conversation_id -> expires_at`, is limited
+to 128 records with a 10-minute TTL, and carries no D72 request, summary,
+date/time, approval, credential, execution plan, or provider result. A bounded
+plaintext approval phrase such as `อนุมัติครับ` is answered deterministically
+with no authority; unrelated follow-up clears the marker.
+
+The public `ChatResponse` contract is unchanged and D83 returns `action=None`.
+D45 Action approval is not reused for Calendar write approval.
+
+D83 deliberately does not call D73. Therefore:
+
+```text
+D83 CANDIDATE != D73 PROPOSAL
+D83 CANDIDATE != OWNER APPROVAL
+PLAINTEXT CHAT APPROVAL != D73 APPROVAL
+D73 APPROVAL != D36 AUTHORIZATION
+AUTHORIZATION != CLAIM
+CLAIM != SUCCESS
+INDETERMINATE != RETRY AUTHORITY
+```
+
+One D83 Chat turn performs zero D45 proposal, zero D73 proposal/approval,
+zero D36 authorization, zero credential resolution, zero OAuth refresh or
+token decryption, zero connector HTTP, zero D78 context capture, zero
+Automation execution, zero AI request, and zero Calendar provider mutation.
+
+D81 continues to report Calendar `write_chat_routable = false` during D83:
+creating a transient D72 candidate is not end-to-end Calendar Write via Chat.
+D84 is the separately reviewed milestone that may connect the D83 candidate
+to D73 preview/structured approval and private write execution UX.
+
+D83 adds no OAuth scope, credential policy, database migration, dependency,
+Docker change, frontend authority, Automation-to-Connector/AI bridge, or
+LAN/public deployment authority.
