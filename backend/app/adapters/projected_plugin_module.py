@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.contracts.command import CommandRequest, ExecutionPlan, Result
+from app.contracts.connector_error_semantics import (
+    safe_connector_codes_for_subject,
+)
 from app.contracts.tool_module import TOOL_MODULE_ADAPTER_CONTRACT_VERSION
 from app.plugins.response import PluginResult
 
@@ -20,6 +23,31 @@ class PluginModuleInvocationError(RuntimeError):
     def __init__(self, code: str) -> None:
         if code not in _PLUGIN_MODULE_INVOCATION_CODES:
             code = PLUGIN_MODULE_INVOCATION_ERROR_EXECUTION_FAILED
+        self.code = code
+        super().__init__(code)
+
+
+class SafeConnectorModuleInvocationError(RuntimeError):
+    """D82 subject-bound allowlisted connector failure projection."""
+
+    def __init__(
+        self,
+        *,
+        plugin_id: str,
+        plugin_version: str,
+        capability_name: str,
+        code: str,
+    ) -> None:
+        safe_codes = safe_connector_codes_for_subject(
+            plugin_id,
+            plugin_version,
+            capability_name,
+        )
+        if type(code) is not str or code not in safe_codes:
+            raise ValueError("invalid_safe_connector_error")
+        self.plugin_id = plugin_id
+        self.plugin_version = plugin_version
+        self.capability_name = capability_name
         self.code = code
         super().__init__(code)
 
@@ -57,6 +85,28 @@ class ProjectedPluginModuleAdapter:
             return Result(request_id=request.request_id, status="failed", error=validation_error)
         try:
             plugin_result = self._invoker(self._plugin_id, self._plugin_version, self._projected_capability_names, self._capability_name, self._adapter_id, self._operation, content)
+        except SafeConnectorModuleInvocationError as error:
+            if (
+                error.plugin_id != self._plugin_id
+                or error.plugin_version != self._plugin_version
+                or error.capability_name != self._capability_name
+                or error.code
+                not in safe_connector_codes_for_subject(
+                    self._plugin_id,
+                    self._plugin_version,
+                    self._capability_name,
+                )
+            ):
+                return Result(
+                    request_id=request.request_id,
+                    status="failed",
+                    error=PLUGIN_MODULE_INVOCATION_ERROR_EXECUTION_FAILED,
+                )
+            return Result(
+                request_id=request.request_id,
+                status="failed",
+                error=error.code,
+            )
         except PluginModuleInvocationError as error:
             return Result(request_id=request.request_id, status="failed", error=error.code)
         except Exception:

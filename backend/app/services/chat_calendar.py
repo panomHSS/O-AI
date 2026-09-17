@@ -650,18 +650,52 @@ class CalendarChatCompletionComposer:
     )
     FAILURE_REPLY = "ไม่สามารถอ่านข้อมูลจาก Google Calendar ได้ในครั้งนี้ครับ"
 
+    _ERROR_REPLIES = {
+        "calendar_invalid_credential": (
+            "อ่าน Calendar ไม่สำเร็จ: ข้อมูลรับรองการเชื่อมต่อไม่พร้อมครับ"
+        ),
+        "calendar_invalid_clock": (
+            "อ่าน Calendar ไม่สำเร็จ: เวลาระบบไม่ถูกต้องครับ"
+        ),
+        "calendar_connector_timeout": (
+            "อ่าน Calendar ไม่สำเร็จ: การเชื่อมต่อใช้เวลานานเกินกำหนดครับ"
+        ),
+        "calendar_connector_network_error": (
+            "อ่าน Calendar ไม่สำเร็จ: การเชื่อมต่อเครือข่ายผิดพลาดครับ"
+        ),
+        "calendar_connector_http_error": (
+            "อ่าน Calendar ไม่สำเร็จ: บริการ Calendar ตอบกลับผิดพลาดครับ"
+        ),
+        "calendar_authentication_failed": (
+            "อ่าน Calendar ไม่สำเร็จ: สิทธิ์การเชื่อมต่อไม่พร้อมครับ"
+        ),
+        "calendar_response_too_large": (
+            "อ่าน Calendar ไม่สำเร็จ: ผลลัพธ์เกินขีดจำกัดที่ปลอดภัยครับ"
+        ),
+        "calendar_invalid_json": (
+            "อ่าน Calendar ไม่สำเร็จ: รูปแบบข้อมูลตอบกลับไม่ถูกต้องครับ"
+        ),
+        "calendar_invalid_response": (
+            "อ่าน Calendar ไม่สำเร็จ: ข้อมูลตอบกลับไม่ถูกต้องครับ"
+        ),
+        "calendar_credential_unavailable": (
+            "อ่าน Calendar ไม่สำเร็จ: ยังไม่มีสิทธิ์การเชื่อมต่อที่พร้อมใช้งานครับ"
+        ),
+        "calendar_invalid_request": (
+            "อ่าน Calendar ไม่สำเร็จ: คำขอ Calendar ไม่ถูกต้องครับ"
+        ),
+    }
+
     def reply_for_approved(self, binding, outcome) -> str:
         if binding.calendar_window is None:
             raise ValueError("Calendar completion requires Calendar binding.")
 
         execution = outcome.execution
         result = execution.result
-        if (
-            execution.status != "completed"
-            or result is None
-            or result.status != "succeeded"
-        ):
+        if execution.status != "completed" or result is None:
             return self.FAILURE_REPLY
+        if result.status != "succeeded":
+            return self._ERROR_REPLIES.get(result.error, self.FAILURE_REPLY)
 
         validated = self._validated_payload(result.output, binding)
         if validated is None:

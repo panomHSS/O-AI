@@ -2670,3 +2670,50 @@ D81 invariants:
 - `CALENDAR WRITE BACKEND != CALENDAR WRITE CHAT ROUTING`
 - `GMAIL READ != GMAIL WRITE`
 - `AUTOMATION GRANT != CONNECTOR EXECUTION AUTHORITY`
+
+## ADR-076: Safe Connector Error Semantics v1
+
+**Status:** Accepted
+
+**Decision**
+
+Preserve connector-specific failure meaning only through fixed O-AI-controlled,
+machine-safe reason codes and deterministic owner-facing mappings. Connector
+boundaries may project an allowlisted safe code into `Result.error`; arbitrary
+provider detail, exception text, raw response bodies, credentials, tokens,
+headers, or sensitive URL/query material must not cross that boundary.
+
+Calendar read, Gmail read, and GitHub read may render connector-specific wording
+only for known allowlisted codes. Unknown or generic failures remain generic.
+The mapping layer is presentation only and grants no approval, authorization,
+credential access, connector selection, retry, fallback, automation, or write
+authority.
+
+**Rationale**
+
+Collapsing every connector failure to one generic message hides useful owner
+information, while surfacing raw provider failures risks secret/detail leakage
+and can accidentally turn error handling into an implicit retry or fallback
+control plane. A closed safe-code vocabulary preserves useful semantics without
+expanding authority.
+
+**Consequences**
+
+One governed connector invocation remains at most one execution attempt.
+Failures do not create D78 context. D81 status remains zero-side-effect.
+D68/D69 audit safety remains bounded to machine-safe fields. D74/D75 Calendar
+write claim/replay/`indeterminate` semantics remain unchanged.
+
+D82 adds no new connector, connector mutation, OAuth scope, credential profile,
+retry engine, provider fallback, database migration, dependency, Docker change,
+frontend authority, Automation bridge, or public deployment surface.
+
+D82 invariants:
+
+- `FAILURE != RETRY AUTHORITY`
+- `SAFE ERROR CODE != EXECUTION AUTHORITY`
+- `SAFE ERROR CODE != RAW PROVIDER DETAIL`
+- `UNKNOWN FAILURE -> GENERIC OWNER-FACING WORDING`
+- `FAILED CONNECTOR RESULT -> ZERO D78 CONTEXT CAPTURE`
+- `ONE AUTHORIZED CONNECTOR INVOCATION == AT MOST ONE EXECUTION ATTEMPT`
+- `ERROR PRESENTATION != APPROVAL != AUTHORIZATION`

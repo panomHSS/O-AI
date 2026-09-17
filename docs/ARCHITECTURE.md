@@ -2656,3 +2656,58 @@ raw errors or secret material. `/api/v1/health` remains unchanged. D81 adds no
 OAuth scope, connector, database migration, dependency, Docker change,
 Calendar-write Chat bridge, Gmail mutation, Automation-to-Connector bridge,
 Automation-to-AI bridge, or public/LAN deployment authority.
+
+## D82 Safe Connector Error Semantics v1
+
+D82 preserves connector-specific, owner-safe failure meaning across the existing
+read-only connector execution and Chat presentation boundaries without exposing
+raw provider detail and without creating retry authority.
+
+The error lane is intentionally narrow:
+
+```text
+provider / connector failure
+-> fixed connector-safe reason code
+-> Result.error
+-> deterministic connector-specific owner-facing wording
+```
+
+Only allowlisted machine-safe reason codes may cross the adapter boundary.
+Unexpected exceptions, malformed failures, and unknown codes remain generic.
+Provider response bodies, exception text, credentials, tokens, request headers,
+URLs containing sensitive query material, and arbitrary failure detail are not
+projected into owner-visible Chat text or execution audit metadata.
+
+Calendar read, Gmail read, and GitHub public-repository reads retain separate
+owner-facing mappings where the existing connector can distinguish safe
+conditions such as timeout, temporary availability/rate limiting, credential
+unavailability, or bounded invalid-response failures. Unknown/generic failures
+continue to use the existing generic failure wording rather than guessing a
+provider-specific diagnosis.
+
+D82 does not change the authority graph. Safe error semantics are data about a
+failed attempt, not authority for another attempt:
+
+```text
+FAILURE != RETRY AUTHORITY
+SAFE ERROR CODE != EXECUTION AUTHORITY
+OWNER-FACING ERROR TEXT != COMMAND
+CONNECTOR ERROR != APPROVAL
+CONNECTOR ERROR != AUTHORIZATION
+CONNECTOR ERROR != AUTOMATION
+```
+
+A governed Plugin/Module invocation still performs at most one connector
+execution attempt. D82 adds no adapter retry, fallback connector, alternate
+credential lookup, automatic reauthorization, background retry, or provider
+failover.
+
+Failed Gmail and Calendar results remain excluded from D78 cross-connector
+context capture. D81 runtime-status behavior remains side-effect-free. D68/D69
+audit hardening continues to retain only bounded machine-safe reason metadata.
+D74/D75 Calendar write claim and `indeterminate` semantics remain frozen and are
+not generalized by D82.
+
+D82 adds no connector capability, OAuth scope, Gmail write/send, Calendar write
+Chat bridge, Automation-to-Connector/AI bridge, database migration, dependency,
+Docker change, frontend authority, or public/LAN deployment authority.

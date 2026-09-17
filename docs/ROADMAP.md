@@ -320,3 +320,44 @@ execution authority.
 
 D81 does not authorize D82 implementation automatically. D82 requires its own
 Design/Implementation Spec and owner approval.
+
+## D82 — Safe Connector Error Semantics v1
+
+Status: **COMPLETE**
+
+D82 preserves bounded connector-specific failure meaning through fixed safe
+reason codes and deterministic owner-facing wording while keeping unknown
+failures generic and preserving the frozen authority graph.
+
+Delivered:
+
+- fixed connector-safe reason-code contracts and normalization;
+- bounded safe failure projection at the governed Plugin/Module boundary;
+- deterministic Calendar owner-facing mappings for known safe codes;
+- existing Gmail safe-code owner-facing behavior preserved and regression-covered;
+- deterministic GitHub owner-facing mappings for known safe codes;
+- unknown/generic connector failures remain generic;
+- raw provider/exception/credential/token failure detail remains excluded;
+- D78 failed Gmail/Calendar completions create no cross-connector context;
+- one connector invocation remains single-shot with no adapter retry;
+- D81 runtime-capability, D68/D69 audit-safety, and D74/D75 write/indeterminate
+  boundaries remain regression-covered;
+- ADR-076 and D82 architecture documentation.
+
+Repository acceptance:
+
+- Batch 01: PASS
+- Batch 02: PASS
+- Batch 03: PASS
+- Batch 04: PASS
+- Batch 03 full backend regression: 1484 tests PASS, 4 skipped
+- Final Batch 04 regression: required and performed by the finalization helper
+  before commit/push
+
+D82 adds no retry authority, fallback connector, new connector capability,
+OAuth scope, Calendar Write via Chat, Gmail write/send, Automation-to-Connector
+or Automation-to-AI bridge, migration, dependency, Docker change, frontend
+authority, or public/LAN deployment.
+
+D82 completion does not authorize D83 implementation automatically. D83 requires
+its own approved Design/Implementation Spec before implementation.

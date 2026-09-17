@@ -56,6 +56,34 @@ GITHUB_PUBLIC_REPO_CAPABILITY_ID = (
     "exec.plugin.github_public_repo.repository_metadata"
 )
 
+_GITHUB_FAILURE_REPLY = (
+    "ไม่สามารถอ่านข้อมูลสดจาก GitHub "
+    "ได้ในครั้งนี้ครับ"
+)
+_GITHUB_ERROR_REPLIES = {
+    "invalid_repository_reference": (
+        "อ่านข้อมูล GitHub ไม่สำเร็จ: ข้อมูลอ้างอิง repository ไม่ถูกต้องครับ"
+    ),
+    "connector_timeout": (
+        "อ่านข้อมูล GitHub ไม่สำเร็จ: การเชื่อมต่อใช้เวลานานเกินกำหนดครับ"
+    ),
+    "connector_network_error": (
+        "อ่านข้อมูล GitHub ไม่สำเร็จ: การเชื่อมต่อเครือข่ายผิดพลาดครับ"
+    ),
+    "connector_http_error": (
+        "อ่านข้อมูล GitHub ไม่สำเร็จ: บริการ GitHub ตอบกลับผิดพลาดครับ"
+    ),
+    "connector_response_too_large": (
+        "อ่านข้อมูล GitHub ไม่สำเร็จ: ผลลัพธ์เกินขีดจำกัดที่ปลอดภัยครับ"
+    ),
+    "connector_invalid_json": (
+        "อ่านข้อมูล GitHub ไม่สำเร็จ: รูปแบบข้อมูลตอบกลับไม่ถูกต้องครับ"
+    ),
+    "connector_invalid_response": (
+        "อ่านข้อมูล GitHub ไม่สำเร็จ: ข้อมูลตอบกลับไม่ถูกต้องครับ"
+    ),
+}
+
 CHAT_PLUGIN_BINDING_MAX_ITEMS = 256
 
 _REPOSITORY_TOKEN_RE = re.compile(
@@ -477,14 +505,12 @@ class ChatPluginActionCompletionService:
 
         execution = outcome.execution
         result = execution.result
-        if (
-            execution.status != "completed"
-            or result is None
-            or result.status != "succeeded"
-        ):
-            return (
-                "ไม่สามารถอ่านข้อมูลสดจาก GitHub "
-                "ได้ในครั้งนี้ครับ"
+        if execution.status != "completed" or result is None:
+            return _GITHUB_FAILURE_REPLY
+        if result.status != "succeeded":
+            return _GITHUB_ERROR_REPLIES.get(
+                result.error,
+                _GITHUB_FAILURE_REPLY,
             )
 
         payload = self._validated_payload(
@@ -492,10 +518,7 @@ class ChatPluginActionCompletionService:
             binding.repository_reference,
         )
         if payload is None:
-            return (
-                "ไม่สามารถอ่านข้อมูลสดจาก GitHub "
-                "ได้ในครั้งนี้ครับ"
-            )
+            return _GITHUB_FAILURE_REPLY
 
         description = self._display_nullable(payload["description"])
         language = self._display_nullable(payload["language"])

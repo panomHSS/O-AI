@@ -12,6 +12,7 @@ from app.adapters.projected_plugin_module import (
     PLUGIN_MODULE_INVOCATION_ERROR_INACTIVE,
     PluginModuleInvocationError,
     ProjectedPluginModuleAdapter,
+    SafeConnectorModuleInvocationError,
 )
 from app.contracts.gmail import (
     GMAIL_ADAPTER_ID,
@@ -35,6 +36,9 @@ from app.contracts.plugin_projection import PluginCapabilityProjection
 from app.plugins.context import PluginExecutionContext
 from app.plugins.request import PluginRequest
 from app.plugins.response import PluginResult
+from app.services.connector_error_semantics import (
+    project_safe_connector_error,
+)
 from app.services.plugin_candidate_discovery import PluginCandidateDiscovery
 from app.services.plugin_governance import PluginGovernanceService
 from app.services.plugin_loading import LoadedPluginStore, PluginLoadingError, PluginLoadingService
@@ -320,5 +324,20 @@ class PluginModuleExposureService:
             raise PluginModuleInvocationError(PLUGIN_MODULE_INVOCATION_ERROR_INACTIVE) from None
         except PluginLoadingError:
             raise PluginModuleInvocationError(PLUGIN_MODULE_INVOCATION_ERROR_INACTIVE) from None
-        except Exception:
-            raise PluginModuleInvocationError(PLUGIN_MODULE_INVOCATION_ERROR_EXECUTION_FAILED) from None
+        except Exception as error:
+            safe_code = project_safe_connector_error(
+                plugin_id=plugin_id,
+                plugin_version=plugin_version,
+                capability_name=capability_name,
+                error=error,
+            )
+            if safe_code is not None:
+                raise SafeConnectorModuleInvocationError(
+                    plugin_id=plugin_id,
+                    plugin_version=plugin_version,
+                    capability_name=capability_name,
+                    code=safe_code,
+                ) from None
+            raise PluginModuleInvocationError(
+                PLUGIN_MODULE_INVOCATION_ERROR_EXECUTION_FAILED
+            ) from None
