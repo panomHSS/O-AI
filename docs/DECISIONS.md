@@ -2613,12 +2613,19 @@ connector data. Automation status describes the existing D79 local-reminder
 foundation without claiming normal-Chat, connector, or AI automation authority.
 
 Add one narrow deterministic Thai/English status-intent classifier and a
-snapshot-only deterministic response composer. Insert this lane immediately
-before generic AI while preserving the existing higher-priority D78,
-Calendar-clarification, Action/Plugin-Action, and Calendar plaintext-approval
-guard lanes. A matched D81 turn is persisted through
-`ConversationService.begin_turn()` / `complete_turn()` without calling
-`ConversationService.send_message()` or the generic AI orchestrator.
+snapshot-only deterministic response composer. Manual acceptance established
+that exact status phrases containing Gmail or Google Calendar tokens must be
+reserved before the broader Plugin Action signal detector; otherwise the Action
+lane can fail them as invalid connector intents before D81 sees them. The
+reservation is exact, side-effect-free classification only and occurs after D78
+and pending Calendar clarification. Non-status requests then retain the existing
+Action/Plugin-Action and Calendar plaintext-approval lanes. Actual D81 status
+handling remains after the plaintext-approval guard and before generic AI.
+
+A matched D81 turn is persisted through `ConversationService.begin_turn()` /
+`complete_turn()` without calling `ConversationService.send_message()` or the
+generic AI orchestrator. The reservation itself creates no D45 proposal, D36
+authorization, connector request, credential access, or execution state.
 
 **Rationale**
 

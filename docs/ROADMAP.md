@@ -287,7 +287,8 @@ Delivered:
 - metadata-only Gmail/Calendar connection truth with zero provider probe and zero credential resolution;
 - bounded Thai/English runtime-status intent recognition;
 - deterministic snapshot-only status response composition;
-- Chat integration after D78 / Calendar clarification / Action / plaintext-approval guard and before generic AI;
+- exact D81 status reservation after D78 / Calendar clarification and before Action/Plugin Action signal detection, with deterministic status handling after the plaintext-approval guard and before generic AI;
+- manual-acceptance remediation prevents `สถานะ Gmail` and `สถานะ Google Calendar` from being misclassified as connector Actions, without adding execution authority;
 - Calendar Write backend truth kept separate from Calendar Write via Chat, which remains unsupported in D81;
 - Gmail write/send remains unsupported;
 - Automation-to-Connector and Automation-to-AI remain unsupported;

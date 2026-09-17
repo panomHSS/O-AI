@@ -136,9 +136,25 @@ def send_chat_message(
             payload.conversation_id
         )
 
+    # D81 acceptance remediation: reserve exact bounded runtime-status
+    # phrases before broad Plugin signal detection. This classification is
+    # side-effect free and grants no action or execution authority.
+    runtime_status_classifier = getattr(
+        runtime_capability_chat_service,
+        "is_request",
+        None,
+    )
+    runtime_status_requested = (
+        callable(runtime_status_classifier)
+        and runtime_status_classifier(payload.message)
+    )
+
     if (
-        chat_action_bridge.is_action_directive(payload.message)
-        or chat_action_bridge.is_plugin_action_request(payload.message)
+        not runtime_status_requested
+        and (
+            chat_action_bridge.is_action_directive(payload.message)
+            or chat_action_bridge.is_plugin_action_request(payload.message)
+        )
     ):
         if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
             raise HTTPException(
@@ -211,15 +227,7 @@ def send_chat_message(
             )
         )
 
-    runtime_status_classifier = getattr(
-        runtime_capability_chat_service,
-        "is_request",
-        None,
-    )
-    if (
-        callable(runtime_status_classifier)
-        and runtime_status_classifier(payload.message)
-    ):
+    if runtime_status_requested:
         if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN

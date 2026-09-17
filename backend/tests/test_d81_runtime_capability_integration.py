@@ -144,6 +144,20 @@ class FakeActionBridge:
         return False
 
 
+class FailStatusActionBridge(FakeActionBridge):
+    """Prove a matched D81 status request never reaches Action detection."""
+
+    def is_action_directive(self, message: object) -> bool:
+        raise AssertionError(
+            "matched runtime status must not reach action-directive detection"
+        )
+
+    def is_plugin_action_request(self, message: object) -> bool:
+        raise AssertionError(
+            "matched runtime status must not reach Plugin action detection"
+        )
+
+
 class FailCommandInputPipeline:
     def normalize_chat(self, **kwargs: object):
         raise AssertionError("generic command lane must not run")
@@ -238,18 +252,20 @@ class D81RuntimeCapabilityChatRouteTests(unittest.TestCase):
         runtime_service: FakeRuntimeStatusRouteService,
         *,
         local_header: str | None = "1",
+        message: str = "/status",
+        action_bridge: object | None = None,
     ):
         conversation_id = uuid4()
         result = send_chat_message(
             request=request_for_test(),
             payload=ChatRequest(
-                message="/status",
+                message=message,
                 conversation_id=conversation_id,
             ),
             command_input_pipeline=FailCommandInputPipeline(),  # type: ignore[arg-type]
             command_orchestrator=FailCommandOrchestrator(),  # type: ignore[arg-type]
             project_update_orchestrator=FailProjectUpdateOrchestrator(),  # type: ignore[arg-type]
-            chat_action_bridge=FakeActionBridge(),  # type: ignore[arg-type]
+            chat_action_bridge=(action_bridge or FakeActionBridge()),  # type: ignore[arg-type]
             cross_connector_chat_service=FakeCrossConnector(),  # type: ignore[arg-type]
             runtime_capability_chat_service=runtime_service,  # type: ignore[arg-type]
             x_oai_local_request=local_header,
@@ -272,6 +288,26 @@ class D81RuntimeCapabilityChatRouteTests(unittest.TestCase):
             "0011_live",
         )
 
+    def test_status_reservation_prevents_plugin_action_hijack(self) -> None:
+        for message in ("สถานะ Gmail", "สถานะ Google Calendar"):
+            with self.subTest(message=message):
+                runtime = FakeRuntimeStatusRouteService()
+                conversation_id, result = self.call_route(
+                    runtime,
+                    message=message,
+                    action_bridge=FailStatusActionBridge(),
+                )
+                self.assertEqual(
+                    result.data.reply,
+                    "deterministic runtime truth",
+                )
+                self.assertEqual(
+                    result.data.conversation_id,
+                    conversation_id,
+                )
+                self.assertIsNone(result.data.action)
+                self.assertEqual(len(runtime.process_calls), 1)
+
     def test_status_route_requires_local_owner_header(self) -> None:
         runtime = FakeRuntimeStatusRouteService()
 
@@ -290,6 +326,9 @@ class D81RuntimeCapabilityChatRouteTests(unittest.TestCase):
         clarification = source.index(
             'if clarification_disposition == "handle":'
         )
+        reservation = source.index(
+            "runtime_status_requested = ("
+        )
         action = source.index(
             "chat_action_bridge.is_action_directive(payload.message)"
         )
@@ -297,14 +336,15 @@ class D81RuntimeCapabilityChatRouteTests(unittest.TestCase):
             "plaintext_calendar_approval_guard = getattr"
         )
         runtime = source.index(
-            "runtime_status_classifier = getattr"
+            "if runtime_status_requested:"
         )
         generic = source.index(
             "command = command_input_pipeline.normalize_chat"
         )
 
         self.assertLess(cross, clarification)
-        self.assertLess(clarification, action)
+        self.assertLess(clarification, reservation)
+        self.assertLess(reservation, action)
         self.assertLess(action, plaintext)
         self.assertLess(plaintext, runtime)
         self.assertLess(runtime, generic)

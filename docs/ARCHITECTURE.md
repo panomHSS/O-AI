@@ -2600,17 +2600,28 @@ bounded status phrase
 -> response
 ```
 
-The lane is placed after all higher-priority existing integration/authority
-lanes and immediately before generic AI:
+Manual acceptance exposed one routing collision: exact status phrases such as
+`สถานะ Gmail` and `สถานะ Google Calendar` contain tokens also used by the
+broader Plugin Action signal detector. D81 therefore reserves only an exact
+bounded status match after D78 / Calendar clarification and before Action
+detection. This reservation performs classification only; it creates no
+proposal, approval, authorization, credential access, connector request, or
+execution. The actual deterministic status handler remains after the Calendar
+plaintext-approval guard and before generic AI.
 
 ```text
 D78 explicit cross-connector request
 -> pending Calendar clarification
--> deterministic Action / Plugin Action
+-> D81 exact status reservation (classification only)
+-> deterministic Action / Plugin Action for non-status requests
 -> pending Calendar plaintext-approval guard
--> D81 runtime status
+-> D81 deterministic status handling
 -> generic AI
 ```
+
+Because the D81 classifier is an exact allowlist and rejects ordinary
+Calendar/Gmail content requests and `/action` requests, the reservation prevents
+status/action ambiguity without stealing execution-capable intents.
 
 Supported v1 status phrases are a fixed Thai/English allowlist such as
 `/status`, `สถานะระบบ`, `สถานะ Calendar`, `สถานะ Gmail`,
