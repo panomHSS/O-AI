@@ -15,6 +15,7 @@ from app.schemas.project_action_execution import (
 from app.schemas.execution_approvals import (
     ExecutionApprovalProposalResponse,
 )
+from app.schemas.calendar_write_chat import CalendarWriteChatProposalResponse
 
 
 class ChatRequest(BaseModel):
@@ -43,6 +44,7 @@ class ChatResponse(BaseModel):
     reply: str
     conversation_id: UUID
     action: ChatActionResponse | None = None
+    calendar_write: CalendarWriteChatProposalResponse | None = None
     project_update_proposal: ProjectUpdateProposalResponse | None = None
     project_action_analysis: ProjectActionAnalysis | None = None
     memories_used: list["MemoryUsageResponse"] = Field(default_factory=list)

@@ -41,7 +41,7 @@ def capability_snapshot() -> RuntimeDiagnosticsResponse:
             read_implemented=True,
             read_chat_routable=True,
             write_backend_implemented=True,
-            write_chat_routable=False,
+            write_chat_routable=True,
             execution_authority=False,
         ),
         gmail=GmailDiagnostics(
@@ -211,7 +211,8 @@ class D81RuntimeCapabilityChatServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(outcome.conversation_id, conversation_id)
-        self.assertIn("Write via Chat: ยังไม่รองรับ", outcome.reply)
+        self.assertIn("Write via Chat: รองรับการสร้างนัด", outcome.reply)
+        self.assertIn("Update/Delete via Chat: ยังไม่รองรับ", outcome.reply)
         self.assertEqual(diagnostics.calls, ["0011_live"])
         self.assertEqual(
             conversations.begun,

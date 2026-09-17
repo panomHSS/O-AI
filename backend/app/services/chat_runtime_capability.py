@@ -207,11 +207,12 @@ class RuntimeCapabilityResponseComposer:
                     (
                         "- Write via Chat: "
                         + (
-                            "รองรับ"
+                            "รองรับการสร้างนัด"
                             if c.write_chat_routable
                             else "ยังไม่รองรับ"
                         )
                     ),
+                    "- Update/Delete via Chat: ยังไม่รองรับ",
                 )
             )
 
@@ -292,11 +293,12 @@ class RuntimeCapabilityResponseComposer:
                 (
                     "- Write via Chat: "
                     + (
-                        "รองรับ"
+                        "รองรับการสร้างนัด"
                         if c.write_chat_routable
                         else "ยังไม่รองรับ"
                     )
                 ),
+                "- Update/Delete via Chat: ยังไม่รองรับ",
                 "",
                 "Gmail",
                 f"- Connection: {self._th_connection(g.status)}",
@@ -349,11 +351,12 @@ class RuntimeCapabilityResponseComposer:
                     (
                         "- Write via Chat: "
                         + (
-                            "supported"
+                            "create event supported"
                             if c.write_chat_routable
                             else "not supported"
                         )
                     ),
+                    "- Update/Delete via Chat: not supported",
                 )
             )
 
@@ -434,11 +437,12 @@ class RuntimeCapabilityResponseComposer:
                 (
                     "- Write via Chat: "
                     + (
-                        "supported"
+                        "create event supported"
                         if c.write_chat_routable
                         else "not supported"
                     )
                 ),
+                "- Update/Delete via Chat: not supported",
                 "",
                 "Gmail",
                 f"- Connection: {self._en_connection(g.status)}",

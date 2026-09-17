@@ -134,7 +134,7 @@ class D81RuntimeCapabilityTruthTests(unittest.TestCase):
         self.assertTrue(calendar.read_implemented)
         self.assertTrue(calendar.read_chat_routable)
         self.assertTrue(calendar.write_backend_implemented)
-        self.assertFalse(calendar.write_chat_routable)
+        self.assertTrue(calendar.write_chat_routable)
         self.assertFalse(calendar.execution_authority)
 
     def test_gmail_truth_is_read_only_and_connection_bound(self) -> None:

@@ -125,6 +125,7 @@ class ApiStandardizationTests(unittest.TestCase):
             "reply": "Test reply: Hello",
             "conversation_id": "11111111-1111-1111-1111-111111111111",
             "action": None,
+            "calendar_write": None,
             "project_update_proposal": None,
             "project_action_analysis": None,
             "project_action_plan": None,

@@ -220,9 +220,10 @@ class RuntimeDiagnosticsService:
             configuration_present=truth.configured,
             read_implemented=truth.implemented,
             read_chat_routable=truth.chat_routable,
-            # D72-D75 exist, but D81 must not create normal-Chat write routing.
+            # D84 exposes only bounded CREATE-via-Chat. D75
+            # update/delete authority remains outside normal Chat.
             write_backend_implemented=True,
-            write_chat_routable=False,
+            write_chat_routable=True,
             execution_authority=False,
         )
 

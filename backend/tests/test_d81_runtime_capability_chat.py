@@ -35,7 +35,7 @@ def snapshot() -> RuntimeDiagnosticsResponse:
             read_implemented=True,
             read_chat_routable=True,
             write_backend_implemented=True,
-            write_chat_routable=False,
+            write_chat_routable=True,
             execution_authority=False,
         ),
         gmail=GmailDiagnostics(
@@ -166,7 +166,8 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
         )
         self.assertIn("Read via Chat: พร้อม", response)
         self.assertIn("Write backend: มี", response)
-        self.assertIn("Write via Chat: ยังไม่รองรับ", response)
+        self.assertIn("Write via Chat: รองรับการสร้างนัด", response)
+        self.assertIn("Update/Delete via Chat: ยังไม่รองรับ", response)
         self.assertNotIn("execution_authority", response)
 
     def test_gmail_response_never_claims_write_or_send(self) -> None:
@@ -198,7 +199,8 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
             "Environment: test",
             "Database revision: 0011_test",
             "Execution audit: ok",
-            "Write via Chat: ยังไม่รองรับ",
+            "Write via Chat: รองรับการสร้างนัด",
+            "Update/Delete via Chat: ยังไม่รองรับ",
             "Write/Send: ยังไม่รองรับ",
             "Gmail + Calendar context: เปิดใช้งาน",
             "Connector execution: ยังไม่รองรับ",
@@ -244,7 +246,8 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
                     "- Connection: connected",
                     "- Read via Chat: ready",
                     "- Write backend: implemented",
-                    "- Write via Chat: not supported",
+                    "- Write via Chat: create event supported",
+                    "- Update/Delete via Chat: not supported",
                 )
             ),
         )

@@ -1,10 +1,14 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.params import Depends as DependsParam
 
 from app.api.dependencies import (
     get_chat_action_bridge,
     get_calendar_write_chat_service,
+    get_calendar_write_chat_ux_service,
+    get_conversation_service,
     get_cross_connector_chat_service,
     get_runtime_capability_chat_service,
     get_command_input_pipeline,
@@ -22,8 +26,11 @@ from app.schemas.chat import (
 from app.schemas.execution_approvals import (
     ExecutionApprovalProposalResponse,
 )
+from app.schemas.calendar_write_chat import CalendarWriteChatProposalResponse
 from app.services.chat_action_bridge import ChatActionBridge
 from app.services.chat_calendar_write import CalendarWriteChatService
+from app.services.calendar_write_chat_ux import CalendarWriteChatUXService
+from app.services.conversations import ConversationService
 from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.command_input_pipeline import CommandInputPipeline
@@ -71,6 +78,12 @@ def send_chat_message(
     ],
     calendar_write_chat_service: CalendarWriteChatService = Depends(
         get_calendar_write_chat_service
+    ),
+    calendar_write_chat_ux_service: CalendarWriteChatUXService = Depends(
+        get_calendar_write_chat_ux_service
+    ),
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
     ),
     runtime_capability_chat_service: RuntimeCapabilityChatService = Depends(
         get_runtime_capability_chat_service
@@ -247,6 +260,54 @@ def send_chat_message(
             )
         )
 
+    # D84 decisions are structured only. Plaintext is persisted as a
+    # deterministic non-authoritative reply and never reaches D73/D74.
+    # Direct unit calls leave new FastAPI dependencies as Depends objects;
+    # real HTTP requests always receive the resolved D84 service.
+    d84_service_injected = not isinstance(
+        calendar_write_chat_ux_service,
+        DependsParam,
+    )
+    d84_plaintext_kind = "none"
+    if not runtime_status_requested and d84_service_injected:
+        d84_plaintext_kind = (
+            calendar_write_chat_ux_service.plaintext_decision_kind(
+                conversation_id=payload.conversation_id,
+                message=payload.message,
+            )
+        )
+    if d84_plaintext_kind != "none":
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        if payload.conversation_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        if isinstance(conversation_service, DependsParam):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        reply = calendar_write_chat_ux_service.plaintext_decision_reply(
+            conversation_id=payload.conversation_id,
+            message=payload.message,
+        )
+        conversation, _ = conversation_service.begin_turn(
+            payload.message,
+            payload.conversation_id,
+            payload.project_id,
+        )
+        resolved_conversation_id = UUID(str(conversation.id))
+        if resolved_conversation_id != payload.conversation_id:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT)
+        conversation_service.complete_turn(
+            str(resolved_conversation_id),
+            reply,
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=reply,
+                conversation_id=resolved_conversation_id,
+            )
+        )
+
     calendar_write_guard_classifier = getattr(
         calendar_write_chat_service,
         "pending_plaintext_approval_disposition",
@@ -297,6 +358,77 @@ def send_chat_message(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN
             )
+
+        # D83 remains the frozen natural-language mutation parser.
+        candidate = calendar_write_chat_service.classify(payload.message)
+        if (
+            candidate.disposition == "supported_create"
+            and d84_service_injected
+        ):
+            if isinstance(conversation_service, DependsParam):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            existing_binding = calendar_write_chat_ux_service.pending_binding(
+                payload.conversation_id
+            )
+            if existing_binding is not None:
+                conversation, _ = conversation_service.begin_turn(
+                    payload.message,
+                    payload.conversation_id,
+                    payload.project_id,
+                )
+                resolved_conversation_id = UUID(str(conversation.id))
+                if resolved_conversation_id != existing_binding.conversation_id:
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT)
+                reply = (
+                    "Please decide the existing Calendar write with the "
+                    "structured Approve/Deny controls before creating another one."
+                    if candidate.language == "en"
+                    else (
+                        "กรุณาตัดสิน Calendar write ที่ค้างอยู่ผ่านปุ่ม "
+                        "Approve/Deny ก่อนสร้างคำขอใหม่ครับ"
+                    )
+                )
+                conversation_service.complete_turn(
+                    str(resolved_conversation_id),
+                    reply,
+                )
+                return ApiSuccess(
+                    data=ChatResponse(
+                        reply=reply,
+                        conversation_id=resolved_conversation_id,
+                    )
+                )
+
+            conversation, _ = conversation_service.begin_turn(
+                payload.message,
+                payload.conversation_id,
+                payload.project_id,
+            )
+            resolved_conversation_id = UUID(str(conversation.id))
+            proposal_outcome = calendar_write_chat_ux_service.propose_candidate(
+                candidate=candidate,
+                conversation_id=resolved_conversation_id,
+            )
+            conversation_service.complete_turn(
+                str(resolved_conversation_id),
+                proposal_outcome.reply,
+            )
+            return ApiSuccess(
+                data=ChatResponse(
+                    reply=proposal_outcome.reply,
+                    conversation_id=resolved_conversation_id,
+                    action=None,
+                    calendar_write=(
+                        CalendarWriteChatProposalResponse.from_outcome(
+                            proposal_outcome
+                        )
+                    ),
+                )
+            )
+
+        # invalid_create/update/delete preserve the frozen D83 path.
         calendar_write_processor = getattr(
             calendar_write_chat_service,
             "process_chat_turn",

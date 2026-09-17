@@ -125,7 +125,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         self.assertTrue(
             rendered["google_calendar"]["write_backend_implemented"]
         )
-        self.assertFalse(rendered["google_calendar"]["write_chat_routable"])
+        self.assertTrue(rendered["google_calendar"]["write_chat_routable"])
         self.assertFalse(rendered["google_calendar"]["execution_authority"])
 
     def test_disabled_connector_is_status_only_and_does_not_read_metadata(self) -> None:

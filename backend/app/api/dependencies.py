@@ -140,6 +140,10 @@ from app.services.chat_calendar_write import (
     CalendarWriteChatParser,
     CalendarWriteChatService,
 )
+from app.services.calendar_write_chat_ux import (
+    CalendarWriteChatBindingStore,
+    CalendarWriteChatUXService,
+)
 from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.cross_connector_context import (
@@ -1173,6 +1177,27 @@ def get_calendar_create_execution_service(
         runtime=runtime,
     )
 
+
+@lru_cache
+def get_calendar_write_chat_binding_store() -> CalendarWriteChatBindingStore:
+    'Keep bounded, process-local, non-authoritative D84 correlation only.'
+    return CalendarWriteChatBindingStore()
+
+
+def get_calendar_write_chat_ux_service(
+    approval_service: CalendarWriteApprovalService = Depends(
+        get_calendar_write_approval_service
+    ),
+    create_executor: CalendarCreateExecutionService = Depends(
+        get_calendar_create_execution_service
+    ),
+) -> CalendarWriteChatUXService:
+    'Compose D84 over existing D73 approval and D74 create execution.'
+    return CalendarWriteChatUXService(
+        approval_service=approval_service,
+        binding_store=get_calendar_write_chat_binding_store(),
+        create_executor=create_executor,
+    )
 
 
 @lru_cache

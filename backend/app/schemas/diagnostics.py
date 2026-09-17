@@ -38,7 +38,7 @@ class GoogleCalendarDiagnostics(BaseModel):
     read_implemented: Literal[True] = True
     read_chat_routable: StrictBool = False
     write_backend_implemented: Literal[True] = True
-    write_chat_routable: Literal[False] = False
+    write_chat_routable: StrictBool = False
     execution_authority: Literal[False] = False
 
 
