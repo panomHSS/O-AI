@@ -134,6 +134,7 @@ from app.telemetry.system_metrics import SystemMetricsProvider
 from app.services.command_decision_engine import CommandDecisionEngine
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.chat_action_bridge import ChatActionBridge
+from app.services.chat_calendar_clarification import CalendarClarificationStore
 from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.cross_connector_context import (
     CrossConnectorContextStore,
@@ -1236,6 +1237,11 @@ def get_chat_plugin_action_binding_store() -> ChatPluginActionBindingStore:
 
 
 @lru_cache
+def get_calendar_clarification_store() -> CalendarClarificationStore:
+    return CalendarClarificationStore()
+
+
+@lru_cache
 def get_cross_connector_context_store() -> CrossConnectorContextStore:
     """Compose D78 process-local approved connector context only."""
     return CrossConnectorContextStore()
@@ -1250,6 +1256,9 @@ def get_chat_action_bridge(
     ),
     plugin_binding_store: ChatPluginActionBindingStore = Depends(
         get_chat_plugin_action_binding_store
+    ),
+    calendar_clarification_store: CalendarClarificationStore = Depends(
+        get_calendar_clarification_store
     ),
     google_calendar_connection_status_reader: (
         GoogleOAuthConnectionStatusReader
@@ -1268,6 +1277,7 @@ def get_chat_action_bridge(
             settings.oai_google_calendar_connector_enabled
         ),
         gmail_connector_enabled=settings.oai_gmail_connector_enabled,
+        calendar_clarification_store=calendar_clarification_store,
         google_calendar_connection_status_reader=(
             google_calendar_connection_status_reader
         ),

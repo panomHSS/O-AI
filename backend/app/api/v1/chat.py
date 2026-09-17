@@ -84,6 +84,52 @@ def send_chat_message(
             reply=cross_outcome.reply, conversation_id=cross_outcome.conversation_id,
         ))
 
+    clarification_classifier = getattr(
+        chat_action_bridge,
+        "calendar_clarification_disposition",
+        None,
+    )
+    clarification_disposition = (
+        clarification_classifier(
+            payload.conversation_id,
+            payload.message,
+        )
+        if callable(clarification_classifier)
+        else "none"
+    )
+    if clarification_disposition == "handle":
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        if payload.conversation_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        action_outcome = chat_action_bridge.process_calendar_clarification(
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+        )
+        approval = (
+            ExecutionApprovalProposalResponse.from_outcome(
+                action_outcome.approval
+            )
+            if action_outcome.approval is not None
+            else None
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=action_outcome.reply,
+                conversation_id=action_outcome.conversation_id,
+                action=ChatActionResponse(
+                    status=action_outcome.status,
+                    reason_code=action_outcome.reason_code,
+                    approval=approval,
+                ),
+            )
+        )
+    if clarification_disposition == "clear":
+        chat_action_bridge.clear_calendar_clarification(
+            payload.conversation_id
+        )
+
     if (
         chat_action_bridge.is_action_directive(payload.message)
         or chat_action_bridge.is_plugin_action_request(payload.message)
@@ -113,6 +159,48 @@ def send_chat_message(
                     status=action_outcome.status,
                     reason_code=action_outcome.reason_code,
                     approval=approval,
+                ),
+            )
+        )
+
+    plaintext_calendar_approval_guard = getattr(
+        chat_action_bridge,
+        "is_pending_calendar_plaintext_approval",
+        None,
+    )
+    if (
+        callable(plaintext_calendar_approval_guard)
+        and plaintext_calendar_approval_guard(
+            payload.conversation_id,
+            payload.message,
+        )
+    ):
+        if payload.conversation_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        guard_processor = getattr(
+            chat_action_bridge,
+            "process_pending_calendar_plaintext_approval",
+            None,
+        )
+        if not callable(guard_processor):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        action_outcome = guard_processor(
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=action_outcome.reply,
+                conversation_id=action_outcome.conversation_id,
+                action=ChatActionResponse(
+                    status=action_outcome.status,
+                    reason_code=action_outcome.reason_code,
+                    approval=None,
                 ),
             )
         )

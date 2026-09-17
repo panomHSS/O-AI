@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from app.contracts.chat_action import (
     ChatActionBridgeOutcome,
     ChatActionDirective,
 )
-from app.contracts.chat_plugin_action import ChatPluginActionBinding
+from app.contracts.chat_plugin_action import (
+    CalendarChatWindow,
+    ChatPluginActionBinding,
+)
 from app.contracts.gmail import (
     GMAIL_ADAPTER_ID,
     GMAIL_OPERATION,
@@ -20,6 +24,10 @@ from app.services.chat_calendar import (
     GOOGLE_CALENDAR_CHAT_TIME_MAX_PARAMETER,
     GOOGLE_CALENDAR_CHAT_TIME_MIN_PARAMETER,
     CalendarChatWindowResolver,
+    CalendarSpecificDateParser,
+)
+from app.services.chat_calendar_clarification import (
+    CalendarClarificationStore,
 )
 from app.services.chat_plugin_action import (
     GITHUB_PUBLIC_REPO_ADAPTER_ID,
@@ -38,6 +46,15 @@ from app.services.execution_approval_service import (
 
 
 ACTION_PREFIX = "/action"
+_PLAINTEXT_APPROVAL_PHRASES = frozenset(
+    {
+        "อนุมัติ",
+        "อนุมัติครับ",
+        "อนุมัติค่ะ",
+        "approve",
+        "approved",
+    }
+)
 PENDING_REPLY = "Action prepared for owner approval."
 PLUGIN_PENDING_REPLY = (
     "พบคำขอข้อมูลสดจาก GitHub และเตรียม Action "
@@ -80,6 +97,18 @@ GMAIL_INVALID_REPLY = (
 )
 CALENDAR_TIMEZONE_UNAVAILABLE_REPLY = (
     "ไม่สามารถตีความช่วงเวลา Calendar ตาม timezone ของเจ้าของได้ครับ"
+)
+CALENDAR_DATE_CONFIRMATION_REPLY = "หมายถึงวันที่ {date_value} ใช่ไหมครับ"
+CALENDAR_DATE_INVALID_REPLY = "วันที่ในคำขอ Google Calendar ไม่ถูกต้องหรือไม่รองรับครับ"
+CALENDAR_DATE_CANCELLED_REPLY = "ยกเลิกการยืนยันวันที่สำหรับคำขออ่าน Google Calendar แล้วครับ"
+CALENDAR_DATE_EXPIRED_REPLY = (
+    "การยืนยันวันที่ Google Calendar หมดเวลาแล้ว "
+    "กรุณาส่งคำขอวันที่อีกครั้งครับ"
+)
+CALENDAR_CLARIFICATION_UNAVAILABLE_REPLY = "ไม่สามารถเก็บสถานะยืนยันวันที่ Calendar ได้ในครั้งนี้ครับ"
+CALENDAR_STRUCTURED_APPROVAL_REQUIRED_REPLY = (
+    "คำว่าอนุมัติในข้อความแชตยังไม่ใช่การอนุมัติ Action ครับ "
+    "กรุณาใช้การอนุมัติแบบ structured ของ Action ที่รออยู่"
 )
 INVALID_REPLY = "The action directive could not be recognized."
 UNAVAILABLE_REPLY = "The requested action is not currently available."
@@ -145,6 +174,8 @@ class ChatActionBridge:
         ) = None,
         owner_timezone: str = "Asia/Bangkok",
         calendar_window_resolver: CalendarChatWindowResolver | None = None,
+        calendar_specific_date_parser: CalendarSpecificDateParser | None = None,
+        calendar_clarification_store: CalendarClarificationStore | None = None,
     ) -> None:
         if type(github_public_repo_connector_enabled) is not bool:
             raise TypeError(
@@ -178,6 +209,13 @@ class ChatActionBridge:
             calendar_window_resolver
             or CalendarChatWindowResolver(owner_timezone)
         )
+        self._calendar_specific_date_parser = (
+            calendar_specific_date_parser
+            or CalendarSpecificDateParser(owner_timezone)
+        )
+        self._calendar_clarification_store = (
+            calendar_clarification_store or CalendarClarificationStore()
+        )
 
     @staticmethod
     def is_action_directive(message: str) -> bool:
@@ -193,7 +231,118 @@ class ChatActionBridge:
         return normalized[len(ACTION_PREFIX)].isspace()
 
     def is_plugin_action_request(self, message: str) -> bool:
+        if self._calendar_specific_date_parser.parse(message).status != "none":
+            return True
         return self._plugin_intent_router.classify(message).status != "none"
+
+    def calendar_clarification_disposition(
+        self,
+        conversation_id: UUID | None,
+        message: object,
+    ) -> str:
+        status = self._calendar_clarification_store.classify(
+            conversation_id, message
+        )
+        if status in {"positive", "negative", "expired"}:
+            return "handle"
+        if status == "unrelated":
+            return "clear"
+        return "none"
+
+    def clear_calendar_clarification(
+        self, conversation_id: UUID | None
+    ) -> bool:
+        return self._calendar_clarification_store.clear(conversation_id)
+
+    def process_calendar_clarification(
+        self,
+        *,
+        message: str,
+        conversation_id: UUID,
+        project_id: UUID | None = None,
+    ) -> ChatActionBridgeOutcome:
+        resolution = self._calendar_clarification_store.consume_response(
+            conversation_id, message
+        )
+        if resolution.status not in {"positive", "negative", "expired"}:
+            raise ValueError(
+                "No matching Calendar clarification response is pending."
+            )
+        conversation, _ = self._conversation_service.begin_turn(
+            message, conversation_id, project_id
+        )
+        conversation_uuid = UUID(str(conversation.id))
+        if resolution.status == "negative":
+            return self._complete(
+                conversation_id=str(conversation.id),
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_DATE_CANCELLED_REPLY,
+                status="rejected",
+                reason_code="calendar_specific_date_cancelled",
+            )
+        if resolution.status == "expired":
+            return self._complete(
+                conversation_id=str(conversation.id),
+                conversation_uuid=conversation_uuid,
+                reply=CALENDAR_DATE_EXPIRED_REPLY,
+                status="rejected",
+                reason_code="calendar_specific_date_confirmation_expired",
+            )
+        assert resolution.candidate_date is not None
+        return self._process_google_calendar_plugin(
+            conversation_id=str(conversation.id),
+            conversation_uuid=conversation_uuid,
+            calendar_window="exact_date",
+            calendar_date=resolution.candidate_date,
+        )
+
+    @staticmethod
+    def _normalized_plaintext_approval(message: object) -> str:
+        if not isinstance(message, str):
+            return ""
+        return " ".join(message.strip().casefold().split())
+
+    def is_pending_calendar_plaintext_approval(
+        self,
+        conversation_id: UUID | None,
+        message: object,
+    ) -> bool:
+        if not isinstance(conversation_id, UUID):
+            return False
+        normalized = self._normalized_plaintext_approval(message)
+        if normalized not in _PLAINTEXT_APPROVAL_PHRASES:
+            return False
+        return self._plugin_binding_store.has_pending_calendar_binding(
+            conversation_id
+        )
+
+    def process_pending_calendar_plaintext_approval(
+        self,
+        *,
+        message: str,
+        conversation_id: UUID,
+        project_id: UUID | None = None,
+    ) -> ChatActionBridgeOutcome:
+        if not self.is_pending_calendar_plaintext_approval(
+            conversation_id,
+            message,
+        ):
+            raise ValueError(
+                "No pending Calendar structured approval guard matched."
+            )
+        conversation, _ = self._conversation_service.begin_turn(
+            message,
+            conversation_id,
+            project_id,
+        )
+        conversation_uuid = UUID(str(conversation.id))
+        return self._complete(
+            conversation_id=str(conversation.id),
+            conversation_uuid=conversation_uuid,
+            reply=CALENDAR_STRUCTURED_APPROVAL_REQUIRED_REPLY,
+            status="rejected",
+            reason_code="calendar_approval_requires_structured_action",
+        )
 
     def process(
         self,
@@ -208,9 +357,18 @@ class ChatActionBridge:
             if explicit
             else self._plugin_intent_router.classify(message)
         )
+        specific_date = (
+            None
+            if explicit
+            else self._calendar_specific_date_parser.parse(message)
+        )
         if not explicit and (
             plugin_intent is None
-            or plugin_intent.status == "none"
+            or specific_date is None
+            or (
+                plugin_intent.status == "none"
+                and specific_date.status == "none"
+            )
         ):
             raise ValueError(
                 "ChatActionBridge accepts only deterministic action requests."
@@ -250,6 +408,47 @@ class ChatActionBridge:
                     reason_code="invalid_github_repository_intent",
                 )
 
+            assert specific_date is not None
+            if specific_date.status == "invalid":
+                return self._complete(
+                    conversation_id=str(conversation.id),
+                    conversation_uuid=conversation_uuid,
+                    reply=CALENDAR_DATE_INVALID_REPLY,
+                    status="rejected",
+                    reason_code=(specific_date.reason_code or "calendar_specific_date_invalid"),
+                )
+            if specific_date.status == "needs_confirmation":
+                assert specific_date.date is not None
+                try:
+                    self._calendar_clarification_store.add(
+                        conversation_uuid, specific_date.date
+                    )
+                except RuntimeError:
+                    return self._complete(
+                        conversation_id=str(conversation.id),
+                        conversation_uuid=conversation_uuid,
+                        reply=CALENDAR_CLARIFICATION_UNAVAILABLE_REPLY,
+                        status="unavailable",
+                        reason_code="calendar_clarification_store_full",
+                    )
+                return self._complete(
+                    conversation_id=str(conversation.id),
+                    conversation_uuid=conversation_uuid,
+                    reply=CALENDAR_DATE_CONFIRMATION_REPLY.format(
+                        date_value=specific_date.date.strftime("%d/%m/%Y")
+                    ),
+                    status="rejected",
+                    reason_code="calendar_specific_date_confirmation_required",
+                )
+            if specific_date.status == "exact":
+                assert specific_date.date is not None
+                return self._process_google_calendar_plugin(
+                    conversation_id=str(conversation.id),
+                    conversation_uuid=conversation_uuid,
+                    calendar_window="exact_date",
+                    calendar_date=specific_date.date,
+                )
+
             if plugin_intent.gmail_query is not None:
                 if not self._gmail_connector_enabled:
                     return self._complete(
@@ -271,6 +470,7 @@ class ChatActionBridge:
                     conversation_id=str(conversation.id),
                     conversation_uuid=conversation_uuid,
                     calendar_window=plugin_intent.calendar_window,
+                    calendar_date=plugin_intent.calendar_date,
                 )
 
             if not self._github_public_repo_connector_enabled:
@@ -411,7 +611,8 @@ class ChatActionBridge:
         *,
         conversation_id: str,
         conversation_uuid: UUID,
-        calendar_window: str,
+        calendar_window: CalendarChatWindow,
+        calendar_date: date | None = None,
     ) -> ChatActionBridgeOutcome:
         if not self._google_calendar_connector_enabled:
             return self._complete(
@@ -460,9 +661,20 @@ class ChatActionBridge:
             )
 
         try:
-            snapshot = self._calendar_window_resolver.snapshot(
-                calendar_window  # type: ignore[arg-type]
-            )
+            if calendar_window == "exact_date":
+                if type(calendar_date) is not date:
+                    raise ValueError("exact_date requires one Gregorian date.")
+                snapshot = self._calendar_window_resolver.snapshot_exact_date(
+                    calendar_date
+                )
+            else:
+                if calendar_date is not None:
+                    raise ValueError(
+                        "relative Calendar window cannot carry calendar_date."
+                    )
+                snapshot = self._calendar_window_resolver.snapshot(
+                    calendar_window
+                )
         except Exception:
             return self._complete(
                 conversation_id=conversation_id,
@@ -502,6 +714,7 @@ class ChatActionBridge:
                     repository_reference=None,
                     expires_at=proposal.expires_at,
                     calendar_window=snapshot.window,
+                    calendar_date=calendar_date,
                     calendar_window_start=snapshot.start,
                     calendar_window_end=snapshot.end,
                 )

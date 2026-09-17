@@ -52,6 +52,7 @@ _TODAY_PHRASES = frozenset(
 _TOMORROW_PHRASES = frozenset(
     {
         "พรุ่งนี้มีนัดอะไรบ้าง",
+        "พรุ่งนี้ผมมีนัดอะไรบ้าง",
         "พรุ่งนี้มีอะไรในปฏิทิน",
         "ดูนัดพรุ่งนี้",
         "เปิดปฏิทินพรุ่งนี้",
@@ -271,6 +272,109 @@ def _strip_bounded_calendar_suffixes(value: str) -> str:
     return candidate
 
 
+
+CalendarSpecificDateStatus = str
+
+_SPECIFIC_DATE_RE = re.compile(
+    r"(?<!\d)(?:วันที่\s*)?(\d{1,2})/(\d{1,2})(?:/(\d{4}))?(?!\d)"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarSpecificDateParse:
+    status: CalendarSpecificDateStatus
+    date: date | None = None
+    source_year: int | None = None
+    reason_code: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.status not in {"none", "exact", "needs_confirmation", "invalid"}:
+            raise ValueError("Unsupported specific-date parse status.")
+        if self.status in {"exact", "needs_confirmation"}:
+            if type(self.date) is not date:
+                raise ValueError("specific-date parse requires one Gregorian date.")
+            if self.reason_code is not None:
+                raise ValueError("successful specific-date parse cannot carry reason_code.")
+            return
+        if self.date is not None or self.source_year is not None:
+            raise ValueError("non-date parse must not carry date metadata.")
+        if self.status == "none" and self.reason_code is not None:
+            raise ValueError("none parse must not carry reason_code.")
+        if self.status == "invalid" and self.reason_code not in {
+            "calendar_specific_date_invalid",
+            "calendar_specific_date_ambiguous",
+            "calendar_specific_date_multiple",
+        }:
+            raise ValueError("invalid specific-date parse requires bounded reason_code.")
+
+
+class CalendarSpecificDateParser:
+    """Parse one bounded numeric Calendar date without AI or connector access."""
+
+    def __init__(self, owner_timezone: str, *, clock: Callable[[], datetime] | None = None) -> None:
+        if (not isinstance(owner_timezone, str) or not owner_timezone or
+                owner_timezone != owner_timezone.strip() or len(owner_timezone) > 128):
+            raise ValueError("owner_timezone must be a non-empty timezone name.")
+        self._owner_timezone = owner_timezone
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+
+    def parse(self, message: object) -> CalendarSpecificDateParse:
+        if not isinstance(message, str) or not message.strip():
+            return CalendarSpecificDateParse(status="none")
+        raw = message.strip()
+        if any(marker in raw for marker in ('"', "“", "”", "`")):
+            return CalendarSpecificDateParse(status="none")
+        normalized = CalendarChatIntentRouter._normalize(raw)
+        if any(marker in normalized for marker in _NON_ACTION_MARKERS):
+            return CalendarSpecificDateParse(status="none")
+        if not (any(signal in normalized for signal in _CALENDAR_SIGNALS) and
+                any(signal in normalized for signal in _ACTION_SIGNALS)):
+            return CalendarSpecificDateParse(status="none")
+        matches = tuple(_SPECIFIC_DATE_RE.finditer(normalized))
+        if not matches:
+            return CalendarSpecificDateParse(status="none")
+        if len(matches) > 1:
+            return CalendarSpecificDateParse(status="invalid", reason_code="calendar_specific_date_multiple")
+        match = matches[0]
+        day = int(match.group(1))
+        month = int(match.group(2))
+        year_text = match.group(3)
+        if year_text is None:
+            candidate = self._validated_date(self._owner_now().year, month, day)
+            if candidate is None:
+                return CalendarSpecificDateParse(status="invalid", reason_code="calendar_specific_date_invalid")
+            return CalendarSpecificDateParse(status="needs_confirmation", date=candidate)
+        source_year = int(year_text)
+        year = source_year - 543 if source_year >= 2400 else source_year
+        candidate = self._validated_date(year, month, day)
+        if candidate is None:
+            return CalendarSpecificDateParse(status="invalid", reason_code="calendar_specific_date_invalid")
+        return CalendarSpecificDateParse(status="exact", date=candidate, source_year=source_year)
+
+    @staticmethod
+    def _validated_date(year: int, month: int, day: int) -> date | None:
+        try:
+            return date(year, month, day)
+        except ValueError:
+            return None
+
+    def _owner_now(self) -> datetime:
+        try:
+            value = self._clock()
+        except Exception:
+            raise ValueError("calendar_owner_clock_invalid") from None
+        if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("calendar_owner_clock_invalid")
+        return value.astimezone(self._zone())
+
+    def _zone(self):
+        try:
+            return ZoneInfo(self._owner_timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            if self._owner_timezone == "Asia/Bangkok":
+                return timezone(timedelta(hours=7), name="Asia/Bangkok")
+            raise ValueError("calendar_owner_timezone_invalid") from None
+
 @dataclass(frozen=True, slots=True)
 class CalendarWindowSnapshot:
     window: CalendarChatWindow
@@ -293,6 +397,7 @@ class CalendarWindowSnapshot:
             "tomorrow_evening",
             "upcoming_weekend",
             "next_weekend",
+            "exact_date",
         }:
             raise ValueError("Unsupported Calendar window.")
         for value in (self.start, self.end):
@@ -404,7 +509,17 @@ class CalendarChatWindowResolver:
         self._owner_timezone = owner_timezone
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
+    def snapshot_exact_date(self, target_date: date) -> CalendarWindowSnapshot:
+        if type(target_date) is not date:
+            raise TypeError("target_date must be an exact date.")
+        zone = self._zone()
+        start = datetime.combine(target_date, time.min, tzinfo=zone)
+        end = datetime.combine(target_date + timedelta(days=1), time.min, tzinfo=zone)
+        return CalendarWindowSnapshot(window="exact_date", start=start, end=end)
+
     def snapshot(self, window: CalendarChatWindow) -> CalendarWindowSnapshot:
+        if window == "exact_date":
+            raise ValueError("exact_date requires snapshot_exact_date().")
         zone = self._zone()
         now = self._now().astimezone(zone).replace(microsecond=0)
 
@@ -743,6 +858,7 @@ class CalendarChatCompletionComposer:
             "tomorrow_evening": "พรุ่งนี้ช่วงเย็น",
             "upcoming_weekend": "สุดสัปดาห์นี้",
             "next_weekend": "สุดสัปดาห์หน้า",
+            "exact_date": "วันที่ที่ระบุ",
         }
         return labels[window]
 

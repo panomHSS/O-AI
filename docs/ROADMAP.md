@@ -233,3 +233,19 @@ Threat model expansion: NONE
 D80 does not add Gmail writes, automated connector actions, automation-to-AI or
 automation-to-connector bridges, retry authority, new OAuth scope, migration,
 dependency, Docker, or frontend changes.
+## Pre-D81 Stabilization
+
+Status: **IMPLEMENTED — manual real-use acceptance A/B/C/D required before final COMPLETE declaration**
+
+The approved Pre-D81 Stabilization closes the Calendar arbitrary-date and conversational-approval gaps found during post-D80 manual acceptance while preserving the frozen D69-D80 authority model.
+
+- Batch 01 — contract + deterministic exact-date parser/resolver: PASS
+- Batch 02 — bounded missing-year clarification + resume into existing D45 proposal path: PASS
+- Batch 03 — plaintext Calendar approval truthfulness guard: PASS
+- Batch 04 — integration/security regression, architecture/ADR/roadmap documentation, exact-path finalization: implemented by the finalization helper
+- Manual A — explicit date -> real Action proposal -> structured approval -> exact-day result: required
+- Manual B — missing year -> confirmation -> `ใช่ครับ` -> real Action proposal: required
+- Manual C — typed `อนุมัติครับ` after proposal -> zero approval/execution -> structured approval still works: required
+- Manual D — both `พรุ่งนี้มีนัดอะไรบ้าง` and `พรุ่งนี้ผมมีนัดอะไรบ้าง` remain deterministic: required
+
+No new Calendar write authority, connector, OAuth scope, dependency, migration, Docker change, frontend authority, or public deployment surface is part of this stabilization.

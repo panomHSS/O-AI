@@ -2517,3 +2517,41 @@ outputs are the approved D80 Spec, integration security regression matrix,
 The supported threat model is unchanged: trusted local single-owner, loopback-only
 deployment. `X-OAI-Local-Request` remains an explicit local-owner intent marker,
 not authentication.
+## Pre-D81 deterministic Calendar date chat stabilization
+
+Pre-D81 Stabilization extends the frozen D69-D80 Calendar read UX without creating new Calendar authority. Exact numeric dates are interpreted deterministically before any connector, credential, or AI boundary. Supported v1 forms include Gregorian `13/09/2026`, Buddhist Era `13/09/2569`, and the same forms prefixed by `วันที่`. A missing year such as `13/09` resolves only to the owner's current local year and requires an explicit bounded confirmation before a D45 proposal can exist.
+
+```text
+explicit exact date
+-> deterministic date parse
+-> exact owner-timezone [00:00, next-day 00:00) window
+-> existing D45 proposal
+-> structured owner approval
+-> existing D36 authorization
+-> existing Calendar read execution
+
+missing year
+-> deterministic candidate date
+-> process-local clarification (max 128, TTL 5 minutes)
+-> positive confirmation
+-> existing D45 proposal
+```
+
+The clarification store is process-local and non-authoritative. It stores only conversation ID, candidate Gregorian date, and expiry. It stores no approval ID, execution plan, credential reference, token, raw prompt, or connector result. Negative, expired, or unrelated clarification paths create no Calendar proposal; unrelated chat clears the pending clarification before normal routing continues.
+
+Plain chat approval language is not approval authority. When an existing Calendar D45 binding is pending, exact bounded phrases such as `อนุมัติครับ`, `approve`, or `approved` are intercepted before generic AI and return `calendar_approval_requires_structured_action`. The D45 binding remains pending and can be decided only through the existing structured approval flow.
+
+The stabilization preserves these authority invariants:
+
+```text
+CALENDAR READ AUTHORITY != CALENDAR WRITE AUTHORITY
+DATA != AUTHORITY
+INTENT != APPROVAL
+CLARIFICATION != APPROVAL
+APPROVAL != AUTHORIZATION
+AUTHORIZATION != EXECUTION SUCCESS
+PLAIN CHAT TEXT != STRUCTURED OWNER APPROVAL
+AI TEXT != EXECUTION STATE
+```
+
+Security properties remain fail-closed: date parsing and clarification perform zero connector network access and zero credential resolution; plaintext approval performs zero approval and zero connector execution; exact-date reads reuse the existing read-only Calendar capability and exact owner-timezone bounds. No new connector, OAuth scope, database migration, dependency, Docker change, frontend authority, Calendar write bridge, or public deployment surface is introduced.

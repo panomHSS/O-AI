@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, TypeAlias
 from uuid import UUID
 
@@ -26,6 +26,7 @@ CalendarChatWindow: TypeAlias = Literal[
     "tomorrow_evening",
     "upcoming_weekend",
     "next_weekend",
+    "exact_date",
 ]
 
 _CALENDAR_WINDOWS = frozenset(
@@ -44,6 +45,7 @@ _CALENDAR_WINDOWS = frozenset(
         "tomorrow_evening",
         "upcoming_weekend",
         "next_weekend",
+        "exact_date",
     }
 )
 
@@ -55,6 +57,7 @@ class ChatPluginIntentOutcome:
     status: ChatPluginIntentStatus
     repository_reference: str | None = None
     calendar_window: CalendarChatWindow | None = None
+    calendar_date: date | None = None
     calendar_intent: bool = False
     gmail_query: GmailReadQuery | None = None
 
@@ -72,6 +75,7 @@ class ChatPluginIntentOutcome:
             if (
                 self.repository_reference is not None
                 or self.calendar_window is not None
+                or self.calendar_date is not None
                 or self.calendar_intent
                 or self.gmail_query is not None
             ):
@@ -82,6 +86,7 @@ class ChatPluginIntentOutcome:
             if (
                 self.repository_reference is not None
                 or self.calendar_window is not None
+                or self.calendar_date is not None
                 or self.gmail_query is not None
             ):
                 raise ValueError("invalid intent must not carry target metadata.")
@@ -103,7 +108,11 @@ class ChatPluginIntentOutcome:
             )
 
         if gmail_query is not None:
-            if calendar_window is not None or self.calendar_intent:
+            if (
+                calendar_window is not None
+                or self.calendar_date is not None
+                or self.calendar_intent
+            ):
                 raise ValueError(
                     "matched Gmail intent must not carry Calendar metadata."
                 )
@@ -114,6 +123,15 @@ class ChatPluginIntentOutcome:
                 raise ValueError(
                     "matched Calendar intent requires one supported calendar_window."
                 )
+            if calendar_window == "exact_date":
+                if type(self.calendar_date) is not date:
+                    raise ValueError(
+                        "exact-date Calendar intent requires one Gregorian date."
+                    )
+            elif self.calendar_date is not None:
+                raise ValueError(
+                    "relative Calendar intent must not carry calendar_date."
+                )
             return
 
         if (
@@ -121,6 +139,7 @@ class ChatPluginIntentOutcome:
             or not repository
             or repository != repository.strip()
             or calendar_window is not None
+            or self.calendar_date is not None
         ):
             raise ValueError(
                 "matched GitHub intent requires one repository_reference."
@@ -136,6 +155,7 @@ class ChatPluginActionBinding:
     repository_reference: str | None
     expires_at: datetime
     calendar_window: CalendarChatWindow | None = None
+    calendar_date: date | None = None
     calendar_window_start: datetime | None = None
     calendar_window_end: datetime | None = None
     gmail_query: GmailReadQuery | None = None
@@ -175,6 +195,7 @@ class ChatPluginActionBinding:
                 )
             if (
                 self.calendar_window is not None
+                or self.calendar_date is not None
                 or self.calendar_window_start is not None
                 or self.calendar_window_end is not None
                 or self.gmail_query is not None
@@ -187,6 +208,7 @@ class ChatPluginActionBinding:
         if gmail:
             if (
                 self.calendar_window is not None
+                or self.calendar_date is not None
                 or self.calendar_window_start is not None
                 or self.calendar_window_end is not None
             ):
@@ -198,6 +220,15 @@ class ChatPluginActionBinding:
         if self.calendar_window not in _CALENDAR_WINDOWS:
             raise ValueError(
                 "Calendar bindings require one supported calendar_window."
+            )
+        if self.calendar_window == "exact_date":
+            if type(self.calendar_date) is not date:
+                raise ValueError(
+                    "exact-date Calendar bindings require one Gregorian date."
+                )
+        elif self.calendar_date is not None:
+            raise ValueError(
+                "relative Calendar bindings must not carry calendar_date."
             )
         if (
             not isinstance(self.calendar_window_start, datetime)

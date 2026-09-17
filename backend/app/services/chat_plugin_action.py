@@ -7,6 +7,7 @@ import re
 import threading
 from collections.abc import Mapping
 from datetime import datetime, timezone
+from uuid import UUID
 
 from app.connectors.github_public_repository import validate_repository_reference
 from app.contracts.gmail import (
@@ -219,6 +220,21 @@ class ChatPluginActionBindingStore:
         with self._lock:
             self._cleanup_expired(now)
             return self._items.get(approval_id)
+
+    def has_pending_calendar_binding(
+        self,
+        conversation_id: UUID,
+    ) -> bool:
+        if not isinstance(conversation_id, UUID):
+            return False
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            self._cleanup_expired(now)
+            return any(
+                binding.conversation_id == conversation_id
+                and binding.calendar_window is not None
+                for binding in self._items.values()
+            )
 
     def clear(self) -> None:
         with self._lock:

@@ -2571,3 +2571,16 @@ third-party Plugin sandboxing still require separate architecture work.
 Any future bridge between automation and AI/connectors, any Gmail write capability,
 new OAuth scope, retry engine, or expansion of deployment trust boundaries requires
 separate owner-approved design and security review.
+## ADR-074: Stabilize deterministic Calendar exact-date chat flow
+
+**Status:** Accepted
+
+**Context:** Manual real-use acceptance after the frozen D69-D80 baseline found that relative Calendar reads worked through the authoritative D45 path, but arbitrary numeric dates could fall through to generic chat. A missing-year request could therefore receive conversational clarification and plain-text "approval" language without producing a real D45 proposal. The security boundary remained default-deny, but the UX could imply operational state that did not exist.
+
+**Decision:** Extend deterministic Calendar chat intent representation with `exact_date` and an optional Gregorian `calendar_date`. Parse only the bounded numeric v1 grammar. Gregorian years are accepted directly; years >= 2400 are interpreted as Buddhist Era and converted by subtracting 543. Missing-year input uses only the owner's current local year and enters a process-local clarification state capped at 128 items with a five-minute TTL. Positive confirmation consumes that state once and resumes into the existing ChatActionBridge/D45 proposal path. Negative, expired, or unrelated responses grant no authority.
+
+Plain chat approval phrases never decide D45. If the same conversation has a pending Calendar action binding, bounded exact approval phrases are intercepted before generic AI and return `calendar_approval_requires_structured_action`; the existing binding remains available for the structured approval endpoint/UI.
+
+**Authority:** No new approval, authorization, credential, connector, or execution authority is introduced. Exact-date Calendar reads reuse the existing read-only Calendar adapter, D45 owner review, D36 authorization, ModuleRuntime, credential broker, and bounded Calendar GET path.
+
+**Consequences:** Calendar date handling is intentionally narrow and deterministic. Textual month names, natural-language relative dates beyond the existing grammar, arbitrary date ranges, multiple dates, and LLM date interpretation remain out of scope. Clarification state is lost on process restart by design. The change adds no migration, dependency, OAuth scope, Calendar write capability, or autonomous execution path.
