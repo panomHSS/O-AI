@@ -3562,3 +3562,73 @@ LOCAL AI FAILURE != CLOUD FALLBACK AUTHORITY
 
 D91 starts at the identity/isolation contract only. Existing unscoped data must
 not be silently classified into Personal or Company by D91.
+
+## D91 Workspace Identity & Isolation Contract v1
+
+D91 introduces the formal workspace identity boundary without adding workspace
+persistence or runtime behavior.
+
+The exact identities are:
+
+```text
+personal
+company
+```
+
+The contract layer is:
+
+```text
+WorkspaceId
+    -> exact identity only
+
+WorkspaceScope
+    -> immutable identity metadata only
+
+WorkspaceScopedRef
+    -> workspace_id + bounded subject_type + bounded subject_id
+    -> reference metadata only
+
+require_same_workspace(...)
+    -> one exact WorkspaceScope when every reference matches
+    -> fail closed on empty, invalid, or mixed workspace input
+```
+
+The isolation boundary is:
+
+```text
+PERSONAL != COMPANY
+LEGACY UNSCOPED != PERSONAL
+LEGACY UNSCOPED != COMPANY
+CROSS-WORKSPACE MISMATCH -> FAIL CLOSED
+
+WORKSPACE IDENTITY != AUTHENTICATION
+WORKSPACE IDENTITY != AUTHORIZATION
+WORKSPACE IDENTITY != OWNER APPROVAL
+WORKSPACE IDENTITY != EXECUTION AUTHORITY
+WORKSPACE IDENTITY != CREDENTIAL AUTHORITY
+```
+
+D91 has no repository/model/API/frontend/runtime wiring. Existing Conversation,
+Project, Memory, Knowledge, citation, Automation, and connector data remain
+unchanged and unassigned by D91.
+
+This preserves the D90 security baseline:
+
+```text
+IDENTITY / CONTEXT / METADATA != EXECUTION AUTHORITY
+```
+
+D92 may later introduce persistence and migration only under a separately
+approved design and must not silently infer workspace ownership for legacy
+records.
+
+Verification:
+
+```text
+Targeted D91 + D90 regression: 50 passed
+Full backend: 1788 passed, 4 skipped, 13 warnings, 920 subtests passed
+Backend compileall: PASS
+git diff --check: PASS
+```
+
+D91 status: **COMPLETE**.

@@ -801,15 +801,34 @@ requires its own approved Design/Implementation Spec before implementation.
 
 ## D91 — Workspace Identity & Isolation Contract v1
 
-Status: **SPEC OPEN — IMPLEMENTATION NOT STARTED**
+Status: **COMPLETE**
 
-D91 begins with
-`docs/specs/D91_WORKSPACE_IDENTITY_ISOLATION_CONTRACT_V1.md`.
+D91 establishes the exact, persistence-neutral workspace identity boundary used
+by later D92-D100 milestones.
 
-D91 is intentionally contract-only. It defines the exact Personal/Company
-workspace identities and fail-closed isolation vocabulary while adding no
-persistence migration, runtime wiring, data reassignment, UI, AI-routing
-policy, connector capability, credential authority, or execution authority.
+Delivered:
 
-D91 implementation requires separate owner approval of its milestone-specific
-Design/Implementation Spec.
+- exactly two canonical identities: `personal` and `company`;
+- exact parsing with no aliases, trimming, case normalization, or default;
+- immutable `WorkspaceScope`;
+- immutable bounded `WorkspaceScopedRef`;
+- deterministic same-workspace validation;
+- mixed Personal/Company references fail closed;
+- legacy/unscoped data is not silently classified into either workspace;
+- no database migration, persistence wiring, Chat behavior, frontend behavior,
+  AI routing, connector, credential, OAuth, Automation, Tool/Module, or
+  execution authority.
+
+Verification:
+
+```text
+Targeted D91 + D90 regression: 50 passed
+Full backend: 1788 passed, 4 skipped, 13 warnings, 920 subtests passed
+Backend compileall: PASS
+git diff --check: PASS (Windows LF/CRLF warnings only)
+```
+
+ADR-085 records the D91 contract decision.
+
+D91 completion does not authorize D92. D92 Workspace Persistence & Migration v1
+requires its own approved Design/Implementation Spec.

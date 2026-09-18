@@ -3572,3 +3572,68 @@ D90 is COMPLETE.
 The D91-D100 roadmap is owner-approved, but D90 completion and roadmap approval
 do not authorize D91 implementation without an approved D91
 Design/Implementation Spec.
+
+## ADR-085: Workspace Identity & Isolation Contract v1
+
+**Status:** Accepted
+
+**Decision**
+
+Define one fixed, provider-neutral, persistence-neutral workspace identity
+contract with exactly two canonical identities:
+
+```text
+personal
+company
+```
+
+External workspace ids are accepted only by exact value. D91 does not trim,
+case-fold, alias, infer, normalize, or default workspace identity.
+
+`WorkspaceScope` is immutable metadata carrying one exact `WorkspaceId`.
+
+`WorkspaceScopedRef` is an immutable bounded reference containing only
+`workspace_id`, `subject_type`, and `subject_id`. It does not load, persist,
+resolve, authorize, approve, execute, or grant access to the referenced object.
+
+`require_same_workspace()` validates that all supplied references belong to one
+exact workspace. Empty, invalid, or mixed-workspace input fails closed.
+
+Existing O-AI data predates workspace scope. D91 therefore does not assign
+legacy/unscoped records to Personal or Company.
+
+**Rationale**
+
+D92-D100 require a stable vocabulary for workspace persistence, enforcement,
+context selection, provenance, AI routing, and owner UX. Persistence or active
+workspace behavior should not precede exact identity semantics.
+
+**Consequences**
+
+D91 adds one production contract module and tests only. It adds no database
+schema or migration, workspace persistence, reassignment of existing records,
+Workspace API, browser workspace state, Chat routing, Context L1-L4, AI routing,
+connector capability, OAuth scope, credential profile, Automation authority,
+Tool/Module authority, execution authority, dependency, or Docker change.
+
+Verification completed with:
+
+```text
+Targeted D91 + D90 regression:
+50 passed in 0.47s
+
+Full backend:
+1788 passed, 4 skipped, 13 warnings, 920 subtests passed in 67.24s
+
+Backend compileall:
+PASS
+
+git diff --check:
+PASS (Windows LF/CRLF warnings only)
+```
+
+D91 is COMPLETE.
+
+D91 completion does not authorize D92 implementation. D92 requires its own
+approved Design/Implementation Spec and must consume the exact D91 identities
+without silently classifying legacy data.

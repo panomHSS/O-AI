@@ -1,6 +1,6 @@
 # D91 Workspace Identity & Isolation Contract v1
 
-Status: **PROPOSED — implementation not started; owner approval of this spec is required before production-code changes.**
+Status: **COMPLETE**
 
 Roadmap authorization:
 
@@ -430,3 +430,43 @@ D91 IDENTITY CONTRACT
 -> D99 UX
 -> D100 SECURITY FREEZE
 ```
+
+## 15. Implementation closure
+
+D91 implementation remained contract-only.
+
+Implemented:
+
+- exact `WorkspaceId` identities: `personal` and `company`;
+- exact external parsing with no aliasing, case folding, trimming, or fallback;
+- immutable/slotted `WorkspaceScope`;
+- immutable/slotted bounded `WorkspaceScopedRef`;
+- deterministic `require_same_workspace()` validation;
+- empty, invalid, legacy-unscoped, and mixed-workspace inputs fail closed;
+- no ambient/default workspace;
+- no persistence, migration, repository, model, service, connector, OAuth,
+  credential, AI runtime, Tool/Module runtime, Automation, or network wiring.
+
+Verification:
+
+```text
+Targeted D91 + D90 regression:
+50 passed in 0.47s
+
+Full backend:
+1788 passed, 4 skipped, 13 warnings, 920 subtests passed in 67.24s
+
+Backend compileall:
+PASS
+
+git diff --check:
+PASS (Windows LF/CRLF warnings only)
+```
+
+D91 preserves the D90 frozen authority graph and introduces no runtime
+capability.
+
+D91 status: **COMPLETE**.
+
+D91 completion does not authorize D92 implementation automatically. D92 requires
+its own approved Design/Implementation Spec.
