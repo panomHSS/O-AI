@@ -171,6 +171,10 @@ from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
 )
+from app.services.gmail_send_approval import (
+    GmailSendApprovalService,
+    GmailSendApprovalStore,
+)
 from app.services.calendar_create_execution import CalendarCreateExecutionService
 from app.services.calendar_update_delete_execution import (
     CalendarUpdateDeleteExecutionService,
@@ -1111,6 +1115,20 @@ def get_calendar_write_approval_service() -> CalendarWriteApprovalService:
     return CalendarWriteApprovalService(
         store=get_calendar_write_approval_store()
     )
+
+@lru_cache
+def get_gmail_send_approval_store() -> GmailSendApprovalStore:
+    """Compose the process-local D87 Gmail send approval store."""
+    return GmailSendApprovalStore()
+
+
+@lru_cache
+def get_gmail_send_approval_service() -> GmailSendApprovalService:
+    """Compose D87 approval without send execution or credentials."""
+    return GmailSendApprovalService(
+        store=get_gmail_send_approval_store()
+    )
+
 
 def get_google_calendar_write_client() -> GoogleCalendarWriteClient:
     return GoogleCalendarWriteClient()

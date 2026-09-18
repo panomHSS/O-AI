@@ -109,18 +109,33 @@ class GmailSendAuthorityIsolationTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, source)
 
-    def test_send_contract_is_not_wired_into_production_runtime(self) -> None:
-        forbidden_markers = (
+    def test_send_contract_is_wired_only_into_d87_approval_boundary(self) -> None:
+        """D87 may consume D86 data only inside the approved approval layer."""
+        send_markers = (
             "app.contracts.gmail_send",
             "GmailSendDraft",
             "GmailSendRequest",
         )
-        offenders: list[str] = []
+        allowed = {
+            "app/contracts/gmail_send_approval.py",
+            "app/schemas/gmail_send_approvals.py",
+            "app/services/gmail_send_approval.py",
+        }
+        consumers: set[str] = set()
         for path in production_python_files():
             source = path.read_text(encoding="utf-8-sig")
-            if any(marker in source for marker in forbidden_markers):
-                offenders.append(str(path.relative_to(BACKEND)))
-        self.assertEqual(offenders, [])
+            if any(marker in source for marker in send_markers):
+                consumers.add(
+                    str(path.relative_to(BACKEND)).replace("\\", "/")
+                )
+
+        self.assertEqual(consumers, allowed)
+        for path in consumers:
+            self.assertFalse(path.startswith("app/adapters/"))
+            self.assertFalse(path.startswith("app/connectors/"))
+            self.assertFalse(path.startswith("app/plugins/"))
+            self.assertFalse(path.startswith("app/runtime/"))
+            self.assertFalse(path.startswith("app/api/v1/chat"))
 
     def test_runtime_has_no_gmail_send_oauth_scope(self) -> None:
         scope = "https://www.googleapis.com/auth/gmail.send"

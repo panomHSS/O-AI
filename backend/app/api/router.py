@@ -7,6 +7,7 @@ from app.api.v1.diagnostics import router as diagnostics_router
 from app.api.v1.health import router as health_router
 from app.api.v1.execution_approvals import router as execution_approvals_router
 from app.api.v1.calendar_write_approvals import router as calendar_write_approvals_router
+from app.api.v1.gmail_send_approvals import router as gmail_send_approvals_router
 from app.api.v1.calendar_write_chat import router as calendar_write_chat_router
 from app.api.v1.calendar_write_executions import router as calendar_write_executions_router
 from app.api.v1.knowledge import router as knowledge_router
@@ -25,6 +26,7 @@ api_router.include_router(diagnostics_router)
 api_router.include_router(health_router)
 api_router.include_router(execution_approvals_router)
 api_router.include_router(calendar_write_approvals_router)
+api_router.include_router(gmail_send_approvals_router)
 api_router.include_router(calendar_write_chat_router)
 api_router.include_router(calendar_write_executions_router)
 api_router.include_router(knowledge_router)

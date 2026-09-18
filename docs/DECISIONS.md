@@ -3044,11 +3044,12 @@ send. The existing D76/D77/D85 Gmail read path and its
 `gmail.messages.readonly` / `gmail.readonly` identity remain unchanged, and D81
 continues to report Gmail Write/Send as unsupported.
 
-D87 owns any future structured owner approval, canonical send projection,
-digest, expiry, decision, and replay protection. D88 owns any future Gmail send
-credential/OAuth authority, execution adapter/capability, MIME/provider
-construction, one-shot send attempt, safe outcome semantics, audit behavior,
-and retry boundary. Neither milestone is authorized by this decision.
+D87 owns structured owner approval, canonical send projection, digest, expiry,
+decision, and replay protection under its separately approved milestone. D88
+owns any future Gmail send credential/OAuth authority, execution
+adapter/capability, MIME/provider construction, one-shot send attempt, safe
+outcome semantics, audit behavior, and retry boundary. D86 itself authorizes
+neither later milestone.
 
 **Rationale**
 
@@ -3108,4 +3109,116 @@ The finalized change preserves the accepted contract-only boundary: no
 approval authority, execution authority, Chat/frontend send authority, retry
 authority, or Automation-to-Gmail bridge is introduced.
 
-D87 and D88 remain separately unauthorized.
+D87 was subsequently authorized under its own approved Design/Implementation Spec
+and implements structured approval only. D88 remains separately unauthorized.
+
+## ADR-081: Gmail Send Approval v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce a dedicated structured local-owner approval boundary over the exact
+immutable D86 `GmailSendRequest`, while keeping Gmail send execution,
+credentials, provider access, and execution claim outside D87.
+
+D87 deterministically projects the D86 request into contract version, operation,
+recipient, subject, and plain-text body, serializes that projection as stable
+UTF-8 JSON, and computes a lowercase SHA-256 `send_digest`. The owner preview is
+an exact immutable projection of the same request and performs no normalization,
+recipient inference, message rewriting, or provider transformation.
+
+A bounded process-local store keeps pending approval records for ten minutes by
+default with a 100-record default limit. D87 state is restricted to `pending`,
+`approved`, and `denied`. There is deliberately no execution `claimed` state in
+D87.
+
+Structured owner decisions require both the approval id and exact digest. Digest
+mismatch consumes the pending ticket. Deny is terminal. Approve/Deny replay,
+cross-decision replay, expiry, and approval-id-only attempts fail closed.
+
+The API exposes only proposal, approve, and deny under
+`/api/v1/gmail-send-approvals`. The local request marker is required but is not
+authentication. Transport callers cannot control contract version, operation,
+sender/from, CC/BCC, credential, OAuth scope, adapter/capability identity,
+execution, or retry fields.
+
+An approved D87 snapshot contains the exact original immutable D86 request and
+is not a provider-send result or execution grant. It contains no execution,
+provider response, message id, send result, claim, or retry authority.
+
+D86 authority-isolation coverage is reconciled to permit direct D86 send
+contract consumption only in the exact D87 approval-layer contract, schema, and
+service files. Adapter, connector, plugin, Chat execution, provider, and
+credential lanes remain outside that allowlist.
+
+The existing Gmail read identity remains unchanged:
+`module.plugin.gmail` / `exec.plugin.gmail.read_messages` /
+`gmail.messages.readonly` / `https://www.googleapis.com/auth/gmail.readonly`.
+The `gmail.send` scope remains absent, and D81 continues to report Gmail
+Write/Send unsupported.
+
+**Rationale**
+
+Approval must bind the owner's decision to one exact message without silently
+acquiring the authority to send it. A deterministic digest and exact immutable
+snapshot prevent recipient/subject/body substitution between preview and later
+execution. A bounded TTL, terminal decisions, replay rejection, and fail-closed
+digest mismatch prevent stale or ambiguous pending approval state from becoming
+reusable authority.
+
+Keeping execution claim out of D87 preserves the milestone boundary:
+authorization, credential access, MIME/provider construction, one-shot provider
+attempt, indeterminate-result semantics, and no-retry behavior require the
+separate D88 design.
+
+**Consequences**
+
+O-AI gains an explicit structured owner-approval backend for a future Gmail send
+flow, but Gmail send remains unavailable at runtime.
+
+D87 adds no `gmail.send` OAuth scope, send credential profile, Gmail provider
+client, send adapter/capability, D36 send authorization, atomic execution claim,
+MIME construction, Gmail API POST, natural-language Chat send route, frontend
+send UI, automatic retry, Automation-to-Gmail bridge, migration, dependency,
+Docker change, or public/LAN authority.
+
+D87 invariants:
+
+- `REQUEST != PROPOSAL != OWNER APPROVAL`
+- `DIGEST BINDS EXACT D86 REQUEST`
+- `APPROVAL ID ALONE != APPROVAL AUTHORITY`
+- `DIGEST MISMATCH -> PENDING TICKET INVALIDATED`
+- `DENY -> TERMINAL`
+- `EXPIRED -> ZERO AUTHORITY`
+- `REPLAY -> ZERO NEW AUTHORITY`
+- `APPROVED SNAPSHOT == EXACT D86 REQUEST`
+- `APPROVED != AUTHORIZED SEND`
+- `APPROVED != CLAIMED`
+- `APPROVED != CREDENTIAL ACCESS`
+- `APPROVED != PROVIDER REQUEST`
+- `APPROVED != EMAIL SENT`
+- `GMAIL READ != GMAIL SEND APPROVAL`
+- `PLAINTEXT CHAT != D87 DECISION`
+- `AI OUTPUT != D87 DECISION`
+- `FRONTEND STATE != D87 DECISION`
+- `FAILURE != RETRY AUTHORITY`
+- `D87 COMPLETION != D88 AUTHORIZATION`
+
+**Manual/Owner Acceptance**
+
+D87 Manual/Owner Acceptance A-F passed using synthetic `example.com` data.
+
+The accepted evidence confirms exact proposal/preview/digest binding,
+fail-closed wrong-digest consumption, terminal Deny semantics, exact immutable
+D86 snapshot retention on Approve, replay/expiry rejection, and preservation of
+D81 Gmail Write/Send unsupported truth.
+
+Acceptance instrumentation recorded zero `gmail.send` OAuth/runtime wiring,
+zero credential resolution, zero Gmail OAuth refresh, zero external outbound
+network attempts, zero Gmail provider sends, zero D87 atomic execution claim,
+zero Chat/frontend send authority, and zero retry authority.
+
+No Gmail send was performed during D87 acceptance.
+
+D87 implementation, Manual/Owner Acceptance A-F, and repository finalization are complete. D88 remains unauthorized.
