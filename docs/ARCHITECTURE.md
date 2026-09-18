@@ -2894,3 +2894,26 @@ D84 invariants:
 - `INDETERMINATE != RETRY AUTHORITY`
 - `FRONTEND STATE != EXECUTION AUTHORITY`
 - `UPDATE/DELETE CHAT REMAIN UNSUPPORTED`
+
+### D84 manual acceptance completion
+
+Manual Acceptance A-F completed on 2026-09-18 and verified the architecture
+above against the live local-owner runtime.
+
+- exact D73 preview preceded every create decision and pre-decision create
+  execution remained zero;
+- plaintext Chat approval retained zero D73 decision authority;
+- structured Deny reached the D84 decision surface and performed zero D74
+  create execution;
+- structured Approve reached the D84 decision surface exactly once and reused
+  the existing D74 create lane for exactly one successful create invocation;
+- the owner verified exactly one corresponding Google Calendar event;
+- D81 Calendar status, D45 Calendar read, and ordinary AI Chat remained on
+  their existing lanes;
+- isolated D84/D74/D80 authority/security regressions passed after acceptance.
+
+The acceptance result changes milestone status, not authority semantics.
+Create via Chat is supported only through the structured D84 owner-decision
+surface. Natural-language update/delete via Chat, retry authority, a second
+Calendar executor, browser-side authority, Automation-to-Calendar writes, and
+new credential/OAuth authority remain outside D84.

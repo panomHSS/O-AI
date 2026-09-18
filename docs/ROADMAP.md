@@ -425,7 +425,7 @@ D73 preview / structured approval / execution-result Chat UX.
 
 ## D84 — Calendar Write Chat UX v1
 
-Status: **IMPLEMENTATION COMPLETE — MANUAL ACCEPTANCE PENDING**
+Status: **COMPLETE**
 
 D84 connects the frozen D83 deterministic create-only Calendar Chat bridge to
 the frozen D73/D74 owner-approval and create-execution path through a dedicated
@@ -469,17 +469,28 @@ Repository acceptance:
 - frontend lint/build: PASS;
 - `git diff --check`: PASS.
 
-Manual acceptance: **PENDING**
+Manual acceptance: **COMPLETE**
 
-Required Manual Acceptance A-F remains the final product verification:
+Manual Acceptance A-F completed on 2026-09-18:
 
-- A — preview appears with exact create details and zero write before decision;
-- B — plaintext approval remains non-authoritative;
-- C — structured Deny creates no event;
-- D — structured Approve performs at most one real create attempt;
-- E — Calendar read, D81 status, and ordinary AI Chat routing remain functional;
-- F — authority instrumentation confirms zero pre-approve D36/claim/credential/
-  provider write, zero D74 on deny, and at most one provider attempt on approve.
+- A — PASS — exact create preview appeared before decision, the exact user turn
+  persisted, and durable Calendar create execution remained zero;
+- B — PASS — plaintext `อนุมัติครับ` remained non-authoritative, left the
+  structured proposal pending, and created no Calendar event;
+- C — PASS — one structured Deny reached the D84 deny endpoint, terminated the
+  proposal, created no event, and invoked zero D74 create execution;
+- D — PASS — one structured Approve reached the D84 approve endpoint, entered
+  the existing D74 create lane exactly once, completed successfully, and the
+  owner verified exactly one corresponding Google Calendar event;
+- E — PASS — D81 Calendar status, existing D45 Calendar read, and ordinary AI
+  Chat all remained functional on their existing lanes with no write-authority
+  crossover;
+- F — PASS — durable authority evidence plus the isolated D84/D74/D80 security
+  regressions passed, preserving zero pre-decision write authority, zero D74 on
+  deny, one-shot create execution on approve, and no retry authority.
 
-Until Manual Acceptance A-F passes, D84 milestone completion remains pending.
-D85 is not authorized automatically by D84 implementation completion.
+D84 is COMPLETE at the create-via-Chat structured-owner-decision boundary.
+Natural-language Calendar update/delete via Chat remain unsupported.
+
+D85 is not authorized automatically by D84 completion. D85 requires its own
+approved Design/Implementation Spec and explicit owner authorization.

@@ -2889,3 +2889,27 @@ D84 invariants:
 - `FAILED != RETRY AUTHORITY`
 - `INDETERMINATE != RETRY AUTHORITY`
 - `FRONTEND STATE != AUTHORITY`
+
+**Manual acceptance completion**
+
+Manual Acceptance A-F completed on 2026-09-18.
+
+- A PASS — exact server preview was shown before decision; the exact create turn
+  persisted and durable create execution remained zero.
+- B PASS — plaintext `อนุมัติครับ` remained non-authoritative and created no
+  D73 decision or Calendar mutation.
+- C PASS — one structured Deny consumed the D84 proposal with zero D74 create
+  execution and no Calendar event.
+- D PASS — one structured Approve entered the existing D74 create path exactly
+  once, completed successfully, and the owner verified exactly one matching
+  Google Calendar event.
+- E PASS — D81 Calendar status, D45 Calendar read, and ordinary AI Chat routing
+  remained functional and isolated from Calendar-write authority.
+- F PASS — durable authority evidence and isolated D84/D74/D80
+  authority/security regressions passed after the manual run.
+
+D84 is COMPLETE. This completion record does not widen ADR-078: create via Chat
+still requires the structured D84/D73 owner-decision path; natural-language
+update/delete, automatic retry, browser authority, alternate execution paths,
+new OAuth/credential authority, and Automation-to-Calendar write remain
+unsupported. D85 is not authorized by this completion record.
