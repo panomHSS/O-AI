@@ -3456,3 +3456,109 @@ confirmed preview-before-approval, terminal Deny with zero delivery, exactly one
 durable delivery for one approved due slot, persistence across refresh and O-AI
 restart without duplicate execution, fail-closed no-retry UX, and preserved
 Chat/Gmail/Calendar/AI/Tool/Module/Credential authority separation.
+
+## D90 Integration Security Freeze v3
+
+D90 establishes the integrated authority baseline for all work after D89.
+
+The frozen action model remains composed of separate authority lanes rather
+than one ambient permission model:
+
+```text
+Chat/Intent
+    != Owner Approval
+    != Authorization
+    != Execution Claim
+    != Credential Resolution
+    != Provider Attempt
+    != Successful Side Effect
+```
+
+The major integrated boundaries are:
+
+```text
+Runtime diagnostics -> descriptive truth only
+
+Calendar Chat -> bounded intent/proposal UX
+              -> existing structured owner decision
+              -> existing Calendar execution authority
+
+Gmail Read -> bounded read/display authority only
+
+Gmail Send -> D86 immutable request
+           -> D87 exact owner approval
+           -> D88 authorization + one-shot claim
+           -> exact send credential
+           -> one bounded provider attempt
+
+Automation -> D79 durable local-reminder authority
+           -> D89 read-only owner delivery projection
+           -> no Gmail/Calendar/AI/Tool/Module/Credential bridge
+```
+
+D90 specifically freezes:
+
+```text
+RUNTIME TRUTH != EXECUTION AUTHORITY
+CHAT INTENT != OWNER APPROVAL
+OWNER APPROVAL != EXECUTION CLAIM
+EXECUTION CLAIM != RETRY AUTHORITY
+
+GMAIL READ != GMAIL SEND
+GMAIL SEND CONTRACT != GMAIL SEND APPROVAL != GMAIL SEND EXECUTION
+
+AUTOMATION DELIVERY UI != AUTOMATION AUTHORITY
+DISPLAYED != ACKNOWLEDGED
+MISSED/INDETERMINATE != RETRY/CATCH-UP AUTHORITY
+```
+
+The D90 final remediation makes the Gmail Read classifier itself fail closed for
+standalone send/write vocabulary without adding any Chat-to-Send route.
+Quoted/example/negated references remain non-routing.
+
+D90 also corrects the `GoalService` application import namespace required for
+consistent test collection. That correction has no effect on the authority
+graph.
+
+Final backend verification before repository finalization:
+
+```text
+1750 passed, 4 skipped, 13 warnings, 920 subtests passed
+```
+
+Final repository baseline:
+
+```text
+11cbc4c336869b0e88f1fe60d05356ae4135efb1
+```
+
+D90 status: **COMPLETE**.
+
+### Post-D90 workspace/context boundary
+
+D91-D100 may add workspace identity, persistence, scope enforcement, Context
+L1-L4, context selection/provenance, context-aware Chat, AI routing policy, and
+owner UX only through separately approved milestones.
+
+The post-D90 architecture starts with these invariants:
+
+```text
+PERSONAL WORKSPACE != COMPANY WORKSPACE
+
+WORKSPACE IDENTITY != AUTHENTICATION
+WORKSPACE IDENTITY != OWNER APPROVAL
+WORKSPACE IDENTITY != EXECUTION AUTHORITY
+
+CONTEXT != DATABASE
+CONTEXT != MEMORY
+CONTEXT != COMMAND
+CONTEXT != EXECUTION AUTHORITY
+
+RETRIEVED DATA != COMMAND
+AI OUTPUT != WORKSPACE STATE CHANGE
+
+LOCAL AI FAILURE != CLOUD FALLBACK AUTHORITY
+```
+
+D91 starts at the identity/isolation contract only. Existing unscoped data must
+not be silently classified into Personal or Company by D91.

@@ -737,3 +737,79 @@ performed during D87 acceptance: **ZERO**.
 D87 implementation completion does not authorize D88. D88 remains separately
 unauthorized and requires its own approved Design/Implementation Spec before any
 Gmail send execution work.
+
+## D90 — Integration Security Review v3
+
+Status: **COMPLETE**
+
+D90 freezes the integrated D81-D89 authority boundaries before the
+Workspace & Context Intelligence phase.
+
+Finalized:
+
+- additive integration regression lock in
+  `backend/tests/test_d90_integration_security_freeze.py`;
+- D85 Gmail Read classifier fail-closed remediation so standalone send/write
+  intents are invalid inside the read classifier while quoted/example/negated
+  references remain non-routing;
+- corrected `GoalService` application import namespace required for consistent
+  backend test collection;
+- preserved Gmail Read/Send separation, D87 approval versus D88 execution
+  separation, Calendar write authority ordering, D82 safe connector errors,
+  D81 descriptive runtime truth, D89 Automation isolation, bounded egress, and
+  no-retry semantics;
+- zero new production capability, connector, OAuth scope, credential profile,
+  retry path, acknowledgement path, Automation-to-connector bridge, migration,
+  dependency, Docker change, or frontend authority.
+
+Final verification before repository finalization:
+
+```text
+1750 passed, 4 skipped, 13 warnings, 920 subtests passed
+```
+
+D90 repository finalization:
+
+```text
+11cbc4c336869b0e88f1fe60d05356ae4135efb1
+fix: enforce D90 integration security freeze v3
+```
+
+The final commit is synchronized with `origin/main`, and the owner verified a
+clean working tree after push.
+
+ADR-084 records the D90 freeze decision. D90 is the security baseline for the
+D91-D100 phase.
+
+## O-AI D91-D100 — Workspace & Context Intelligence Phase
+
+Roadmap status: **APPROVED**
+
+- D91 — Workspace Identity & Isolation Contract v1
+- D92 — Workspace Persistence & Migration v1
+- D93 — Workspace Scope Enforcement v1
+- D94 — Context Layer Contract v1
+- D95 — Context Resolver & Budgeting v1
+- D96 — Context Provenance & Snapshot v1
+- D97 — Context-Aware Chat Integration v1
+- D98 — Workspace AI Policy & Local Routing v1
+- D99 — Workspace & Context UX v1
+- D100 — Integration Security Review v4
+
+The phase direction and sequencing are owner-approved. Each milestone still
+requires its own approved Design/Implementation Spec before implementation.
+
+## D91 — Workspace Identity & Isolation Contract v1
+
+Status: **SPEC OPEN — IMPLEMENTATION NOT STARTED**
+
+D91 begins with
+`docs/specs/D91_WORKSPACE_IDENTITY_ISOLATION_CONTRACT_V1.md`.
+
+D91 is intentionally contract-only. It defines the exact Personal/Company
+workspace identities and fail-closed isolation vocabulary while adding no
+persistence migration, runtime wiring, data reassignment, UI, AI-routing
+policy, connector capability, credential authority, or execution authority.
+
+D91 implementation requires separate owner approval of its milestone-specific
+Design/Implementation Spec.

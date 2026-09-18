@@ -1,6 +1,6 @@
 # D90 Integration Security Freeze v3
 
-Status: Phase 2 regression lock implemented; D90 final review is not complete.
+Status: **COMPLETE**
 
 Baseline commit:
 
@@ -93,13 +93,51 @@ D81-D89 tests; it protects the cross-feature assumptions between them.
 
 ## Phase boundary
 
-Phase 2 adds no production capability, database migration, dependency, OAuth
+Phase 2 adds no production capability, ## Phase 3 documentation / ADR closure
+
+Phase 3 reconciles D90 with the repository state after the owner-authorized
+final repair and verification.
+
+Final remediation:
+
+- `GmailChatIntentRouter.classify()` now fails closed as `invalid` for the
+  standalone Gmail send/write vocabulary covered by the D90 freeze while
+  retaining `none` for quoted/example/negated non-routing references;
+- the `GoalService` import in `app.api.dependencies` uses the established
+  `app.services.goals` package namespace so the security-isolation tests collect
+  consistently from the approved backend virtual environment.
+
+Neither repair creates a new capability or widens Gmail Send Chat authority.
+
+Final backend verification:
+
+```text
+1750 passed, 4 skipped, 13 warnings, 920 subtests passed
+```
+
+Final repository commit:
+
+```text
+11cbc4c336869b0e88f1fe60d05356ae4135efb1
+fix: enforce D90 integration security freeze v3
+```
+
+The owner verified after push that `main` and `origin/main` were synchronized
+and the working tree was clean.
+
+ADR-084, `docs/ARCHITECTURE.md`, and `docs/ROADMAP.md` record the closure.
+
+## Phase boundary
+
+D90 adds no new production capability beyond the already approved D81-D89
+capabilities it freezes. It adds no database migration, dependency, new OAuth
 scope, credential profile, connector endpoint, retry path, acknowledgement
 authority, Chat scheduling authority, or Automation-to-connector bridge.
 
-ADR/architecture finalization is intentionally deferred to D90 Phase 3.
+D90 status: **COMPLETE**.
 
-D90 remains in progress until Phase 3 documentation/ADR work and final
-verification are completed under separate authorization.
+The owner has approved the D91-D100 roadmap direction. D91 implementation still
+requires explicit approval of the milestone-specific
+`D91_WORKSPACE_IDENTITY_ISOLATION_CONTRACT_V1.md` Design/Implementation Spec.
 
 Repository staging, commit, and push remain separate owner-controlled actions.

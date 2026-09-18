@@ -3473,3 +3473,102 @@ exact cumulative scope checks, and `git diff --check`.
 
 Repository staging, commit, and push remain separate owner-controlled actions.
 D90 remains separately unauthorized.
+
+## ADR-084: Integration Security Freeze v3
+
+**Status:** Accepted
+
+**Decision**
+
+Freeze the integrated D81-D89 authority graph as the mandatory security
+baseline before opening the D91-D100 Workspace & Context Intelligence phase.
+
+The freeze is enforced by additive regression coverage rather than by merging
+independent authority lanes. Runtime capability truth remains descriptive;
+connector-safe error projection remains allowlisted; Calendar Chat intent and
+UX do not own connector/credential authority; Gmail Read remains separate from
+Gmail Send; D86 data, D87 owner approval, and D88 execution remain distinct;
+and D89 Automation delivery remains isolated from Gmail, Calendar, AI,
+Tool/Module, credential, retry, catch-up, and acknowledgement authority.
+
+During final D90 verification, the Gmail Read intent classifier was hardened so
+standalone send/write intents fail closed as `invalid` when the read classifier
+is directly evaluated. Quoted/example/negated references remain non-routing.
+This change does not make Gmail Send Chat-routable and does not connect the
+D85 read lane to D88 send execution.
+
+The application import for `GoalService` was also corrected from the repository
+package namespace to the established `app.services` namespace so the approved
+backend execution environment can collect the D87/D88 isolation tests
+consistently. This is an import-correctness repair, not new authority.
+
+The frozen invariants include:
+
+```text
+RUNTIME TRUTH != EXECUTION AUTHORITY
+CONNECTOR ERROR != RAW PROVIDER ERROR DISCLOSURE
+CHAT INTENT != OWNER APPROVAL
+OWNER APPROVAL != EXECUTION CLAIM
+EXECUTION CLAIM != RETRY AUTHORITY
+
+GMAIL READ != GMAIL SEND
+GMAIL SEND CONTRACT != GMAIL SEND APPROVAL != GMAIL SEND EXECUTION
+
+CALENDAR CHAT UX != CONNECTOR/CREDENTIAL AUTHORITY
+
+AUTOMATION DELIVERY UI != AUTOMATION AUTHORITY
+AUTOMATION AUTHORITY != GMAIL/CALENDAR/AI/TOOL/MODULE/CREDENTIAL AUTHORITY
+
+DISPLAYED != ACKNOWLEDGED
+INDETERMINATE/MISSED != RETRY/CATCH-UP AUTHORITY
+```
+
+Credential and egress boundaries remain fixed. Gmail Read and Gmail Send keep
+separate least-privilege credentials/scopes. Broad Gmail scopes remain
+disallowed. Connector endpoints remain fixed, proxy/redirect use remains
+blocked where already frozen, and connector execution remains single-attempt
+where specified.
+
+**Rationale**
+
+D81-D89 added owner-visible capability across diagnostics, Calendar Chat,
+Gmail Read/Send, and Automation. Before workspace/context metadata is allowed
+to influence retrieval or AI routing, those existing action lanes must be
+treated as a stable authority baseline. Otherwise future context or workspace
+metadata could accidentally become an implicit approval, execution, credential,
+or connector-routing signal.
+
+**Consequences**
+
+D90 adds no production capability.
+
+Future D91-D100 workspace/context work must treat workspace identity, selected
+context, Memory, Project state, Knowledge evidence, provenance, browser state,
+and AI output as data rather than execution authority.
+
+In particular:
+
+```text
+WORKSPACE IDENTITY != EXECUTION AUTHORITY
+CONTEXT != OWNER APPROVAL
+CONTEXT != CREDENTIAL AUTHORITY
+AI OUTPUT != STATE CHANGE
+```
+
+D90 final verification completed with:
+
+```text
+1750 passed, 4 skipped, 13 warnings, 920 subtests passed
+```
+
+Repository finalization commit:
+
+```text
+11cbc4c336869b0e88f1fe60d05356ae4135efb1
+```
+
+D90 is COMPLETE.
+
+The D91-D100 roadmap is owner-approved, but D90 completion and roadmap approval
+do not authorize D91 implementation without an approved D91
+Design/Implementation Spec.
