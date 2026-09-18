@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ReminderDeliveryTray } from "../components/automations/reminder-delivery-tray";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,9 +16,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Link className="hover:text-white" href="/chat">Chat</Link>
           <Link className="hover:text-white" href="/knowledge">Knowledge</Link>
           <Link className="hover:text-white" href="/projects">Projects</Link>
+          <Link className="hover:text-white" href="/automations">Automations</Link>
           <Link className="hover:text-white" href="/settings/integrations">Integrations</Link>
         </nav>
         {children}
+        <ReminderDeliveryTray />
       </body>
     </html>
   );

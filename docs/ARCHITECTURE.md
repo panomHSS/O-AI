@@ -3365,3 +3365,94 @@ the backend implementation is present while Gmail Write/Send via Chat remains
 unsupported. D88 adds no frontend send workflow, natural-language Chat send
 authority, Automation-to-Gmail send bridge, database migration, dependency, or
 public/LAN authority.
+
+## D89 Automation Delivery UX v2
+
+D89 makes the existing D79 `local_reminder` authority usable from the owner
+frontend without changing the D79 scheduler or creating a second automation
+execution plane.
+
+The owner control path is:
+
+```text
+strict local_reminder form
+-> existing D79 durable proposal
+-> exact server preview + definition_digest
+-> structured Approve / Deny
+-> existing durable approved definition
+-> existing D79 scheduler
+-> exact due-slot claim
+-> durable delivered / missed / indeterminate run
+-> read-only D89 delivery projection
+-> Automation Center / Reminder Delivery Tray
+```
+
+The D89 owner APIs add only read projections:
+`GET /api/v1/automation-settings` and bounded
+`GET /api/v1/automation-deliveries`. The delivery projection excludes
+`claimed`, never creates or advances a run, and never acknowledges, retries, or
+changes scheduler state.
+
+The Automation Center reuses the D79 proposal/approval/cancel APIs. Form state is
+not authority. Owner decisions bind the durable automation id and exact digest.
+Pending proposals remain recoverable after browser refresh. Cancellation is
+terminal, and any edit or re-enable action requires a new proposal.
+
+One-time scheduling fails closed if browser timezone and the deployment owner
+timezone differ. Daily scheduling remains exact `HH:MM` in the snapshotted owner
+timezone. Normal Chat does not create, approve, edit, cancel, or execute
+automations.
+
+The global Reminder Delivery Tray polls the read-only delivery feed every
+30 seconds with a fixed fetch limit of 20. At most five items are displayed.
+Browser-local dedupe stores only up to 100 `run_id` values; reminder text is not
+stored in localStorage. Dismissal or seen state is presentation-only and does
+not change durable run state.
+
+D79 run truth remains unchanged:
+
+```text
+DELIVERED == durable local run processed and owner-visible
+DELIVERED != owner saw it
+DELIVERED != owner acknowledged it
+MISSED -> no catch-up
+INDETERMINATE -> no automatic retry
+CLAIMED != owner delivery item
+```
+
+D81 diagnostics remain contract version `1` and add the explicit truth
+`local_reminder_delivery_ui_implemented=true`. This diagnostic fact grants no
+execution authority.
+
+D89 authority freeze:
+
+```text
+DELIVERY UI != AUTOMATION AUTHORITY
+DISPLAYED != ACKNOWLEDGED
+BROWSER STATE != RUN STATE
+REMINDER TEXT == DATA
+REMINDER TEXT != COMMAND
+REMINDER TEXT != AI PROMPT
+
+AUTOMATION AUTHORITY
+!= D45 EXECUTION AUTHORITY
+!= D73 CALENDAR WRITE AUTHORITY
+!= D87 GMAIL SEND APPROVAL AUTHORITY
+
+AUTOMATION -> GMAIL: ZERO
+AUTOMATION -> CALENDAR: ZERO
+AUTOMATION -> AI: ZERO
+AUTOMATION -> TOOL/MODULE: ZERO
+AUTOMATION -> CREDENTIAL: ZERO
+```
+
+D89 adds no migration, new dependency, OAuth/credential change, Service Worker,
+Web Push, browser Notification permission, external notification provider,
+automatic approval, acknowledgement API, retry/run-again path, or public/LAN
+security boundary.
+
+Manual Owner Acceptance A-F passed on the local runtime. Accepted evidence
+confirmed preview-before-approval, terminal Deny with zero delivery, exactly one
+durable delivery for one approved due slot, persistence across refresh and O-AI
+restart without duplicate execution, fail-closed no-retry UX, and preserved
+Chat/Gmail/Calendar/AI/Tool/Module/Credential authority separation.

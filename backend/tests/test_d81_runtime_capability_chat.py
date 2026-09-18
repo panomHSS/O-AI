@@ -57,6 +57,7 @@ def snapshot() -> RuntimeDiagnosticsResponse:
         automation=AutomationDiagnostics(
             enabled=True,
             local_reminder_implemented=True,
+            local_reminder_delivery_ui_implemented=True,
             local_reminder_chat_routable=False,
             connector_actions_implemented=False,
             ai_actions_implemented=False,
@@ -187,6 +188,8 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
             ),
             self.snapshot,
         )
+        self.assertIn("Owner delivery UI: พร้อม", response)
+        self.assertIn("Local reminder via Chat: ยังไม่รองรับ", response)
         self.assertIn("Connector actions: ยังไม่รองรับ", response)
         self.assertIn("AI actions: ยังไม่รองรับ", response)
 
@@ -205,6 +208,7 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
             "Write/Send backend: รองรับ",
             "Write/Send via Chat: ยังไม่รองรับ",
             "Gmail + Calendar context: เปิดใช้งาน",
+            "Owner delivery UI: พร้อม",
             "Connector execution: ยังไม่รองรับ",
         ):
             with self.subTest(expected=expected):
@@ -253,6 +257,25 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
                 )
             ),
         )
+
+    def test_english_automation_truth_is_deterministic(self) -> None:
+        response = self.composer.compose(
+            RuntimeCapabilityStatusIntent(
+                target="automation",
+                language="en",
+            ),
+            self.snapshot,
+        )
+        for expected in (
+            "Automation: enabled",
+            "Local reminder: implemented",
+            "Owner delivery UI: implemented",
+            "Local reminder via Chat: not supported",
+            "Connector actions: not supported",
+            "AI actions: not supported",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, response)
 
     def test_source_has_no_ai_connector_or_authority_runtime_dependency(self) -> None:
         module = __import__(

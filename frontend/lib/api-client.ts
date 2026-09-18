@@ -18,6 +18,15 @@ import type {
 } from "../types/projects";
 import type { ApiResponse } from "../types/api";
 import type { GoogleCalendarIntegrationStatus } from "../types/integrations";
+import type {
+  AutomationCancel,
+  AutomationDecision,
+  AutomationDeliveryListResponse,
+  AutomationListResponse,
+  AutomationProposal,
+  AutomationProposalRequest,
+  AutomationSettings,
+} from "../types/automations";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_CHAT_TIMEOUT_MS = 130_000;
@@ -234,4 +243,78 @@ export function changeProjectStatus(projectId: string, payload: ChangeProjectSta
 
 export function getProjectHistory(projectId: string): Promise<ProjectHistoryResponse> {
   return apiRequest<ProjectHistoryResponse>(`/projects/${encodeURIComponent(projectId)}/history`, { method: "GET" });
+}
+
+export function getAutomationSettings(): Promise<AutomationSettings> {
+  return apiRequest<AutomationSettings>("/automation-settings", {
+    method: "GET",
+    headers: { "X-OAI-Local-Request": "1" },
+  });
+}
+
+export function listAutomations(): Promise<AutomationListResponse> {
+  return apiRequest<AutomationListResponse>("/automations", {
+    method: "GET",
+    headers: { "X-OAI-Local-Request": "1" },
+  });
+}
+
+export function createAutomationProposal(
+  payload: AutomationProposalRequest,
+): Promise<AutomationProposal> {
+  return apiRequest<AutomationProposal>("/automation-proposals", {
+    method: "POST",
+    body: payload,
+    headers: { "X-OAI-Local-Request": "1" },
+  });
+}
+
+export function approveAutomationProposal(
+  automationId: string,
+  definitionDigest: string,
+): Promise<AutomationDecision> {
+  return apiRequest<AutomationDecision>(
+    `/automation-proposals/${encodeURIComponent(automationId)}/approve`,
+    {
+      method: "POST",
+      body: { definition_digest: definitionDigest },
+      headers: { "X-OAI-Local-Request": "1" },
+    },
+  );
+}
+
+export function denyAutomationProposal(
+  automationId: string,
+  definitionDigest: string,
+): Promise<AutomationDecision> {
+  return apiRequest<AutomationDecision>(
+    `/automation-proposals/${encodeURIComponent(automationId)}/deny`,
+    {
+      method: "POST",
+      body: { definition_digest: definitionDigest },
+      headers: { "X-OAI-Local-Request": "1" },
+    },
+  );
+}
+
+export function cancelAutomation(
+  automationId: string,
+): Promise<AutomationCancel> {
+  return apiRequest<AutomationCancel>(
+    `/automations/${encodeURIComponent(automationId)}/cancel`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+    },
+  );
+}
+
+export function getAutomationDeliveries(): Promise<AutomationDeliveryListResponse> {
+  return apiRequest<AutomationDeliveryListResponse>(
+    "/automation-deliveries?limit=20",
+    {
+      method: "GET",
+      headers: { "X-OAI-Local-Request": "1" },
+    },
+  );
 }

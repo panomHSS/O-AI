@@ -72,6 +72,7 @@ class AutomationDiagnostics(BaseModel):
 
     enabled: StrictBool
     local_reminder_implemented: Literal[True] = True
+    local_reminder_delivery_ui_implemented: Literal[True] = True
     local_reminder_chat_routable: Literal[False] = False
     connector_actions_implemented: Literal[False] = False
     ai_actions_implemented: Literal[False] = False

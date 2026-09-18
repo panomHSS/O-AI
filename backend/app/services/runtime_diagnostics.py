@@ -292,7 +292,10 @@ class RuntimeDiagnosticsService:
         return AutomationDiagnostics(
             enabled=enabled,
             local_reminder_implemented=True,
-            # D79 is exposed by the Automation API, not normal Chat.
+            # D89 exposes owner-visible delivery UX without granting
+            # scheduling, execution, acknowledgement, or Chat authority.
+            local_reminder_delivery_ui_implemented=True,
+            # D79/D89 Automation remains outside normal Chat scheduling.
             local_reminder_chat_routable=False,
             connector_actions_implemented=False,
             ai_actions_implemented=False,

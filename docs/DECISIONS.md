@@ -3337,3 +3337,139 @@ owner execution.
 D88 implementation and automated Batch 05 verification are complete when this
 record's acceptance suite passes. Repository staging, commit, and push remain
 separate owner-controlled actions. D89 remains separately unauthorized.
+
+## ADR-083: Automation Delivery UX v2
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the existing D79 durable `local_reminder` authority with owner-facing
+delivery UX while preserving the D79 scheduler, approval, claim, misfire, stale
+claim, and no-retry semantics unchanged.
+
+D89 adds a read-only owner delivery projection over existing durable D79 run
+records. `GET /api/v1/automation-deliveries` exposes only terminal
+`delivered`, `missed`, and `indeterminate` runs in newest-first order with a
+bounded limit. `claimed` remains an internal transient state and is not an
+owner-delivery item. The projection does not claim, schedule, retry, mutate,
+acknowledge, invoke AI, resolve credentials, or call connectors.
+
+D89 also adds `GET /api/v1/automation-settings`, which exposes only the
+deployment-controlled Automation enabled state and owner timezone. It exposes no
+secret, credential, database, scheduler-control, OAuth, connector, or execution
+metadata.
+
+The `/automations` Automation Center uses the existing D79 proposal, exact
+preview/digest, structured Approve/Deny, definition listing, and approved-only
+Cancel paths. Browser form state is never approval authority. Pending durable
+definitions remain actionable after refresh because structured decisions bind
+the durable automation id plus exact `definition_digest`. Cancellation is
+terminal; editing or re-enabling requires a new proposal.
+
+One-time reminder creation fails closed when the browser timezone does not
+exactly match the deployment owner timezone. Daily schedules remain exact
+`HH:MM` owner-timezone schedules under the existing D79 contract. D89 adds no
+natural-language Chat scheduling.
+
+The Local Reminder Delivery Tray polls the read-only delivery projection every
+30 seconds with a fixed fetch limit of 20 and displays at most five reminder
+items. Browser presentation dedupe uses only `run_id`, with at most 100 seen IDs
+stored under `oai.automationSeenRunIds.v1`. Reminder content is never persisted
+in browser localStorage. Browser seen state is presentation state only and is
+not durable acknowledgement, execution state, or retry authority.
+
+D79 delivery semantics remain authoritative. `delivered` means the exact due
+slot was processed into a durable local reminder run; it does not mean the owner
+saw or acknowledged the reminder. `missed` means the due slot fell outside the
+misfire grace and receives no catch-up run. `indeterminate` means a stale
+claimed run could not be confirmed and receives no automatic retry.
+
+D81 runtime capability truth is extended additively, without changing
+diagnostics contract version `1`, to report
+`local_reminder_delivery_ui_implemented=true`. Automation remains not routable
+from normal Chat and diagnostics continue to report no connector actions, AI
+actions, or execution authority.
+
+**Rationale**
+
+D79 established the durable scheduling and authority foundation but did not
+provide the owner with a practical browser control surface or truthful local
+delivery presentation. D89 makes that existing capability usable without
+creating a second scheduler, second approval system, acknowledgement authority,
+retry surface, external notification provider, or cross-authority bridge.
+
+A read-only projection over the existing durable run records keeps the browser
+outside scheduling and execution authority. Exact server previews and structured
+decisions preserve owner control. Bounded polling and run-id-only browser dedupe
+provide practical local presentation while ensuring browser state cannot change
+backend run state.
+
+**Consequences**
+
+O-AI gains an owner-facing Automation Center and local Reminder Delivery Tray
+for the existing D79 `local_reminder` capability.
+
+D89 adds no database migration, backend or frontend dependency, Docker change,
+OAuth scope, credential profile, Service Worker, Web Push, browser Notification
+permission, external notification provider, natural-language Chat automation,
+automatic approval, acknowledgement API, retry/run-again path, Gmail automation,
+Calendar automation, AI automation, Tool/Module automation, or public/LAN
+authority.
+
+D89 invariants:
+
+- `DELIVERY UI != AUTOMATION AUTHORITY`
+- `DISPLAYED != ACKNOWLEDGED`
+- `BROWSER STATE != RUN STATE`
+- `SEEN RUN ID != BACKEND ACKNOWLEDGEMENT`
+- `PROPOSAL FORM != OWNER APPROVAL`
+- `EXACT SERVER PREVIEW + DIGEST -> STRUCTURED OWNER DECISION`
+- `REMINDER TEXT == DATA`
+- `REMINDER TEXT != COMMAND`
+- `REMINDER TEXT != AI PROMPT`
+- `CLAIMED != OWNER DELIVERY ITEM`
+- `MISSED -> NO CATCH-UP`
+- `INDETERMINATE -> NO RETRY`
+- `CANCELLED -> NO RE-ENABLE`
+- `EDIT -> NEW PROPOSAL REQUIRED`
+- `AUTOMATION APPROVAL != D45 EXECUTION APPROVAL`
+- `AUTOMATION APPROVAL != D73 CALENDAR WRITE APPROVAL`
+- `AUTOMATION APPROVAL != D87 GMAIL SEND APPROVAL`
+- `AUTOMATION -> GMAIL AUTHORITY == ZERO`
+- `AUTOMATION -> CALENDAR AUTHORITY == ZERO`
+- `AUTOMATION -> AI AUTHORITY == ZERO`
+- `AUTOMATION -> TOOL/MODULE AUTHORITY == ZERO`
+- `AUTOMATION -> CREDENTIAL AUTHORITY == ZERO`
+- `FAILURE != RETRY AUTHORITY`
+
+**Manual Owner Acceptance**
+
+PASSED. The owner performed D89 Manual Owner Acceptance A-F against the local
+runtime after Batch 05 Phase 1 automated verification.
+
+Accepted evidence:
+
+- A PASS — exact server preview was visible before structured approval; form
+  state created no active authority and no delivery.
+- B PASS — structured Deny was terminal and produced zero reminder delivery.
+- C PASS — one structured-approved one-time due slot produced exactly one
+  durable local delivery with the exact approved message
+  `D89-C-Real-Delivery`; no Retry or Run Again control existed.
+- D PASS — browser refresh and full O-AI stop/start preserved durable delivery
+  history and produced zero additional delivery runs.
+- E PASS — no safe live `missed`/`indeterminate` fixture existed, so no
+  production state was mutated to manufacture one. Approved D79/D89 automated
+  terminal-state regressions remained the evidence for no-catch-up and
+  no-automatic-retry semantics; live UI inspection confirmed no Retry,
+  Run Again, or Catch up action.
+- F PASS — Automation Center exposed no Gmail, Calendar, AI, Tool, Module,
+  credential, or Chat execution action, and an ordinary Chat reminder request
+  created no Automation proposal.
+
+D89 Batch 05 final verification re-runs focused D79/D81/D89 security and
+automation regressions, frontend lint/build, full backend regression, compileall,
+exact cumulative scope checks, and `git diff --check`.
+
+Repository staging, commit, and push remain separate owner-controlled actions.
+D90 remains separately unauthorized.

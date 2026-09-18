@@ -11,6 +11,10 @@ from app.contracts.automation import (
     DailyAutomationSchedule,
     OnceAutomationSchedule,
 )
+from app.contracts.automation_delivery import (
+    AutomationDeliveryView,
+    AutomationSettingsView,
+)
 from app.contracts.automation_approval import (
     AutomationCancelOutcome,
     AutomationDecisionOutcome,
@@ -221,6 +225,52 @@ class AutomationRunResponse(BaseModel):
 
 class AutomationRunListResponse(BaseModel):
     items: list[AutomationRunResponse]
+
+
+class AutomationSettingsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    owner_timezone: str
+
+    @classmethod
+    def from_view(
+        cls,
+        value: AutomationSettingsView,
+    ) -> "AutomationSettingsResponse":
+        return cls(
+            enabled=value.enabled,
+            owner_timezone=value.owner_timezone,
+        )
+
+
+class AutomationDeliveryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    automation_id: str
+    run_id: str
+    scheduled_for: datetime
+    status: Literal["delivered", "missed", "indeterminate"]
+    message: str
+
+    @classmethod
+    def from_view(
+        cls,
+        value: AutomationDeliveryView,
+    ) -> "AutomationDeliveryResponse":
+        return cls(
+            automation_id=value.automation_id,
+            run_id=value.run_id,
+            scheduled_for=value.scheduled_for,
+            status=value.status,
+            message=value.message,
+        )
+
+
+class AutomationDeliveryListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AutomationDeliveryResponse]
 
 
 def to_schedule(

@@ -67,6 +67,7 @@ from app.repositories.project_update_proposals import (
 from app.repositories.projects import ProjectRepository
 from app.search.factory import create_knowledge_search
 from app.services.automation_approval import AutomationApprovalService
+from app.services.automation_delivery import AutomationDeliveryService
 from app.services.chat import ChatService
 from app.services.capability_permission_policy import (
     CapabilityPermissionPolicy,
@@ -292,6 +293,17 @@ def get_automation_approval_service(
 ) -> AutomationApprovalService:
     settings = get_settings()
     return AutomationApprovalService(
+        AutomationRepository(database_session),
+        enabled=settings.oai_automation_enabled,
+        owner_timezone=settings.oai_owner_timezone,
+    )
+
+
+def get_automation_delivery_service(
+    database_session: Session = Depends(get_db),
+) -> AutomationDeliveryService:
+    settings = get_settings()
+    return AutomationDeliveryService(
         AutomationRepository(database_session),
         enabled=settings.oai_automation_enabled,
         owner_timezone=settings.oai_owner_timezone,

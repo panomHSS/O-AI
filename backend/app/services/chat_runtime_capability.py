@@ -249,6 +249,14 @@ class RuntimeCapabilityResponseComposer:
                         )
                     ),
                     (
+                        "- Owner delivery UI: "
+                        + (
+                            "พร้อม"
+                            if a.local_reminder_delivery_ui_implemented
+                            else "ยังไม่พร้อม"
+                        )
+                    ),
+                    (
                         "- Local reminder via Chat: "
                         + (
                             "รองรับ"
@@ -330,6 +338,14 @@ class RuntimeCapabilityResponseComposer:
                     )
                 ),
                 (
+                    "- Owner delivery UI: "
+                    + (
+                        "พร้อม"
+                        if a.local_reminder_delivery_ui_implemented
+                        else "ยังไม่พร้อม"
+                    )
+                ),
+                (
                     "- Connector execution: "
                     + (
                         "รองรับ"
@@ -397,6 +413,14 @@ class RuntimeCapabilityResponseComposer:
                         + (
                             "implemented"
                             if a.local_reminder_implemented
+                            else "not implemented"
+                        )
+                    ),
+                    (
+                        "- Owner delivery UI: "
+                        + (
+                            "implemented"
+                            if a.local_reminder_delivery_ui_implemented
                             else "not implemented"
                         )
                     ),
@@ -478,6 +502,14 @@ class RuntimeCapabilityResponseComposer:
                     + (
                         "implemented"
                         if a.local_reminder_implemented
+                        else "not implemented"
+                    )
+                ),
+                (
+                    "- Owner delivery UI: "
+                    + (
+                        "implemented"
+                        if a.local_reminder_delivery_ui_implemented
                         else "not implemented"
                     )
                 ),

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, status
 
-from app.api.dependencies import get_automation_approval_service
+from app.api.dependencies import (
+    get_automation_approval_service,
+    get_automation_delivery_service,
+)
 from app.schemas.api import ApiSuccess
 from app.schemas.automations import (
     AutomationCancelResponse,
+    AutomationDeliveryListResponse,
+    AutomationDeliveryResponse,
     AutomationDecisionRequest,
     AutomationDecisionResponse,
     AutomationDefinitionResponse,
@@ -18,8 +23,15 @@ from app.schemas.automations import (
     AutomationProposalResponse,
     AutomationRunListResponse,
     AutomationRunResponse,
+    AutomationSettingsResponse,
     to_schedule,
 )
+from app.services.automation_delivery import (
+    AutomationDeliveryReadError,
+    AutomationDeliveryService,
+)
+
+
 from app.services.automation_approval import (
     AutomationActiveCapacityError,
     AutomationApprovalService,
@@ -228,6 +240,60 @@ def list_automation_runs(
         data=AutomationRunListResponse(
             items=[
                 AutomationRunResponse.from_view(item)
+                for item in items
+            ]
+        )
+    )
+
+
+@router.get(
+    "/automation-settings",
+    response_model=ApiSuccess[AutomationSettingsResponse],
+    status_code=status.HTTP_200_OK,
+)
+def get_automation_settings(
+    _: Annotated[
+        None,
+        Depends(require_local_automation_request_marker),
+    ],
+    service: Annotated[
+        AutomationDeliveryService,
+        Depends(get_automation_delivery_service),
+    ],
+) -> ApiSuccess[AutomationSettingsResponse]:
+    view = service.settings()
+    return ApiSuccess(
+        data=AutomationSettingsResponse.from_view(view)
+    )
+
+
+@router.get(
+    "/automation-deliveries",
+    response_model=ApiSuccess[AutomationDeliveryListResponse],
+    status_code=status.HTTP_200_OK,
+)
+def list_automation_deliveries(
+    _: Annotated[
+        None,
+        Depends(require_local_automation_request_marker),
+    ],
+    service: Annotated[
+        AutomationDeliveryService,
+        Depends(get_automation_delivery_service),
+    ],
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> ApiSuccess[AutomationDeliveryListResponse]:
+    try:
+        items = service.list_deliveries(limit=limit)
+    except AutomationDeliveryReadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error.reason_code,
+        ) from error
+    return ApiSuccess(
+        data=AutomationDeliveryListResponse(
+            items=[
+                AutomationDeliveryResponse.from_view(item)
                 for item in items
             ]
         )

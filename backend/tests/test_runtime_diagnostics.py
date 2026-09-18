@@ -118,6 +118,35 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "execution_authority",
             },
         )
+        self.assertEqual(
+            set(rendered["automation"]),
+            {
+                "enabled",
+                "local_reminder_implemented",
+                "local_reminder_delivery_ui_implemented",
+                "local_reminder_chat_routable",
+                "connector_actions_implemented",
+                "ai_actions_implemented",
+                "execution_authority",
+            },
+        )
+        self.assertTrue(
+            rendered["automation"][
+                "local_reminder_delivery_ui_implemented"
+            ]
+        )
+        self.assertFalse(
+            rendered["automation"]["local_reminder_chat_routable"]
+        )
+        self.assertFalse(
+            rendered["automation"]["connector_actions_implemented"]
+        )
+        self.assertFalse(
+            rendered["automation"]["ai_actions_implemented"]
+        )
+        self.assertFalse(
+            rendered["automation"]["execution_authority"]
+        )
         self.assertEqual(rendered["contract_version"], "1")
         self.assertEqual(rendered["execution_audit"]["status"], "ok")
         self.assertEqual(rendered["google_calendar"]["status"], "connected")

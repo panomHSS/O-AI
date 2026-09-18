@@ -112,6 +112,34 @@ class AutomationRepository:
         )
         return list(self._session.scalars(statement).all())
 
+    def list_terminal_runs_newest(
+        self,
+        *,
+        limit: int = 20,
+    ) -> list[AutomationRunRecord]:
+        if (
+            isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= 50
+        ):
+            raise ValueError(
+                "delivery limit must be between 1 and 50."
+            )
+        statement = (
+            select(AutomationRunRecord)
+            .where(
+                AutomationRunRecord.status.in_(
+                    ("delivered", "missed", "indeterminate")
+                )
+            )
+            .order_by(
+                AutomationRunRecord.due_at_utc.desc(),
+                AutomationRunRecord.id.desc(),
+            )
+            .limit(limit)
+        )
+        return list(self._session.scalars(statement).all())
+
     def count_pending_after(self, now) -> int:
         statement = (
             select(func.count())
