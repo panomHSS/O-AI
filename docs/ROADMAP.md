@@ -832,3 +832,28 @@ ADR-085 records the D91 contract decision.
 
 D91 completion does not authorize D92. D92 Workspace Persistence & Migration v1
 requires its own approved Design/Implementation Spec.
+
+## D92 — Workspace Persistence & Migration v1
+
+Status: **SPEC OPEN — IMPLEMENTATION NOT STARTED**
+
+D92 is defined by
+`docs/specs/D92_WORKSPACE_PERSISTENCE_MIGRATION_V1.md`.
+
+The proposed scope is deliberately persistence-only:
+
+- nullable exact `workspace_id` on Conversation, Project, Memory, and Document
+  roots;
+- all existing rows remain unscoped (`NULL`);
+- no automatic Personal/Company classification;
+- child records derive scope from their root rather than duplicating workspace
+  identity;
+- Memory key and Knowledge source-path uniqueness become workspace-capable
+  while preserving current legacy/unscoped uniqueness;
+- exact Alembic migration and read-only startup verification;
+- fail-closed downgrade if scoped data exists;
+- no repository/service/API/frontend scope enforcement yet.
+
+D92 implementation requires separate owner approval of its milestone-specific
+Design/Implementation Spec. D92 completion will not authorize D93
+automatically.
