@@ -2798,3 +2798,99 @@ to D73 preview/structured approval and private write execution UX.
 D83 adds no OAuth scope, credential policy, database migration, dependency,
 Docker change, frontend authority, Automation-to-Connector/AI bridge, or
 LAN/public deployment authority.
+
+## D84 Calendar Write Chat UX v1
+
+D84 connects the frozen D83 deterministic create candidate to the existing
+D73/D74 Calendar write approval and create-execution boundaries without creating
+a second Calendar execution authority.
+
+The create-only owner flow is:
+
+```text
+owner Chat
+-> D83 exact deterministic create candidate
+-> D73 deterministic proposal / preview / write_digest
+-> D84 process-local conversation binding
+-> dedicated CalendarWriteApprovalCard
+-> structured Deny -> D73 deny -> STOP
+-> structured Approve -> D73 approve
+                     -> existing D74 CalendarCreateExecutionService
+                     -> D36 authorization
+                     -> atomic D73 claim
+                     -> execution-time credential resolution
+                     -> at most one provider create attempt
+-> deterministic terminal Chat completion
+```
+
+D84 keeps D45 Action approval and D73 Calendar write approval as separate
+authority domains. `ChatResponse.action` remains D45-only. D84 adds the separate
+optional `calendar_write` response field containing only the exact D73 proposal
+projection required by the Calendar-specific approval card.
+
+The D84 binding store is bounded, process-local correlation metadata only. It
+binds one `approval_id` and exact `write_digest` to one originating
+`conversation_id`, language, and expiry. It stores no D72 request content,
+credential, token, authorization, execution plan, provider response, event id,
+AI prompt/output, or durable authority. At most one fresh D84 proposal may be
+pending per conversation.
+
+Plain Chat text never decides D73. Bounded phrases such as `อนุมัติครับ`,
+`approve`, `ไม่อนุมัติ`, or `deny` receive deterministic non-authoritative
+wording while the structured proposal remains the only decision surface.
+Unrelated Chat does not approve, deny, or silently consume the pending proposal.
+
+The structured local-owner decision surface is:
+
+```text
+POST /api/v1/calendar-write-chat/{approval_id}/approve
+POST /api/v1/calendar-write-chat/{approval_id}/deny
+```
+
+The browser sends only the server-issued `approval_id` path value and exact
+`write_digest`. It does not submit a conversation id, construct D72, recompute a
+digest, select an adapter, call D73 and D74 as separate browser-controlled
+steps, or obtain credential/provider authority. Conversation completion is
+resolved from the server-side D84 binding.
+
+D84 reuses the existing D74 create service unchanged as the only create
+execution boundary. Deny performs zero D74 execution. Approve may enter D74 at
+most once. Failed and indeterminate outcomes consume the one-time path and grant
+no retry authority. Unexpected post-approval execution uncertainty is projected
+conservatively as indeterminate and is never presented as safe to retry.
+
+The frontend uses a dedicated `CalendarWriteApprovalCard`, separate from the
+existing D45 `ActionApprovalCard`. It displays the exact D73 preview before
+decision, disables both buttons while a decision request is active, locks after
+terminal/unavailable/error state, and exposes no Retry action. A page refresh or
+backend process restart may make a process-local pending proposal unavailable;
+v1 does not recreate it automatically and adds no durable approval recovery.
+
+After D84, D81 runtime truth may report Calendar create via Chat as routable, but
+the wording remains create-only:
+
+```text
+Write via Chat: รองรับการสร้างนัด
+Update/Delete via Chat: ยังไม่รองรับ
+```
+
+Natural-language update/delete, fuzzy event search, hidden read-before-write,
+AI target selection, secondary calendars, recurrence, attendees, automated
+Calendar writes, background retries, new OAuth scope, database migration,
+dependency change, Docker change, or LAN/public authority remain outside D84.
+
+D84 invariants:
+
+- `D83 CANDIDATE != D73 PROPOSAL`
+- `D73 PROPOSAL != D73 OWNER APPROVAL`
+- `D45 ACTION APPROVAL != D73 CALENDAR WRITE APPROVAL`
+- `D84 BINDING != APPROVAL != AUTHORIZATION != CLAIM`
+- `PLAINTEXT CHAT != STRUCTURED D73 DECISION`
+- `D73 PREVIEW != PROVIDER WRITE`
+- `DENY -> ZERO D74 EXECUTION`
+- `APPROVE -> AT MOST ONE D74 CREATE EXECUTION`
+- `D74 CLAIM -> AT MOST ONE PROVIDER CREATE ATTEMPT`
+- `FAILED != RETRY AUTHORITY`
+- `INDETERMINATE != RETRY AUTHORITY`
+- `FRONTEND STATE != EXECUTION AUTHORITY`
+- `UPDATE/DELETE CHAT REMAIN UNSUPPORTED`

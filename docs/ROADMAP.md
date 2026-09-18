@@ -422,3 +422,64 @@ D83 completion freezes the create-only candidate bridge at this authority level.
 It does not authorize D84 implementation automatically. D84 requires its own
 approved Design/Implementation Spec and owns the separately reviewed
 D73 preview / structured approval / execution-result Chat UX.
+
+## D84 — Calendar Write Chat UX v1
+
+Status: **IMPLEMENTATION COMPLETE — MANUAL ACCEPTANCE PENDING**
+
+D84 connects the frozen D83 deterministic create-only Calendar Chat bridge to
+the frozen D73/D74 owner-approval and create-execution path through a dedicated
+Calendar-specific structured UX.
+
+Delivered:
+
+- exact D83 candidate handoff into one D73 deterministic proposal;
+- exact D73 preview/digest projection through separate
+  `ChatResponse.calendar_write`;
+- bounded process-local non-authoritative conversation/proposal correlation;
+- one pending D84 proposal per conversation;
+- structured D84 approve/deny API with server-bound conversation completion;
+- plaintext approve/deny with zero D73 decision authority;
+- structured Deny with zero D74 execution;
+- structured Approve with at most one existing D74 create execution;
+- failed/indeterminate terminal semantics with no automatic retry authority;
+- dedicated frontend `CalendarWriteApprovalCard`, separate from D45 Action UI;
+- frontend sends only `approval_id` and exact server-issued `write_digest`;
+- no browser-side D72 construction, digest construction, adapter selection, or
+  D73-to-D74 two-call authority chain;
+- D81 capability truth updated to create-via-Chat supported while
+  update/delete-via-Chat remain unsupported;
+- regression coverage preserving D74/D75 write claim boundaries, D76/D77 Gmail
+  isolation, D78 cross-connector isolation, D79 Automation isolation, D81
+  deterministic status, D82 safe connector errors, D83 grammar, Pre-D81
+  Calendar read behavior, generic Chat, and existing D45 Action UI;
+- ADR-078 and D84 architecture documentation.
+
+Repository acceptance:
+
+- Batch 01: PASS — backend D84 proposal/decision orchestration foundation;
+- Batch 01 checkpoint: `40a3605013333708608188908116279d0fa63dcd`;
+- Batch 02: PASS — backend Chat/API integration;
+- Batch 02 checkpoint: `32cc2a8aff8ca84af5f707c982a378ad047c3dd6`;
+- Batch 03: PASS — frontend structured Calendar Write UX;
+- Batch 03 checkpoint: `b1c1576badc536753083a9a02a1f954f3d8cb6ca`;
+- Batch 04 final regression/docs validation: PASS before repository finalization;
+- full backend regression: PASS before repository finalization;
+- backend `compileall`: PASS;
+- frontend lint/build: PASS;
+- `git diff --check`: PASS.
+
+Manual acceptance: **PENDING**
+
+Required Manual Acceptance A-F remains the final product verification:
+
+- A — preview appears with exact create details and zero write before decision;
+- B — plaintext approval remains non-authoritative;
+- C — structured Deny creates no event;
+- D — structured Approve performs at most one real create attempt;
+- E — Calendar read, D81 status, and ordinary AI Chat routing remain functional;
+- F — authority instrumentation confirms zero pre-approve D36/claim/credential/
+  provider write, zero D74 on deny, and at most one provider attempt on approve.
+
+Until Manual Acceptance A-F passes, D84 milestone completion remains pending.
+D85 is not authorized automatically by D84 implementation completion.

@@ -2799,3 +2799,93 @@ Manual acceptance A-F completed on 2026-09-18.
 
 D83 is COMPLETE at the create-candidate bridge boundary. This acceptance record
 does not expand ADR-077 authority and does not authorize D84.
+
+## ADR-078: Calendar Write Chat UX v1
+
+**Status:** Accepted
+
+**Decision**
+
+Connect the frozen D83 deterministic Calendar create candidate to the existing
+D73 proposal/owner-decision boundary and existing D74 create execution service
+through a new Calendar-specific Chat orchestration surface.
+
+For a valid D83 `supported_create` candidate, D84 passes the exact immutable D72
+request to `CalendarWriteApprovalService.propose()` without rewriting,
+renormalizing, enriching, or model-inferring any field. The returned D73
+preview, `approval_id`, `write_digest`, and expiry are projected into a new
+`ChatResponse.calendar_write` field. The existing `ChatResponse.action` field
+remains exclusively the D45/D46 Action approval surface.
+
+Add one bounded process-local `CalendarWriteChatBindingStore` that correlates
+the exact D73 proposal with the originating conversation. The binding is
+non-authoritative and contains only approval id, write digest, conversation id,
+language, and expiry. It grants no approval, D36 authorization, claim,
+credential access, provider mutation, or retry authority.
+
+Owner decision is structured-only through the D84 local-owner approve/deny
+endpoints. The request body carries only the exact write digest; the browser
+does not submit a conversation id. Plaintext Chat approve/deny phrases never
+call D73 decision methods and never execute Calendar writes.
+
+Structured Deny calls the existing D73 deny path, consumes the D84 binding, and
+performs zero D74 execution. Structured Approve calls the existing D73 approve
+path and then exactly one existing `CalendarCreateExecutionService.execute_create`
+attempt. D74 remains responsible for private plan construction, D36
+authorization, atomic one-time claim, credential resolution, and the bounded
+single provider create attempt. D84 does not duplicate those responsibilities.
+
+Add a dedicated frontend `CalendarWriteApprovalCard`, separate from the D45
+`ActionApprovalCard`. The card renders the exact server preview, sends only
+`approval_id` plus `write_digest`, blocks duplicate in-flight decisions, locks
+terminal/error states, and provides no Retry action. Failed and indeterminate
+results do not grant retry authority; an indeterminate result instructs the
+owner to inspect Calendar before creating a new request.
+
+Update D81 capability truth so Calendar create via Chat is reported as supported
+while update/delete via Chat remain explicitly unsupported.
+
+**Context**
+
+D83 intentionally stopped at a transient deterministic D72 create candidate.
+D73 already supplied deterministic preview/digest and explicit Calendar-specific
+owner approval. D74 already supplied the private create execution lane with D36,
+one-time claim, execution-time credentials, single-attempt provider semantics,
+and conservative indeterminate handling. The missing capability was a safe
+owner-facing Chat UX joining those existing boundaries without collapsing them.
+
+Reusing D45 Action approval for D73, chaining D73 and D74 from the browser, or
+letting plaintext Chat decide a write would blur distinct authority domains and
+would make client state or conversational text part of mutation authority.
+
+**Consequences**
+
+O-AI gains end-to-end create-event Chat UX with explicit deterministic preview
+and structured owner decision while preserving the existing Calendar write
+authority chain.
+
+D84 adds no natural-language update/delete, fuzzy event targeting, hidden
+Calendar read, AI event/date selection, recurrence, attendees, reminders,
+conference links, secondary calendars, Automation-to-Calendar write,
+background execution, automatic retry, new OAuth scope, new credential profile,
+database migration, dependency, Docker change, or public/LAN authority.
+
+Pending D73/D84 correlation remains process-local in v1. Browser refresh or
+backend restart may make a pending card unavailable; the safe behavior is
+expired/no-longer-pending rather than automatic proposal recreation or
+execution.
+
+D84 invariants:
+
+- `CHAT WRITE INTENT != D73 OWNER APPROVAL`
+- `D45 ACTION APPROVAL != D73 CALENDAR WRITE APPROVAL`
+- `WRITE DIGEST != EXECUTION PLAN DIGEST`
+- `D84 BINDING != APPROVAL != AUTHORIZATION != CLAIM`
+- `PLAINTEXT APPROVE/DENY -> ZERO D73 DECISION`
+- `PROPOSAL/PREVIEW -> ZERO PROVIDER WRITE`
+- `DENY -> ZERO D74 EXECUTION`
+- `APPROVE -> AT MOST ONE D74 CREATE EXECUTION`
+- `APPROVED != AUTHORIZED != CLAIMED != SUCCEEDED`
+- `FAILED != RETRY AUTHORITY`
+- `INDETERMINATE != RETRY AUTHORITY`
+- `FRONTEND STATE != AUTHORITY`
