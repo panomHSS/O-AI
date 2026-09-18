@@ -222,15 +222,21 @@ class GmailChatIntentRouter:
         )
 
     def classify(self, message: object) -> ChatPluginIntentOutcome:
-        if not self.has_signal(message):
+        if not isinstance(message, str) or not message.strip():
             return ChatPluginIntentOutcome(status="none")
-        assert isinstance(message, str)
+
         normalized = " ".join(message.strip().split())
+
+        if _is_non_routing_reference(normalized):
+            return ChatPluginIntentOutcome(status="none")
+
         folded = normalized.casefold()
 
         if any(phrase in folded for phrase in _UNSUPPORTED_PHRASES):
             return ChatPluginIntentOutcome(status="invalid")
 
+        if not self.has_signal(normalized):
+            return ChatPluginIntentOutcome(status="none")
         from_matches = [
             match
             for pattern in _FROM_PATTERNS

@@ -259,7 +259,7 @@ from app.intelligence.steps import (
     DecisionStep,
     GoalStep,
 )
-from backend.app.services.goals import GoalService
+from app.services.goals import GoalService
 from app.pipeline.retrieval import RetrievalPipeline
 from app.pipeline.components import RetrievalComponents
 
