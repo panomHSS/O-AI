@@ -3308,3 +3308,60 @@ D87 repository finalization status: **COMPLETE**.
 
 D87 Manual/Owner Acceptance A-F is complete. The accepted owner evidence does not
 authorize D88; D88 remains separately unauthorized.
+
+## Gmail Send execution v1
+
+D88 introduces a separate owner-controlled Gmail Send execution lane on top of
+the immutable D86 message contract and D87 structured owner approval. Gmail
+Read remains a separate `gmail.messages.readonly` / `gmail.readonly` capability;
+Gmail Send uses its own `gmail.messages.send` credential profile, exact
+`gmail.send` OAuth scope, token manager, OAuth callback, flow-state store, and
+deployment-controlled sender identity.
+
+The send authority chain is deliberately split across independent boundaries:
+
+```mermaid
+flowchart LR
+    D86["D86 GmailSendRequest"] --> D87["D87 exact preview + send digest"]
+    D87 --> Approval["Explicit owner approval"]
+    Approval --> Plan["Deterministic D88 execution plan"]
+    Plan --> Guard["D36 ExecutionGuard"]
+    Guard --> Claim["Atomic one-shot D88 claim"]
+    Claim --> Cred["Exact gmail.send credential resolution"]
+    Cred --> Runtime["Private ModuleRuntime"]
+    Runtime --> Provider["Gmail messages.send — at most one POST"]
+    Provider --> Outcome["succeeded / failed / indeterminate"]
+```
+
+`APPROVED`, `AUTHORIZED`, `CLAIMED`, credential resolution, provider attempt,
+and successful delivery are distinct states. D87 approval never acquires claim,
+credential, network, or provider authority. D36 authorization occurs before
+the D88 claim. Credential resolution happens only after the claim through the
+private Gmail Send `ModuleAdapter`; a failed or indeterminate terminal result
+does not release the claim or create retry authority.
+
+The provider connector constructs only one plain-text MIME message with the
+deployment-controlled `From`, the exact D86 recipient/subject/body, and no
+CC/BCC, HTML, attachments, reply, forward, alias, or caller-controlled sender.
+It sends one bounded `POST` to
+`https://gmail.googleapis.com/gmail/v1/users/me/messages/send`, follows no
+redirects, uses no proxy, has a bounded timeout/response size, and performs no
+automatic retry. Determinate provider rejections return `failed`; timeout,
+transport interruption, 408, 5xx, or an invalid successful response return
+`indeterminate` so O-AI does not guess whether Gmail accepted the message.
+
+The explicit local-owner execution API is
+`POST /api/v1/gmail-send-executions`. Its request carries only `approval_id`
+and the exact D87 `send_digest`; message content, sender identity, credentials,
+OAuth scope, adapter/capability selection, retry, resend, and force-send
+controls are not transport inputs. The existing local-request marker is
+required but is not authentication.
+
+D88 Gmail Send is fail-closed by deployment default:
+`OAI_GMAIL_SEND_ENABLED=false`, and a valid
+`OAI_GMAIL_SEND_FROM_ADDRESS` is required before execution. Runtime diagnostics
+report Gmail Write/Send backend implementation separately from Chat routing:
+the backend implementation is present while Gmail Write/Send via Chat remains
+unsupported. D88 adds no frontend send workflow, natural-language Chat send
+authority, Automation-to-Gmail send bridge, database migration, dependency, or
+public/LAN authority.

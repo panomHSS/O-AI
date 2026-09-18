@@ -109,10 +109,9 @@ class GmailSendAuthorityIsolationTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, source)
 
-    def test_send_contract_is_wired_only_into_d87_approval_boundary(self) -> None:
-        """D87 may consume D86 data only inside the approved approval layer."""
+    def test_send_contract_is_wired_only_into_d87_d88_boundaries(self) -> None:
+        """D86 data may flow only through approved D87/D88 pre-provider layers."""
         send_markers = (
-            "app.contracts.gmail_send",
             "GmailSendDraft",
             "GmailSendRequest",
         )
@@ -120,6 +119,8 @@ class GmailSendAuthorityIsolationTests(unittest.TestCase):
             "app/contracts/gmail_send_approval.py",
             "app/schemas/gmail_send_approvals.py",
             "app/services/gmail_send_approval.py",
+            "app/contracts/gmail_send_execution.py",
+            "app/connectors/gmail_send.py",
         }
         consumers: set[str] = set()
         for path in production_python_files():
@@ -132,25 +133,32 @@ class GmailSendAuthorityIsolationTests(unittest.TestCase):
         self.assertEqual(consumers, allowed)
         for path in consumers:
             self.assertFalse(path.startswith("app/adapters/"))
-            self.assertFalse(path.startswith("app/connectors/"))
+            if path.startswith("app/connectors/"):
+                self.assertEqual(path, "app/connectors/gmail_send.py")
             self.assertFalse(path.startswith("app/plugins/"))
             self.assertFalse(path.startswith("app/runtime/"))
             self.assertFalse(path.startswith("app/api/v1/chat"))
 
-    def test_runtime_has_no_gmail_send_oauth_scope(self) -> None:
+    def test_gmail_send_oauth_scope_is_isolated_to_d88_contract(self) -> None:
         scope = "https://www.googleapis.com/auth/gmail.send"
         offenders: list[str] = []
         for path in APP.rglob("*.py"):
             source = path.read_text(encoding="utf-8-sig")
             if scope in source:
-                offenders.append(str(path.relative_to(BACKEND)))
-        self.assertEqual(offenders, [])
+                offenders.append(
+                    str(path.relative_to(BACKEND)).replace("\\", "/")
+                )
+        self.assertEqual(
+            offenders,
+            ["app/contracts/gmail_send_execution.py"],
+        )
 
-    def test_d81_gmail_status_still_says_write_send_unsupported(self) -> None:
+    def test_d88_gmail_status_separates_backend_from_chat_send(self) -> None:
         path = APP / "services" / "chat_runtime_capability.py"
         source = path.read_text(encoding="utf-8-sig")
         self.assertIn("สถานะ Gmail ครับ", source)
-        self.assertIn("Write/Send", source)
+        self.assertIn("Write/Send backend", source)
+        self.assertIn("Write/Send via Chat", source)
         self.assertIn("ยังไม่รองรับ", source)
 
     def test_frontend_has_no_gmail_send_authority_surface(self) -> None:

@@ -301,21 +301,37 @@ class D76GmailCredentialFoundationAcceptanceTests(unittest.TestCase):
             [GMAIL_READ_CREDENTIAL_PROFILE_ID],
         )
 
-    def test_production_source_has_no_gmail_write_scope(self):
+    def test_production_source_preserves_read_scope_and_isolates_d88_send_scope(self):
         root = Path(__file__).resolve().parents[2]
         app_root = root / "backend" / "app"
+
+        production_files = tuple(app_root.rglob("*.py"))
         production = "\n".join(
-            path.read_text(encoding="utf-8")
-            for path in app_root.rglob("*.py")
+            path.read_text(encoding="utf-8-sig")
+            for path in production_files
         )
+
+        # D76's Gmail Read foundation still forbids broader write scopes.
         for forbidden in (
             "https://www.googleapis.com/auth/gmail.modify",
-            "https://www.googleapis.com/auth/gmail.send",
             "https://www.googleapis.com/auth/gmail.compose",
             "https://mail.google.com/",
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, production)
+
+        # D88 Batch 02 introduces the narrow gmail.send identity deliberately,
+        # but the literal must remain isolated to the D88 execution contract.
+        send_scope = "https://www.googleapis.com/auth/gmail.send"
+        offenders = sorted(
+            str(path.relative_to(root / "backend")).replace("\\", "/")
+            for path in production_files
+            if send_scope in path.read_text(encoding="utf-8-sig")
+        )
+        self.assertEqual(
+            offenders,
+            ["app/contracts/gmail_send_execution.py"],
+        )
 
     def test_no_gmail_static_execution_permission_or_migration_is_added(self):
         root = Path(__file__).resolve().parents[2]

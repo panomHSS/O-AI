@@ -224,8 +224,12 @@ class RuntimeCapabilityResponseComposer:
                     f"- การเชื่อมต่อ: {self._th_connection(g.status)}",
                     f"- Read via Chat: {self._th_ready(g.read_chat_routable)}",
                     (
-                        "- Write/Send: "
+                        "- Write/Send backend: "
                         + ("รองรับ" if g.write_implemented else "ยังไม่รองรับ")
+                    ),
+                    (
+                        "- Write/Send via Chat: "
+                        + ("รองรับ" if g.write_chat_routable else "ยังไม่รองรับ")
                     ),
                 )
             )
@@ -304,8 +308,12 @@ class RuntimeCapabilityResponseComposer:
                 f"- Connection: {self._th_connection(g.status)}",
                 f"- Read via Chat: {self._th_ready(g.read_chat_routable)}",
                 (
-                    "- Write/Send: "
+                    "- Write/Send backend: "
                     + ("รองรับ" if g.write_implemented else "ยังไม่รองรับ")
+                ),
+                (
+                    "- Write/Send via Chat: "
+                    + ("รองรับ" if g.write_chat_routable else "ยังไม่รองรับ")
                 ),
                 "",
                 "Cross-Connector AI",
@@ -368,8 +376,12 @@ class RuntimeCapabilityResponseComposer:
                     f"- Connection: {self._en_connection(g.status)}",
                     f"- Read via Chat: {self._en_ready(g.read_chat_routable)}",
                     (
-                        "- Write/Send: "
-                        + ("supported" if g.write_implemented else "not supported")
+                        "- Write/Send backend: "
+                        + ("implemented" if g.write_implemented else "not implemented")
+                    ),
+                    (
+                        "- Write/Send via Chat: "
+                        + ("supported" if g.write_chat_routable else "not supported")
                     ),
                 )
             )
@@ -448,8 +460,12 @@ class RuntimeCapabilityResponseComposer:
                 f"- Connection: {self._en_connection(g.status)}",
                 f"- Read via Chat: {self._en_ready(g.read_chat_routable)}",
                 (
-                    "- Write/Send: "
-                    + ("supported" if g.write_implemented else "not supported")
+                    "- Write/Send backend: "
+                    + ("implemented" if g.write_implemented else "not implemented")
+                ),
+                (
+                    "- Write/Send via Chat: "
+                    + ("supported" if g.write_chat_routable else "not supported")
                 ),
                 "",
                 "Cross-Connector AI",

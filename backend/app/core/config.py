@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     oai_github_public_repo_connector_enabled: bool = False
     oai_google_calendar_connector_enabled: bool = False
     oai_gmail_connector_enabled: bool = False
+    oai_gmail_send_enabled: bool = False
+    oai_gmail_send_from_address: str | None = None
     oai_cross_connector_ai_context_enabled: bool = False
     oai_automation_enabled: bool = False
     oai_owner_timezone: str = "Asia/Bangkok"
@@ -66,6 +68,9 @@ class Settings(BaseSettings):
     )
     oai_google_gmail_oauth_redirect_uri: str = (
         "http://localhost:8000/api/v1/oauth/google-gmail/callback"
+    )
+    oai_google_gmail_send_oauth_redirect_uri: str = (
+        "http://localhost:8000/api/v1/oauth/google-gmail-send/callback"
     )
     oai_oauth_token_encryption_key: SecretStr | None = None
 

@@ -15,6 +15,12 @@ from app.contracts.gmail import (
     GMAIL_READ_CAPABILITY_NAME,
     GMAIL_READ_CREDENTIAL_PROFILE_ID,
 )
+from app.contracts.gmail_send_execution import (
+    GMAIL_SEND_CAPABILITY_NAME,
+    GMAIL_SEND_CREDENTIAL_PROFILE_ID,
+    GMAIL_SEND_CREDENTIAL_SCOPE,
+    GMAIL_SEND_CREDENTIAL_SECRET_REF,
+)
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_CAPABILITY_NAME,
     GOOGLE_CALENDAR_CREATE_CAPABILITY_NAME,
@@ -57,6 +63,16 @@ PRODUCTION_CREDENTIAL_PROFILES: tuple[CredentialProfile, ...] = (
         auth_scheme=GMAIL_CREDENTIAL_AUTH_SCHEME,
         required_scopes=(GMAIL_CREDENTIAL_SCOPE,),
         secret_ref=GMAIL_CREDENTIAL_SECRET_REF,
+    ),
+    CredentialProfile(
+        profile_id=GMAIL_SEND_CREDENTIAL_PROFILE_ID,
+        plugin_id=GMAIL_PLUGIN_ID,
+        plugin_version=GMAIL_PLUGIN_VERSION,
+        capability_name=GMAIL_SEND_CAPABILITY_NAME,
+        provider_id=GMAIL_CREDENTIAL_PROVIDER_ID,
+        auth_scheme=GMAIL_CREDENTIAL_AUTH_SCHEME,
+        required_scopes=(GMAIL_SEND_CREDENTIAL_SCOPE,),
+        secret_ref=GMAIL_SEND_CREDENTIAL_SECRET_REF,
     ),
     CredentialProfile(
         profile_id=GOOGLE_CALENDAR_CREATE_CREDENTIAL_PROFILE_ID,

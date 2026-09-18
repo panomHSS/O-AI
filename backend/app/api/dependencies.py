@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import get_settings
 from app.adapters.chatgpt import ChatGPTAdapter
 from app.adapters.google_calendar_create_module import GoogleCalendarCreateModuleAdapter
+from app.adapters.gmail_send_module import GmailSendModuleAdapter
 from app.adapters.google_calendar_delete_module import GoogleCalendarDeleteModuleAdapter
 from app.adapters.google_calendar_update_module import GoogleCalendarUpdateModuleAdapter
 from app.adapters.local_ai import LocalAIAdapter
@@ -105,6 +106,7 @@ from app.services.credential_access_broker import (
     LazyCredentialSecretSource,
 )
 from app.connectors.google_oauth import GoogleOAuthClient
+from app.connectors.gmail_send import GmailSendClient
 from app.connectors.google_calendar_write import GoogleCalendarWriteClient
 from app.services.google_oauth_config import GoogleOAuthRuntimeConfig
 from app.services.google_oauth_lifecycle import GoogleOAuthLifecycleService
@@ -119,12 +121,19 @@ from app.services.credential_profile_catalog import (
     CredentialProfileCatalog,
 )
 from app.contracts.gmail import GMAIL_CREDENTIAL_SECRET_REF
+from app.contracts.gmail_send import GMAIL_SEND_OPERATION
+from app.contracts.gmail_send_execution import (
+    GMAIL_SEND_ADAPTER_ID,
+    GMAIL_SEND_CAPABILITY_ID,
+    GMAIL_SEND_CREDENTIAL_SECRET_REF,
+)
 from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_CREDENTIAL_SECRET_REF,
 )
 from app.services.google_oauth_subjects import (
     GOOGLE_CALENDAR_OAUTH_SUBJECT,
     GOOGLE_GMAIL_OAUTH_SUBJECT,
+    GOOGLE_GMAIL_SEND_OAUTH_SUBJECT,
 )
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
@@ -175,6 +184,8 @@ from app.services.gmail_send_approval import (
     GmailSendApprovalService,
     GmailSendApprovalStore,
 )
+from app.services.gmail_send_execution import GmailSendExecutionClaimStore
+from app.services.gmail_send_execution_service import GmailSendExecutionService
 from app.services.calendar_create_execution import CalendarCreateExecutionService
 from app.services.calendar_update_delete_execution import (
     CalendarUpdateDeleteExecutionService,
@@ -492,6 +503,17 @@ def get_google_gmail_oauth_runtime_config() -> GoogleOAuthRuntimeConfig:
     )
 
 
+def get_google_gmail_send_oauth_runtime_config() -> GoogleOAuthRuntimeConfig:
+    """Compose the exact D88 Gmail Send OAuth deployment subject."""
+    settings = get_settings()
+    return GoogleOAuthRuntimeConfig(
+        client_id=settings.oai_google_oauth_client_id,
+        client_secret=settings.oai_google_oauth_client_secret,
+        redirect_uri=settings.oai_google_gmail_send_oauth_redirect_uri,
+        token_encryption_key=settings.oai_oauth_token_encryption_key,
+        subject=GOOGLE_GMAIL_SEND_OAUTH_SUBJECT,
+    )
+
 def get_owner_ui_redirect_config() -> OwnerUIRedirectConfig:
     """Compose the D66 fixed loopback owner-UI redirect boundary."""
     return OwnerUIRedirectConfig(get_settings().oai_owner_ui_base_url)
@@ -510,6 +532,11 @@ def get_google_gmail_oauth_client() -> GoogleOAuthClient:
 
 
 @lru_cache
+def get_google_gmail_send_oauth_client() -> GoogleOAuthClient:
+    """Compose the exact isolated Gmail Send OAuth transport."""
+    return GoogleOAuthClient(subject=GOOGLE_GMAIL_SEND_OAUTH_SUBJECT)
+
+@lru_cache
 def get_google_oauth_flow_state_store() -> OAuthFlowStateStore:
     """Compose bounded Calendar-only process-local OAuth state."""
     return OAuthFlowStateStore()
@@ -520,6 +547,11 @@ def get_google_gmail_oauth_flow_state_store() -> OAuthFlowStateStore:
     """Compose separate bounded Gmail-only process-local OAuth state."""
     return OAuthFlowStateStore()
 
+
+@lru_cache
+def get_google_gmail_send_oauth_flow_state_store() -> OAuthFlowStateStore:
+    """Compose separate bounded Gmail Send-only OAuth state."""
+    return OAuthFlowStateStore()
 
 @lru_cache
 def get_google_oauth_token_manager() -> GoogleOAuthTokenManager:
@@ -542,6 +574,15 @@ def get_google_gmail_oauth_token_manager() -> GoogleOAuthTokenManager:
 
 
 @lru_cache
+def get_google_gmail_send_oauth_token_manager() -> GoogleOAuthTokenManager:
+    """Refresh only the exact isolated Gmail Send access token."""
+    return GoogleOAuthTokenManager(
+        session_factory=SessionLocal,
+        config=get_google_gmail_send_oauth_runtime_config(),
+        client=get_google_gmail_send_oauth_client(),
+    )
+
+@lru_cache
 def get_credential_secret_source() -> CredentialSecretSource:
     """Resolve D64 managed access tokens only when D62 requests the exact ref."""
     return LazyCredentialSecretSource(
@@ -551,6 +592,10 @@ def get_credential_secret_source() -> CredentialSecretSource:
             ),
             GMAIL_CREDENTIAL_SECRET_REF: (
                 lambda: get_google_gmail_oauth_token_manager().resolve_access_token()
+            ),
+            GMAIL_SEND_CREDENTIAL_SECRET_REF: (
+                lambda: get_google_gmail_send_oauth_token_manager()
+                .resolve_access_token()
             ),
         }
     )
@@ -576,6 +621,15 @@ def get_google_gmail_oauth_connection_status_reader(
     )
 
 
+def get_google_gmail_send_oauth_connection_status_reader(
+    database_session: Session = Depends(get_db),
+) -> GoogleOAuthConnectionStatusReader:
+    """Read Gmail Send OAuth metadata without resolving credentials."""
+    return GoogleOAuthConnectionStatusReader(
+        OAuthCredentialRepository(database_session),
+        subject=GOOGLE_GMAIL_SEND_OAUTH_SUBJECT,
+    )
+
 def get_runtime_diagnostics_service(
     database_session: Session = Depends(get_db),
 ) -> RuntimeDiagnosticsService:
@@ -590,6 +644,14 @@ def get_runtime_diagnostics_service(
             get_google_gmail_oauth_connection_status_reader(database_session)
         ),
         gmail_oauth_config_factory=get_google_gmail_oauth_runtime_config,
+        gmail_send_oauth_status_reader=(
+            get_google_gmail_send_oauth_connection_status_reader(
+                database_session
+            )
+        ),
+        gmail_send_oauth_config_factory=(
+            get_google_gmail_send_oauth_runtime_config
+        ),
     )
 
 @lru_cache
@@ -658,6 +720,18 @@ def get_google_gmail_oauth_lifecycle_service(
         token_manager=get_google_gmail_oauth_token_manager(),
     )
 
+
+def get_google_gmail_send_oauth_lifecycle_service(
+    database_session: Session = Depends(get_db),
+) -> GoogleOAuthLifecycleService:
+    """Compose owner Gmail Send OAuth without send execution authority."""
+    return GoogleOAuthLifecycleService(
+        repository=OAuthCredentialRepository(database_session),
+        config=get_google_gmail_send_oauth_runtime_config(),
+        client=get_google_gmail_send_oauth_client(),
+        flow_state_store=get_google_gmail_send_oauth_flow_state_store(),
+        token_manager=get_google_gmail_send_oauth_token_manager(),
+    )
 
 @lru_cache
 def get_credential_access_broker() -> CredentialAccessBroker:
@@ -1129,6 +1203,84 @@ def get_gmail_send_approval_service() -> GmailSendApprovalService:
         store=get_gmail_send_approval_store()
     )
 
+
+def get_gmail_send_client() -> GmailSendClient:
+    """Compose D88 provider transport; construction performs no network I/O."""
+    return GmailSendClient()
+
+
+@lru_cache
+def get_gmail_send_module_adapter() -> GmailSendModuleAdapter:
+    """Compose private D88 adapter without invoking credential resolution."""
+    return GmailSendModuleAdapter(
+        credential_broker=get_credential_access_broker(),
+        client=get_gmail_send_client(),
+    )
+
+
+@lru_cache
+def get_gmail_send_private_registry() -> AdapterRegistry:
+    """Keep D88 send adapter outside the generic production module catalog."""
+    return AdapterRegistry((get_gmail_send_module_adapter(),))
+
+
+@lru_cache
+def get_gmail_send_private_permission_policy() -> CapabilityPermissionPolicy:
+    """Permit only exact approval-gated Gmail send in the private D88 lane."""
+    return CapabilityPermissionPolicy(
+        registry=get_gmail_send_private_registry(),
+        permissions=(
+            ExecutableCapabilityPermission(
+                capability_id=GMAIL_SEND_CAPABILITY_ID,
+                target_kind="module",
+                adapter_id=GMAIL_SEND_ADAPTER_ID,
+                operation=GMAIL_SEND_OPERATION,
+                effect="external_side_effect",
+                data_class="owner_data",
+                owner_approval_required=True,
+            ),
+        ),
+    )
+
+
+def get_gmail_send_private_guard(
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
+) -> ExecutionGuard:
+    return ExecutionGuard(
+        registry=get_gmail_send_private_registry(),
+        permission_policy=get_gmail_send_private_permission_policy(),
+        audit=audit,
+    )
+
+
+def get_gmail_send_private_runtime(
+    audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
+) -> ModuleRuntime:
+    return ModuleRuntime(
+        registry=get_gmail_send_private_registry(),
+        audit=audit,
+    )
+
+@lru_cache
+def get_gmail_send_execution_claim_store() -> GmailSendExecutionClaimStore:
+    """Compose bounded process-local D88 one-shot execution authority."""
+    return GmailSendExecutionClaimStore()
+
+
+def get_gmail_send_execution_service(
+    guard: ExecutionGuard = Depends(get_gmail_send_private_guard),
+    runtime: ModuleRuntime = Depends(get_gmail_send_private_runtime),
+) -> GmailSendExecutionService:
+    """Compose D88 owner execution; deployment default remains disabled."""
+    settings = get_settings()
+    return GmailSendExecutionService(
+        approval_store=get_gmail_send_approval_store(),
+        execution_store=get_gmail_send_execution_claim_store(),
+        guard=guard,
+        runtime=runtime,
+        sender=settings.oai_gmail_send_from_address,
+        enabled=settings.oai_gmail_send_enabled,
+    )
 
 def get_google_calendar_write_client() -> GoogleCalendarWriteClient:
     return GoogleCalendarWriteClient()

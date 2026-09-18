@@ -42,12 +42,24 @@ class RuntimeDiagnosticsService:
         gmail_oauth_config_factory: (
             Callable[[], GoogleOAuthRuntimeConfig] | None
         ) = None,
+        gmail_send_oauth_status_reader: (
+            GoogleOAuthConnectionStatusReader | None
+        ) = None,
+        gmail_send_oauth_config_factory: (
+            Callable[[], GoogleOAuthRuntimeConfig] | None
+        ) = None,
     ) -> None:
         self._settings = settings
         self._google_oauth_status_reader = google_oauth_status_reader
         self._google_oauth_config_factory = google_oauth_config_factory
         self._gmail_oauth_status_reader = gmail_oauth_status_reader
         self._gmail_oauth_config_factory = gmail_oauth_config_factory
+        self._gmail_send_oauth_status_reader = (
+            gmail_send_oauth_status_reader
+        )
+        self._gmail_send_oauth_config_factory = (
+            gmail_send_oauth_config_factory
+        )
 
     def snapshot(self, *, database_revision: str) -> RuntimeDiagnosticsResponse:
         return RuntimeDiagnosticsResponse(
@@ -235,13 +247,23 @@ class RuntimeDiagnosticsService:
             config_factory=self._gmail_oauth_config_factory,
             status_reader=self._gmail_oauth_status_reader,
         )
+        send_truth = self._connector_read_truth(
+            connector_enabled=bool(
+                getattr(self._settings, "oai_gmail_send_enabled", False)
+            ),
+            config_factory=self._gmail_send_oauth_config_factory,
+            status_reader=self._gmail_send_oauth_status_reader,
+        )
         return GmailDiagnostics(
             status=truth.status,
             connector_enabled=truth.enabled,
             configuration_present=truth.configured,
             read_implemented=truth.implemented,
             read_chat_routable=truth.chat_routable,
-            write_implemented=False,
+            write_implemented=True,
+            send_enabled=send_truth.enabled,
+            send_configuration_present=send_truth.configured,
+            send_connected=send_truth.connected,
             write_chat_routable=False,
             execution_authority=False,
         )

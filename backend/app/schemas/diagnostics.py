@@ -50,7 +50,10 @@ class GmailDiagnostics(BaseModel):
     configuration_present: bool
     read_implemented: Literal[True] = True
     read_chat_routable: StrictBool = False
-    write_implemented: Literal[False] = False
+    write_implemented: StrictBool = True
+    send_enabled: StrictBool = False
+    send_configuration_present: StrictBool = False
+    send_connected: StrictBool = False
     write_chat_routable: Literal[False] = False
     execution_authority: Literal[False] = False
 

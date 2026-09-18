@@ -146,7 +146,7 @@ class D81RuntimeCapabilityTruthTests(unittest.TestCase):
         self.assertTrue(gmail.configuration_present)
         self.assertTrue(gmail.read_implemented)
         self.assertTrue(gmail.read_chat_routable)
-        self.assertFalse(gmail.write_implemented)
+        self.assertTrue(gmail.write_implemented)
         self.assertFalse(gmail.write_chat_routable)
         self.assertFalse(gmail.execution_authority)
 

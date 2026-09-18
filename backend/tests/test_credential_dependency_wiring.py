@@ -30,6 +30,7 @@ class CredentialDependencyWiringTests(unittest.TestCase):
         dependencies.get_credential_secret_source.cache_clear()
         dependencies.get_google_oauth_token_manager.cache_clear()
         dependencies.get_google_gmail_oauth_token_manager.cache_clear()
+        dependencies.get_google_gmail_send_oauth_token_manager.cache_clear()
 
     def tearDown(self) -> None:
         dependencies.get_credential_access_broker.cache_clear()
@@ -37,9 +38,10 @@ class CredentialDependencyWiringTests(unittest.TestCase):
         dependencies.get_credential_secret_source.cache_clear()
         dependencies.get_google_oauth_token_manager.cache_clear()
         dependencies.get_google_gmail_oauth_token_manager.cache_clear()
+        dependencies.get_google_gmail_send_oauth_token_manager.cache_clear()
 
     def test_production_catalog_and_source_keep_exact_managed_boundary(self) -> None:
-        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 5)
+        self.assertEqual(len(PRODUCTION_CREDENTIAL_PROFILES), 6)
         self.assertEqual(
             dependencies.get_credential_profile_catalog().profiles,
             PRODUCTION_CREDENTIAL_PROFILES,

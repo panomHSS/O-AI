@@ -44,7 +44,7 @@ def snapshot() -> RuntimeDiagnosticsResponse:
             configuration_present=True,
             read_implemented=True,
             read_chat_routable=True,
-            write_implemented=False,
+            write_implemented=True,
             write_chat_routable=False,
             execution_authority=False,
         ),
@@ -170,13 +170,14 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
         self.assertIn("Update/Delete via Chat: ยังไม่รองรับ", response)
         self.assertNotIn("execution_authority", response)
 
-    def test_gmail_response_never_claims_write_or_send(self) -> None:
+    def test_gmail_response_separates_backend_send_from_chat_authority(self) -> None:
         response = self.composer.compose(
             RuntimeCapabilityStatusIntent(target="gmail", language="th"),
             self.snapshot,
         )
         self.assertIn("Read via Chat: พร้อม", response)
-        self.assertIn("Write/Send: ยังไม่รองรับ", response)
+        self.assertIn("Write/Send backend: รองรับ", response)
+        self.assertIn("Write/Send via Chat: ยังไม่รองรับ", response)
 
     def test_automation_response_does_not_claim_connector_or_ai_authority(self) -> None:
         response = self.composer.compose(
@@ -201,7 +202,8 @@ class D81RuntimeCapabilityResponseComposerTests(unittest.TestCase):
             "Execution audit: ok",
             "Write via Chat: รองรับการสร้างนัด",
             "Update/Delete via Chat: ยังไม่รองรับ",
-            "Write/Send: ยังไม่รองรับ",
+            "Write/Send backend: รองรับ",
+            "Write/Send via Chat: ยังไม่รองรับ",
             "Gmail + Calendar context: เปิดใช้งาน",
             "Connector execution: ยังไม่รองรับ",
         ):

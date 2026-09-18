@@ -197,11 +197,11 @@ class GmailSendApprovalIsolationTests(unittest.TestCase):
             "https://www.googleapis.com/auth/gmail.readonly",
         )
 
-    def test_d81_gmail_write_send_truth_remains_unsupported(self) -> None:
+    def test_d88_gmail_backend_send_truth_is_implemented_but_not_chat_routable(self) -> None:
         source = inspect.getsource(
             runtime_diagnostics.RuntimeDiagnosticsService._gmail_diagnostics
         )
-        self.assertIn("write_implemented=False", source)
+        self.assertIn("write_implemented=True", source)
         self.assertIn("write_chat_routable=False", source)
         self.assertIn("execution_authority=False", source)
 
