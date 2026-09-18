@@ -1,4 +1,5 @@
 import type {
+  CalendarWriteChatDecision,
   ChatRequest,
   ChatResponse,
   ExecutionApprovalDecision,
@@ -131,6 +132,34 @@ export function denyExecutionApproval(approvalId: string, planDigest: string): P
       method: "POST",
       headers: { "X-OAI-Local-Request": "1" },
       body: { plan_digest: planDigest },
+    },
+  );
+}
+
+export function approveCalendarWriteChat(
+  approvalId: string,
+  writeDigest: string,
+): Promise<CalendarWriteChatDecision> {
+  return apiRequest<CalendarWriteChatDecision>(
+    `/calendar-write-chat/${encodeURIComponent(approvalId)}/approve`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: { write_digest: writeDigest },
+    },
+  );
+}
+
+export function denyCalendarWriteChat(
+  approvalId: string,
+  writeDigest: string,
+): Promise<CalendarWriteChatDecision> {
+  return apiRequest<CalendarWriteChatDecision>(
+    `/calendar-write-chat/${encodeURIComponent(approvalId)}/deny`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: { write_digest: writeDigest },
     },
   );
 }

@@ -10,6 +10,39 @@ export interface ChatCitation {
   confidence: number;
 }
 
+export interface CalendarWritePreview {
+  contract_version: string;
+  operation: "create_event" | "update_event" | "delete_event";
+  calendar_id: "primary";
+  event_id: string | null;
+  summary: string | null;
+  start: string | null;
+  end: string | null;
+  description: string | null;
+  location: string | null;
+  changed_fields: string[];
+}
+
+export interface CalendarWriteChatProposal {
+  status: "pending_approval";
+  reason_code: string;
+  approval_id: string;
+  write_digest: string;
+  preview: CalendarWritePreview;
+  expires_at: string;
+}
+
+export interface CalendarWriteChatDecision {
+  conversation_id: string;
+  approval_id: string;
+  write_digest: string;
+  decision: "approved" | "denied";
+  status: "denied" | "succeeded" | "failed" | "indeterminate";
+  reason_code: string;
+  reply: string;
+  event_id: string | null;
+}
+
 export interface ExecutionCapability {
   capability_id: string;
   effect: string;
@@ -65,6 +98,7 @@ export interface ChatMessage {
   content: string;
   citations?: ChatCitation[];
   action?: ChatAction | null;
+  calendarWrite?: CalendarWriteChatProposal | null;
 }
 
 export interface ChatRequest {
@@ -77,4 +111,5 @@ export interface ChatResponse {
   reply: string;
   conversation_id: string;
   action: ChatAction | null;
+  calendar_write: CalendarWriteChatProposal | null;
 }

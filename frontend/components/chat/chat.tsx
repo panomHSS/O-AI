@@ -4,12 +4,15 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { ApiError, getConversation, getProject, sendChatMessage } from "../../lib/api-client";
 import type {
+  CalendarWriteChatDecision,
+  CalendarWriteChatProposal,
   ChatAction,
   ChatMessage,
   ExecutionChatCompletion,
 } from "../../types/chat";
 import type { Project } from "../../types/projects";
 import { ActionApprovalCard } from "./action-approval-card";
+import { CalendarWriteApprovalCard } from "./calendar-write-approval-card";
 
 const ACTIVE_CONVERSATION_STORAGE_KEY = "oai.activeConversationId";
 
@@ -17,12 +20,14 @@ function createMessage(
   role: ChatMessage["role"],
   content: string,
   action?: ChatAction | null,
+  calendarWrite?: CalendarWriteChatProposal | null,
 ): ChatMessage {
   return {
     id: crypto.randomUUID(),
     role,
     content,
     ...(action ? { action } : {}),
+    ...(calendarWrite ? { calendarWrite } : {}),
   };
 }
 
@@ -98,7 +103,12 @@ export function Chat() {
       }
       setMessages((currentMessages) => [
         ...currentMessages,
-        createMessage("assistant", response.reply, response.action),
+        createMessage(
+          "assistant",
+          response.reply,
+          response.action,
+          response.calendar_write,
+        ),
       ]);
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Something went wrong. Please try again.");
@@ -126,6 +136,28 @@ export function Chat() {
     setMessages((currentMessages) => [
       ...currentMessages,
       createMessage("assistant", completion.reply),
+    ]);
+  }
+
+  function handleCalendarWriteDecision(
+    decision: CalendarWriteChatDecision,
+  ) {
+    if (
+      conversationId &&
+      conversationId !== decision.conversation_id
+    ) {
+      setError("Calendar write result belongs to another conversation.");
+      return;
+    }
+
+    setConversationId(decision.conversation_id);
+    window.localStorage.setItem(
+      ACTIVE_CONVERSATION_STORAGE_KEY,
+      decision.conversation_id,
+    );
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      createMessage("assistant", decision.reply),
     ]);
   }
 
@@ -174,6 +206,12 @@ export function Chat() {
               <ActionApprovalCard
                 action={chatMessage.action}
                 onChatCompletion={handleActionChatCompletion}
+              />
+            ) : null}
+            {chatMessage.calendarWrite ? (
+              <CalendarWriteApprovalCard
+                proposal={chatMessage.calendarWrite}
+                onDecisionCompletion={handleCalendarWriteDecision}
               />
             ) : null}
           </article>
