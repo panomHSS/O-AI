@@ -2912,4 +2912,102 @@ D84 is COMPLETE. This completion record does not widen ADR-078: create via Chat
 still requires the structured D84/D73 owner-decision path; natural-language
 update/delete, automatic retry, browser authority, alternate execution paths,
 new OAuth/credential authority, and Automation-to-Calendar write remain
-unsupported. D85 is not authorized by this completion record.
+unsupported. D85 was authorized separately under its approved Design/Implementation Spec v1.
+
+## ADR-079: Gmail Read UX v2
+
+**Status:** Accepted
+
+**Decision**
+
+Extend the existing D77 read-only Gmail capability with a deterministic
+natural-Chat UX, a plaintext-approval truthfulness guard, and a transient
+structured owner-display projection while reusing the existing D45/D36/D77
+authority and execution path unchanged.
+
+D85 recognizes only bounded `recent`, `unread`, and `from` queries. `from`
+requires one exact validated email address. Quoted/example/negated requests and
+unsupported or ambiguous Gmail operations fail closed. D85 does not introduce
+arbitrary Gmail search syntax or a second read executor.
+
+A matched Gmail read request creates the existing D45 proposal for the existing
+D77 adapter/operation/query. Before structured owner approval there is no D36
+authorization, credential resolution, OAuth refresh, or Gmail network call.
+Plaintext Chat approval while the proposal is pending is deterministic and
+non-authoritative; it does not consume or decide the D45 proposal.
+
+The existing D45 `ActionApprovalCard` remains the sole owner-decision UI for
+Gmail read. Structured Deny performs zero Gmail network. Structured Approve may
+enter the existing D77 read execution path once, where D36 authorization and
+execution-time `gmail.messages.readonly` credential resolution remain
+authoritative.
+
+After successful execution, D85 may attach a transient structured Gmail display
+projection to the D45 Chat completion response. The projection is created only
+from the already validated D77 result and contains bounded sender, subject,
+received time, unread flag, snippet, and plain-text body fields. Provider
+`message_id`, raw MIME, provider headers, credentials, OAuth metadata, raw query
+state, and pagination state are excluded.
+
+The projection is presentation data, not durable context or authority. Existing
+D77 persistence remains unchanged: approved Gmail content is not written into
+ordinary AI conversation history; only the history-safe placeholder is
+persisted. D78 explicit cross-connector context remains a separate existing
+boundary and is not widened by D85.
+
+**Rationale**
+
+D77 already had the correct read-only connector, credential, approval, and
+authorization boundaries, but normal owner UX was narrow and Gmail results were
+rendered as one deterministic text block. Replacing that path would duplicate
+authority and increase security risk. Extending the deterministic classifier and
+adding presentation-only structured output improves usability without creating
+another execution plane.
+
+A dedicated Gmail approval mechanism is unnecessary because D45 already owns
+read-only Plugin owner approval. Conversely, treating typed `approve` text as a
+D45 decision would collapse conversational intent into execution authority.
+The explicit guard preserves the structured-decision boundary.
+
+**Consequences**
+
+O-AI gains a more natural bounded Gmail read UX and structured transient result
+presentation while retaining Gmail read-only semantics.
+
+D85 adds no Gmail send/reply/draft/forward/delete/archive/label/mark-read
+authority, arbitrary Gmail search, new OAuth scope, new credential subject,
+automatic retry, fallback connector, alternate credential, background mailbox
+watch, Automation-to-Gmail bridge, database migration, dependency, Docker
+change, or public/LAN authority.
+
+D85 invariants:
+
+- `GMAIL INTENT != OWNER APPROVAL`
+- `PLAINTEXT APPROVAL -> ZERO D45 DECISION`
+- `D45 APPROVAL != D36 AUTHORIZATION`
+- `PRE-APPROVAL -> ZERO CREDENTIAL / ZERO GMAIL NETWORK`
+- `DENY -> ZERO GMAIL NETWORK`
+- `APPROVE -> AT MOST ONE D77 READ EXECUTION`
+- `EMAIL CONTENT != ORDINARY AI CONTEXT`
+- `TRANSIENT DISPLAY != PERSISTED HISTORY`
+- `FRONTEND STATE != AUTHORITY`
+- `GMAIL READ != GMAIL WRITE`
+- `FAILURE != RETRY AUTHORITY`
+- `D85 COMPLETION != D86 AUTHORIZATION`
+
+**Manual Acceptance**
+
+D85 Manual Acceptance A-F passed on the live local runtime after Batch 01-04.
+The accepted evidence confirms zero pre-approval Gmail execution, zero Gmail
+provider execution on structured Deny, exactly one authorized D77 Gmail read on
+structured Approve, transient-only Gmail content presentation with safe history
+persistence, preserved D81/Calendar/D84/ordinary-AI/D78 routing boundaries,
+zero Gmail send/write authority, and zero retry authority.
+
+The plaintext truthfulness guard is regression-covered for `อนุมัติครับ`,
+`approve`, `approved`, and `ตกลง`. These phrases remain conversational text and
+do not constitute a D45 structured owner decision.
+
+This acceptance record completes D85 implementation/manual validation only.
+Repository finalization still requires explicit owner authorization for
+stage/commit/push, and D86 remains separately unauthorized.

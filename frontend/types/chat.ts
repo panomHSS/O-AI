@@ -70,9 +70,23 @@ export interface ExecutionResult {
   error_code: string | null;
 }
 
+export interface GmailReadDisplayMessage {
+  sender: string;
+  subject: string;
+  received_at: string;
+  unread: boolean;
+  snippet: string;
+  body: string;
+}
+
+export interface GmailReadDisplay {
+  messages: GmailReadDisplayMessage[];
+}
+
 export interface ExecutionChatCompletion {
   conversation_id: string;
   reply: string;
+  gmail_read: GmailReadDisplay | null;
 }
 
 export interface ExecutionApprovalDecision {
@@ -99,6 +113,7 @@ export interface ChatMessage {
   citations?: ChatCitation[];
   action?: ChatAction | null;
   calendarWrite?: CalendarWriteChatProposal | null;
+  gmailRead?: GmailReadDisplay | null;
 }
 
 export interface ChatRequest {

@@ -492,5 +492,77 @@ Manual Acceptance A-F completed on 2026-09-18:
 D84 is COMPLETE at the create-via-Chat structured-owner-decision boundary.
 Natural-language Calendar update/delete via Chat remain unsupported.
 
-D85 is not authorized automatically by D84 completion. D85 requires its own
-approved Design/Implementation Spec and explicit owner authorization.
+## D85 — Gmail Read UX v2
+
+Status: **IMPLEMENTATION + MANUAL ACCEPTANCE COMPLETE — REPOSITORY FINALIZATION PENDING**
+
+D85 upgrades the existing D77 read-only Gmail path into a bounded natural-Chat
+and owner-facing read UX without adding a second Gmail reader or widening Gmail
+authority.
+
+Delivered:
+
+- deterministic Thai/English Gmail read intent normalization for `recent`,
+  `unread`, and exact `from` email-address queries;
+- quoted/example/negated text protection and fail-closed unsupported/ambiguous
+  Gmail requests;
+- exact reuse of the existing D77 `GmailReadQuery`, Gmail Plugin, D45 owner
+  approval, D36 authorization, execution-time credential resolution, and
+  bounded Gmail GET path;
+- plaintext Chat approval guard while a Gmail D45 proposal is pending, with
+  zero D45 decision authority and the structured proposal left pending;
+- structured Deny retains zero credential resolution and zero Gmail network;
+- structured Approve retains one existing D77 authorized read execution path;
+- transient structured Gmail display projection for validated read results;
+- provider `message_id` excluded from the frontend display contract;
+- Gmail content remains untrusted owner data and is not retained in ordinary AI
+  conversation history;
+- existing D45 `ActionApprovalCard` remains the only Gmail read decision UI;
+- frontend Gmail result rendering is presentation-only and grants no authority;
+- D76/D77 credential/read isolation, D78 cross-connector isolation, D79
+  Automation isolation, D81 runtime truth, D82 safe connector errors, D84
+  Calendar-write authority, existing Calendar read, GitHub Plugin read, and
+  ordinary AI Chat remain regression-covered;
+- ADR-079 and D85 architecture documentation.
+
+Repository acceptance:
+
+- Batch 01: PASS — deterministic Gmail Read Intent UX v2;
+- Batch 02: PASS — Chat + Approval Safety;
+- Batch 03: PASS — transient frontend Gmail read-only presentation;
+- Batch 04 integration/security/docs validation: PASS before repository
+  finalization;
+- full backend regression: PASS;
+- backend `compileall`: PASS;
+- frontend lint/build: PASS;
+- `git diff --check`: PASS.
+
+Manual acceptance: **PASS**
+
+Manual Acceptance A-F evidence:
+
+- A — natural `recent`, `unread`, and exact `from` requests produced the exact
+  existing D45 Gmail read proposals with zero Gmail execution before structured
+  owner decision: PASS;
+- B — plaintext `อนุมัติครับ` remained non-authoritative, the original Gmail
+  proposal stayed pending, and D45 execution authority remained zero: PASS;
+- B hardening — the approved D85 plaintext guard catalog also includes exact
+  `approve`, `approved`, and `ตกลง` phrases with regression coverage: PASS;
+- C — structured Deny produced zero Gmail execution and zero provider read:
+  PASS;
+- D — structured Approve executed exactly one authorized D77 Gmail read,
+  rendered the bounded transient Gmail result, and retained only the safe
+  history placeholder: PASS;
+- E — D81 Gmail status, Calendar read, D84 Calendar create, ordinary AI Chat,
+  and the explicit D78 lane remained on their existing routes: PASS;
+- F — authority/security instrumentation confirmed zero pre-approval
+  credential/network execution, zero Gmail network on Deny, one authorized
+  Gmail invocation on Approve, zero ordinary-AI ingestion of email content,
+  zero Gmail send/write authority, and zero retry authority: PASS.
+
+D85 implementation and Manual Acceptance A-F are complete. Repository
+finalization remains pending explicit owner authorization for stage/commit/push.
+
+D86 is not authorized by D85 implementation, Manual Acceptance, or repository
+finalization. D86 requires its own approved Design/Implementation Spec and
+explicit owner authorization.

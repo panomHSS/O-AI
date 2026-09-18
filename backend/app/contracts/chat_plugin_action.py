@@ -7,7 +7,11 @@ from datetime import date, datetime
 from typing import Literal, TypeAlias
 from uuid import UUID
 
-from app.contracts.gmail import GmailReadQuery
+from app.contracts.gmail import (
+    GMAIL_MAX_RESULTS,
+    GmailReadDisplayMessage,
+    GmailReadQuery,
+)
 
 
 ChatPluginIntentStatus: TypeAlias = Literal["none", "matched", "invalid"]
@@ -246,10 +250,11 @@ class ChatPluginActionBinding:
 
 @dataclass(frozen=True, slots=True)
 class ChatPluginActionCompletion:
-    """Safe final Chat message derived from an already-decided D45 outcome."""
+    """Safe final Chat message plus optional transient display-only data."""
 
     conversation_id: UUID
     reply: str
+    gmail_read: tuple[GmailReadDisplayMessage, ...] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.conversation_id, UUID):
@@ -260,3 +265,12 @@ class ChatPluginActionCompletion:
             or self.reply != self.reply.strip()
         ):
             raise ValueError("reply must be a non-empty trimmed string.")
+        if self.gmail_read is not None and (
+            not isinstance(self.gmail_read, tuple)
+            or len(self.gmail_read) > GMAIL_MAX_RESULTS
+            or any(
+                not isinstance(message, GmailReadDisplayMessage)
+                for message in self.gmail_read
+            )
+        ):
+            raise ValueError("gmail_read must be one bounded display tuple.")

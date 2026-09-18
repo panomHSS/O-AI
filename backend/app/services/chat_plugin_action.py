@@ -1,4 +1,4 @@
-"""D61 deterministic Chat-to-Plugin intent, enablement, and completion."""
+﻿"""D61 deterministic Chat-to-Plugin intent, enablement, and completion."""
 
 from __future__ import annotations
 
@@ -264,6 +264,22 @@ class ChatPluginActionBindingStore:
                 for binding in self._items.values()
             )
 
+    def has_pending_gmail_binding(
+        self,
+        conversation_id: UUID,
+    ) -> bool:
+        # Correlation only; never grants D45 approval or D36 authority.
+        if not isinstance(conversation_id, UUID):
+            return False
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            self._cleanup_expired(now)
+            return any(
+                binding.conversation_id == conversation_id
+                and binding.gmail_query is not None
+                for binding in self._items.values()
+            )
+
     def clear(self) -> None:
         with self._lock:
             self._items.clear()
@@ -424,6 +440,7 @@ class ChatPluginActionCompletionService:
         if binding is None:
             return None
 
+        gmail_read = None
         if outcome.decision == "denied":
             if binding.gmail_query is not None:
                 reply = self._gmail_composer.DENIED_REPLY
@@ -436,6 +453,11 @@ class ChatPluginActionCompletionService:
                 )
         else:
             reply = self._reply_for_approved(binding, outcome)
+            if binding.gmail_query is not None:
+                gmail_read = self._gmail_composer.display_messages_for_approved(
+                    binding,
+                    outcome,
+                )
 
         persisted_reply = reply
         if outcome.decision == "approved":
@@ -452,6 +474,7 @@ class ChatPluginActionCompletionService:
         return ChatPluginActionCompletion(
             conversation_id=binding.conversation_id,
             reply=reply,
+            gmail_read=gmail_read,
         )
 
     def _capture_cross_connector_context(

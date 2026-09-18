@@ -28,38 +28,98 @@ from app.contracts.execution_approval import ExecutionApprovalDecisionOutcome
 from app.contracts.gmail import (
     GMAIL_MAX_RESULTS,
     GmailMessage,
+    GmailReadDisplayMessage,
     GmailReadQuery,
     GmailReadResult,
 )
 
 
-_EMAIL_TOKEN_RE = re.compile(
+_EMAIL_PATTERN = (
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
     r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+"
 )
-_FROM_RE = re.compile(
-    r"(?:อีเมลจาก|เมลจาก|emails?\s+from)\s+"
-    r"([A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
-    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)",
-    re.IGNORECASE,
+_EMAIL_TOKEN_RE = re.compile(_EMAIL_PATTERN)
+
+_THAI_POLITE = r"(?:\s*(?:ครับ|ค่ะ|คะ))?"
+
+_RECENT_PATTERNS = (
+    re.compile(
+        rf"(?:มี\s*)?(?:อีเมล|เมล)ล่าสุด"
+        rf"(?:อะไรบ้าง|บ้าง|ไหม|หรือเปล่า)?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"(?:ช่วย\s*)?(?:ดู|เช็ก|เช็ค)\s*(?:อีเมล|เมล)ล่าสุด"
+        rf"(?:ให้หน่อย)?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"(?:ช่วย\s*)?(?:ดู|เช็ก|เช็ค)\s+gmail\s+ล่าสุด"
+        rf"(?:ให้หน่อย)?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(r"(?:latest|recent)\s+emails?", re.IGNORECASE),
+    re.compile(
+        r"(?:please\s+)?(?:show|check|list|read)\s+"
+        r"(?:my\s+)?(?:latest|recent)\s+emails?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:please\s+)?(?:show|check|list|read)\s+"
+        r"(?:my\s+)?gmail\s+(?:latest|recent)(?:\s+emails?)?",
+        re.IGNORECASE,
+    ),
 )
 
-_RECENT_PHRASES = (
-    "อีเมลล่าสุด",
-    "เมลล่าสุด",
-    "latest email",
-    "latest emails",
-    "recent email",
-    "recent emails",
+_UNREAD_PATTERNS = (
+    re.compile(
+        rf"(?:มี\s*)?(?:อีเมล|เมล)(?:ที่)?ยัง(?:ไม่ได้|ไม่)อ่าน"
+        rf"(?:อะไรบ้าง|บ้าง|ไหม|หรือเปล่า)?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"(?:ช่วย\s*)?(?:ดู|เช็ก|เช็ค)\s*(?:อีเมล|เมล)"
+        rf"(?:ที่)?ยัง(?:ไม่ได้|ไม่)อ่าน(?:ให้หน่อย)?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"(?:ช่วย\s*)?(?:ดู|เช็ก|เช็ค)\s+gmail\s+"
+        rf"(?:ที่)?ยัง(?:ไม่ได้|ไม่)อ่าน(?:ให้หน่อย)?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(r"unread\s+emails?", re.IGNORECASE),
+    re.compile(
+        r"(?:please\s+)?(?:show|check|list|read)\s+"
+        r"(?:my\s+)?unread\s+emails?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:please\s+)?(?:show|check|list|read)\s+"
+        r"(?:my\s+)?gmail\s+unread(?:\s+emails?)?",
+        re.IGNORECASE,
+    ),
 )
-_UNREAD_PHRASES = (
-    "อีเมลที่ยังไม่ได้อ่าน",
-    "เมลยังไม่อ่าน",
-    "unread email",
-    "unread emails",
+
+_FROM_PATTERNS = (
+    re.compile(
+        rf"(?:มี\s*)?(?:อีเมล|เมล)จาก\s+({_EMAIL_PATTERN})"
+        rf"(?:\s*(?:ไหม|หรือเปล่า|หรือไม่|บ้าง))?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"(?:ช่วย\s*)?(?:ดู|เช็ก|เช็ค)\s*(?:อีเมล|เมล)จาก\s+"
+        rf"({_EMAIL_PATTERN})(?:ให้หน่อย)?{_THAI_POLITE}",
+        re.IGNORECASE,
+    ),
+    re.compile(rf"emails?\s+from\s+({_EMAIL_PATTERN})", re.IGNORECASE),
+    re.compile(
+        rf"(?:please\s+)?(?:show|check|list|read)\s+"
+        rf"(?:my\s+)?emails?\s+from\s+({_EMAIL_PATTERN})",
+        re.IGNORECASE,
+    ),
 )
+
 _UNSUPPORTED_PHRASES = (
     "attachment",
     "attachments",
@@ -80,22 +140,80 @@ _UNSUPPORTED_PHRASES = (
     "ส่งเมล",
     "reply",
     "ตอบกลับ",
+    "forward",
+    "ส่งต่อ",
+    "draft",
+    "compose",
+    "ร่างอีเมล",
     "delete",
     "ลบอีเมล",
     "archive",
     "mark as read",
     "mark as unread",
+    "ทำเป็นอ่านแล้ว",
+    "ทำเป็นยังไม่อ่าน",
+    "star email",
+    "ติดดาว",
+)
+
+_EXAMPLE_PREFIXES = (
+    "ตัวอย่าง",
+    "ยกตัวอย่าง",
+    "เช่น",
+    "example",
+    "for example",
+)
+_THAI_NEGATION_RE = re.compile(r"^(?:กรุณา\s*)?(?:อย่า|ไม่ต้อง|ไม่ต้องการ)")
+_ENGLISH_NEGATION_RE = re.compile(
+    r"^(?:please\s+)?(?:do\s+not|don't|dont)\b",
+    re.IGNORECASE,
+)
+_QUOTE_PAIRS = (
+    ('"', '"'),
+    ("'", "'"),
+    ("`", "`"),
+    ("“", "”"),
+    ("‘", "’"),
 )
 
 
+def _contains_quoted_text(value: str) -> bool:
+    for opening, closing in _QUOTE_PAIRS:
+        if opening == closing:
+            if value.count(opening) >= 2:
+                return True
+        elif opening in value and closing in value:
+            return True
+    return False
+
+
+def _is_non_routing_reference(normalized: str) -> bool:
+    folded = normalized.casefold()
+    if _contains_quoted_text(normalized):
+        return True
+    if any(folded.startswith(prefix) for prefix in _EXAMPLE_PREFIXES):
+        return True
+    return (
+        _THAI_NEGATION_RE.match(normalized) is not None
+        or _ENGLISH_NEGATION_RE.match(normalized) is not None
+    )
+
+
+def _fullmatch_any(patterns: tuple[re.Pattern[str], ...], value: str) -> bool:
+    return any(pattern.fullmatch(value) is not None for pattern in patterns)
+
+
 class GmailChatIntentRouter:
-    """Recognize only the frozen D77 recent/unread/from Gmail intents."""
+    """Recognize bounded D77 queries through deterministic D85 read UX grammar."""
 
     @staticmethod
     def has_signal(message: object) -> bool:
         if not isinstance(message, str) or not message.strip():
             return False
-        folded = message.casefold()
+        normalized = " ".join(message.strip().split())
+        if _is_non_routing_reference(normalized):
+            return False
+        folded = normalized.casefold()
         return (
             "อีเมล" in folded
             or "เมล" in folded
@@ -113,15 +231,20 @@ class GmailChatIntentRouter:
         if any(phrase in folded for phrase in _UNSUPPORTED_PHRASES):
             return ChatPluginIntentOutcome(status="invalid")
 
-        from_matches = list(_FROM_RE.finditer(normalized))
-        email_tokens = _EMAIL_TOKEN_RE.findall(normalized)
-        recent = any(phrase in folded for phrase in _RECENT_PHRASES)
-        unread = any(phrase in folded for phrase in _UNREAD_PHRASES)
+        from_matches = [
+            match
+            for pattern in _FROM_PATTERNS
+            if (match := pattern.fullmatch(normalized)) is not None
+        ]
+        recent = _fullmatch_any(_RECENT_PATTERNS, normalized)
+        unread = _fullmatch_any(_UNREAD_PATTERNS, normalized)
+
         mode_count = int(bool(from_matches)) + int(recent) + int(unread)
         if mode_count != 1:
             return ChatPluginIntentOutcome(status="invalid")
 
         if from_matches:
+            email_tokens = _EMAIL_TOKEN_RE.findall(normalized)
             if len(from_matches) != 1 or len(email_tokens) != 1:
                 return ChatPluginIntentOutcome(status="invalid")
             sender = from_matches[0].group(1)
@@ -233,6 +356,47 @@ class GmailChatCompletionComposer:
             except (TypeError, ValueError):
                 return None
         return tuple(projected)
+
+    def display_messages_for_approved(
+        self,
+        binding: ChatPluginActionBinding,
+        outcome: ExecutionApprovalDecisionOutcome,
+    ) -> tuple[GmailReadDisplayMessage, ...] | None:
+        """Return validated transient display data; never persistence authority."""
+        if binding.gmail_query is None:
+            return None
+        execution = outcome.execution
+        result = execution.result
+        if (
+            execution.status != "completed"
+            or result is None
+            or result.status != "succeeded"
+        ):
+            return None
+        output = result.output
+        if not isinstance(output, Mapping) or set(output) != {"content"}:
+            return None
+        content = output.get("content")
+        if not isinstance(content, str):
+            return None
+        parsed = self._validated_result(content)
+        if parsed is None:
+            return None
+
+        try:
+            return tuple(
+                GmailReadDisplayMessage(
+                    sender=message.sender,
+                    subject=message.subject,
+                    received_at=message.received_at,
+                    unread=message.unread,
+                    snippet=message.snippet,
+                    body=message.body,
+                )
+                for message in parsed.messages
+            )
+        except (TypeError, ValueError):
+            return None
 
     def reply_for_content(self, content: str) -> str:
         parsed = self._validated_result(content)

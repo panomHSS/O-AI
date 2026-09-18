@@ -194,6 +194,55 @@ class GmailMessage:
 
 
 @dataclass(frozen=True, slots=True)
+class GmailReadDisplayMessage:
+    """Transient owner-display projection with no provider message identity."""
+
+    sender: str
+    subject: str
+    received_at: str
+    unread: bool
+    snippet: str
+    body: str
+
+    def __post_init__(self) -> None:
+        _validated_text(
+            self.sender,
+            max_chars=GMAIL_MAX_FROM_CHARS,
+            code="gmail_display_sender_invalid",
+        )
+        _validated_text(
+            self.subject,
+            max_chars=GMAIL_MAX_SUBJECT_CHARS,
+            code="gmail_display_subject_invalid",
+        )
+        _validated_text(
+            self.snippet,
+            max_chars=GMAIL_MAX_SNIPPET_CHARS,
+            code="gmail_display_snippet_invalid",
+        )
+        _validated_text(
+            self.body,
+            max_chars=GMAIL_MAX_BODY_CHARS,
+            code="gmail_display_body_invalid",
+        )
+        if (
+            not isinstance(self.received_at, str)
+            or not self.received_at.endswith("Z")
+        ):
+            raise ValueError("gmail_display_received_at_invalid")
+        try:
+            parsed = datetime.fromisoformat(
+                self.received_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            raise ValueError("gmail_display_received_at_invalid") from None
+        if parsed.utcoffset() is None or parsed.utcoffset().total_seconds() != 0:
+            raise ValueError("gmail_display_received_at_invalid")
+        if type(self.unread) is not bool:
+            raise ValueError("gmail_display_unread_invalid")
+
+
+@dataclass(frozen=True, slots=True)
 class GmailReadResult:
     """One bounded D77 read result with no provider pagination token."""
 
@@ -234,6 +283,7 @@ __all__ = [
     "GMAIL_READ_MODE_RECENT",
     "GMAIL_READ_MODE_UNREAD",
     "GmailMessage",
+    "GmailReadDisplayMessage",
     "GmailReadQuery",
     "GmailReadResult",
 ]

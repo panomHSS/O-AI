@@ -1,4 +1,4 @@
-"""D46 deterministic explicit Chat -> Action bridge, extended by D61."""
+﻿"""D46 deterministic explicit Chat -> Action bridge, extended by D61."""
 
 from __future__ import annotations
 
@@ -53,6 +53,7 @@ _PLAINTEXT_APPROVAL_PHRASES = frozenset(
         "อนุมัติค่ะ",
         "approve",
         "approved",
+        "ตกลง",
     }
 )
 PENDING_REPLY = "Action prepared for owner approval."
@@ -94,6 +95,10 @@ GMAIL_DISABLED_REPLY = "Gmail connector ยังไม่ได้เปิด�
 GMAIL_INVALID_REPLY = (
     "คำขอ Gmail นี้รองรับเฉพาะอีเมลล่าสุด, อีเมลที่ยังไม่ได้อ่าน "
     "หรืออีเมลจากผู้ส่งหนึ่งรายครับ"
+)
+GMAIL_STRUCTURED_APPROVAL_REQUIRED_REPLY = (
+    "คำว่าอนุมัติในข้อความแชตยังไม่ใช่การอนุมัติ Action อ่าน Gmail ครับ "
+    "กรุณาใช้การอนุมัติแบบ structured ของ Action ที่รออยู่"
 )
 CALENDAR_TIMEZONE_UNAVAILABLE_REPLY = (
     "ไม่สามารถตีความช่วงเวลา Calendar ตาม timezone ของเจ้าของได้ครับ"
@@ -342,6 +347,48 @@ class ChatActionBridge:
             reply=CALENDAR_STRUCTURED_APPROVAL_REQUIRED_REPLY,
             status="rejected",
             reason_code="calendar_approval_requires_structured_action",
+        )
+
+    def is_pending_gmail_plaintext_approval(
+        self,
+        conversation_id: UUID | None,
+        message: object,
+    ) -> bool:
+        if not isinstance(conversation_id, UUID):
+            return False
+        normalized = self._normalized_plaintext_approval(message)
+        if normalized not in _PLAINTEXT_APPROVAL_PHRASES:
+            return False
+        return self._plugin_binding_store.has_pending_gmail_binding(
+            conversation_id
+        )
+
+    def process_pending_gmail_plaintext_approval(
+        self,
+        *,
+        message: str,
+        conversation_id: UUID,
+        project_id: UUID | None = None,
+    ) -> ChatActionBridgeOutcome:
+        if not self.is_pending_gmail_plaintext_approval(
+            conversation_id,
+            message,
+        ):
+            raise ValueError(
+                "No pending Gmail structured approval guard matched."
+            )
+        conversation, _ = self._conversation_service.begin_turn(
+            message,
+            conversation_id,
+            project_id,
+        )
+        conversation_uuid = UUID(str(conversation.id))
+        return self._complete(
+            conversation_id=str(conversation.id),
+            conversation_uuid=conversation_uuid,
+            reply=GMAIL_STRUCTURED_APPROVAL_REQUIRED_REPLY,
+            status="rejected",
+            reason_code="gmail_approval_requires_structured_action",
         )
 
     def process(

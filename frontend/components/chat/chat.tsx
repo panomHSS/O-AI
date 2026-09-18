@@ -9,6 +9,7 @@ import type {
   ChatAction,
   ChatMessage,
   ExecutionChatCompletion,
+  GmailReadDisplay,
 } from "../../types/chat";
 import type { Project } from "../../types/projects";
 import { ActionApprovalCard } from "./action-approval-card";
@@ -21,6 +22,7 @@ function createMessage(
   content: string,
   action?: ChatAction | null,
   calendarWrite?: CalendarWriteChatProposal | null,
+  gmailRead?: GmailReadDisplay | null,
 ): ChatMessage {
   return {
     id: crypto.randomUUID(),
@@ -28,7 +30,68 @@ function createMessage(
     content,
     ...(action ? { action } : {}),
     ...(calendarWrite ? { calendarWrite } : {}),
+    ...(gmailRead ? { gmailRead } : {}),
   };
+}
+
+function GmailReadResultCard({ result }: { result: GmailReadDisplay }) {
+  return (
+    <div className="mt-2 rounded-xl border border-zinc-600 bg-zinc-900/80 p-4 text-sm text-zinc-100">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">Gmail read result</p>
+          <p className="mt-1 text-xs text-zinc-400">
+            Display-only owner data · not retained in AI conversation history
+          </p>
+        </div>
+        <span className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-300">
+          Read-only
+        </span>
+      </div>
+
+      {result.messages.length === 0 ? (
+        <p className="mt-4 text-zinc-300">No matching Gmail messages.</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {result.messages.map((message, index) => (
+            <article
+              className="rounded-lg border border-zinc-700 bg-zinc-950/70 p-3"
+              key={`${message.received_at}-${index}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">{message.subject || "(No subject)"}</p>
+                <span className="text-xs text-zinc-400">
+                  {message.unread ? "Unread" : "Read"}
+                </span>
+              </div>
+              <dl className="mt-2 grid gap-2 text-xs">
+                <div>
+                  <dt className="text-zinc-500">From</dt>
+                  <dd className="break-words">{message.sender || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">Received</dt>
+                  <dd>{new Date(message.received_at).toLocaleString()}</dd>
+                </div>
+                {message.snippet ? (
+                  <div>
+                    <dt className="text-zinc-500">Snippet</dt>
+                    <dd className="whitespace-pre-wrap break-words">{message.snippet}</dd>
+                  </div>
+                ) : null}
+                {message.body ? (
+                  <div>
+                    <dt className="text-zinc-500">Plain-text body</dt>
+                    <dd className="whitespace-pre-wrap break-words">{message.body}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Chat() {
@@ -135,7 +198,13 @@ export function Chat() {
     );
     setMessages((currentMessages) => [
       ...currentMessages,
-      createMessage("assistant", completion.reply),
+      createMessage(
+        "assistant",
+        completion.reply,
+        undefined,
+        undefined,
+        completion.gmail_read,
+      ),
     ]);
   }
 
@@ -191,7 +260,10 @@ export function Chat() {
             key={chatMessage.id}
           >
             <p className="mb-1 text-xs font-medium uppercase tracking-wide opacity-60">{chatMessage.role}</p>
-            <p>{chatMessage.content}</p>
+            {chatMessage.gmailRead ? null : <p>{chatMessage.content}</p>}
+            {chatMessage.gmailRead ? (
+              <GmailReadResultCard result={chatMessage.gmailRead} />
+            ) : null}
             {chatMessage.citations?.length ? (
               <ol className="mt-3 space-y-2 border-t border-zinc-600 pt-3 text-sm">
                 {chatMessage.citations.map((citation) => (

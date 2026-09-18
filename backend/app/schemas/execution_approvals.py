@@ -98,18 +98,48 @@ class ExecutionResultResponse(BaseModel):
     error_code: str | None = None
 
 
+class GmailReadDisplayMessageResponse(BaseModel):
+    sender: str
+    subject: str
+    received_at: str
+    unread: bool
+    snippet: str
+    body: str
+
+
+class GmailReadDisplayResponse(BaseModel):
+    messages: list[GmailReadDisplayMessageResponse]
+
+
 class ExecutionChatCompletionResponse(BaseModel):
     conversation_id: UUID
     reply: str
+    gmail_read: GmailReadDisplayResponse | None = None
 
     @classmethod
     def from_completion(
         cls,
         completion: ChatPluginActionCompletion,
     ) -> "ExecutionChatCompletionResponse":
+        gmail_read = None
+        if completion.gmail_read is not None:
+            gmail_read = GmailReadDisplayResponse(
+                messages=[
+                    GmailReadDisplayMessageResponse(
+                        sender=message.sender,
+                        subject=message.subject,
+                        received_at=message.received_at,
+                        unread=message.unread,
+                        snippet=message.snippet,
+                        body=message.body,
+                    )
+                    for message in completion.gmail_read
+                ]
+            )
         return cls(
             conversation_id=completion.conversation_id,
             reply=completion.reply,
+            gmail_read=gmail_read,
         )
 
 

@@ -260,6 +260,49 @@ def send_chat_message(
             )
         )
 
+    # D85 Gmail read decisions remain D45 structured-only.
+    plaintext_gmail_approval_guard = getattr(
+        chat_action_bridge,
+        "is_pending_gmail_plaintext_approval",
+        None,
+    )
+    if (
+        callable(plaintext_gmail_approval_guard)
+        and plaintext_gmail_approval_guard(
+            payload.conversation_id,
+            payload.message,
+        )
+    ):
+        if payload.conversation_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        gmail_guard_processor = getattr(
+            chat_action_bridge,
+            "process_pending_gmail_plaintext_approval",
+            None,
+        )
+        if not callable(gmail_guard_processor):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        action_outcome = gmail_guard_processor(
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+        )
+        return ApiSuccess(
+            data=ChatResponse(
+                reply=action_outcome.reply,
+                conversation_id=action_outcome.conversation_id,
+                action=ChatActionResponse(
+                    status=action_outcome.status,
+                    reason_code=action_outcome.reason_code,
+                    approval=None,
+                ),
+            )
+        )
+
     # D84 decisions are structured only. Plaintext is persisted as a
     # deterministic non-authoritative reply and never reaches D73/D74.
     # Direct unit calls leave new FastAPI dependencies as Depends objects;
