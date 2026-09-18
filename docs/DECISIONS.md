@@ -3008,6 +3008,104 @@ The plaintext truthfulness guard is regression-covered for `อนุมัต�
 `approve`, `approved`, and `ตกลง`. These phrases remain conversational text and
 do not constitute a D45 structured owner decision.
 
-This acceptance record completes D85 implementation/manual validation only.
-Repository finalization still requires explicit owner authorization for
-stage/commit/push, and D86 remains separately unauthorized.
+D85 repository finalization subsequently completed at
+`b058118ac60342a1b4117977079788423ec001e9`. D86 was authorized separately under
+its own approved Design/Implementation Spec v1; that authorization does not
+change ADR-079 Gmail read authority.
+
+## ADR-080: Gmail Send Contract v1
+
+**Status:** Accepted
+
+**Decision**
+
+Establish a separate immutable provider-neutral Gmail send request contract
+before introducing any Gmail send approval or execution authority.
+
+D86 supports exactly one recipient, one bounded non-empty subject, and one
+bounded plain-text body. The recipient is one exact validated ASCII mailbox;
+display-name syntax, multiple recipients, CC/BCC, and Unicode mailbox syntax
+are outside v1. Subject and body limits are measured in UTF-8 bytes. Subject
+control characters including CR/LF are rejected. Body preserves exact Unicode
+plain text and allows only newline and tab control characters.
+
+The contract exposes fixed `contract_version = "1"` and
+`operation = "send_message"` values that callers cannot override. It exposes no
+sender identity, credential profile, OAuth scope, approval ID, digest,
+capability ID, adapter ID, provider request, retry control, or execution result.
+
+Repair 01 tightened mailbox local-part validation so leading/trailing dots and
+consecutive dots fail closed.
+
+D86 deliberately creates no Gmail send runtime wiring. Contract construction
+performs no structured owner approval, D36 authorization, credential
+resolution, OAuth refresh, connector/provider call, network access, or email
+send. The existing D76/D77/D85 Gmail read path and its
+`gmail.messages.readonly` / `gmail.readonly` identity remain unchanged, and D81
+continues to report Gmail Write/Send as unsupported.
+
+D87 owns any future structured owner approval, canonical send projection,
+digest, expiry, decision, and replay protection. D88 owns any future Gmail send
+credential/OAuth authority, execution adapter/capability, MIME/provider
+construction, one-shot send attempt, safe outcome semantics, audit behavior,
+and retry boundary. Neither milestone is authorized by this decision.
+
+**Rationale**
+
+Separating the message contract from approval and execution prevents a harmless
+data object from silently acquiring send authority. The narrow v1 surface also
+reduces recipient ambiguity, header injection risk, hidden-recipient expansion,
+and accidental coupling between Gmail read data and future send behavior.
+
+**Consequences**
+
+O-AI gains a deterministic Gmail send data contract suitable for later review
+and approval work, but Gmail send remains unavailable at runtime.
+
+D86 adds no `gmail.send` OAuth scope, send credential profile, connector,
+adapter, capability permission, approval store, Chat route, frontend send UI,
+provider/network call, retry authority, Automation bridge, dependency,
+migration, Docker change, or public/LAN authority.
+
+D86 invariants:
+
+- `GMAIL SEND REQUEST != OWNER APPROVAL`
+- `GMAIL SEND REQUEST != AUTHORIZATION`
+- `GMAIL SEND REQUEST != CREDENTIAL ACCESS`
+- `GMAIL SEND REQUEST != PROVIDER REQUEST`
+- `GMAIL SEND REQUEST != EMAIL SENT`
+- `GMAIL READ != GMAIL SEND`
+- `CONTRACT IMPLEMENTED != SEND IMPLEMENTED`
+- `D86 COMPLETION != D87 AUTHORIZATION`
+- `D86 COMPLETION != D88 AUTHORIZATION`
+- `FAILURE != RETRY AUTHORITY`
+
+**Manual/Owner Acceptance**
+
+D86 Manual/Owner Acceptance A-F passed on the local-owner runtime.
+
+The accepted evidence confirms deterministic valid contract construction,
+fail-closed ambiguous/multiple recipients, fail-closed CR/LF/header-injection
+subjects, exact Unicode/plain-text preservation, preserved D81 Write/Send
+unsupported truth, preserved D85 Gmail READ proposal behavior, and the existing
+D45 Deny terminal semantics (`blocked`, `owner_approval_denied`, no execution
+result, zero execution).
+
+Static/runtime regressions confirmed zero `gmail.send` OAuth/runtime wiring,
+zero D86 production runtime wiring, zero Chat/frontend send authority, and zero
+credential/network/approval/execution/send authority. No Gmail send was
+performed during acceptance.
+
+D86 implementation and Manual/Owner Acceptance are complete. Repository
+finalization remains separately owner-controlled, and D87/D88 remain
+unauthorized.
+
+**Repository Finalization**
+
+D86 repository finalization is complete in the commit containing this record.
+The finalized change preserves the accepted contract-only boundary: no
+`gmail.send` OAuth/runtime wiring, credential profile, provider/network send,
+approval authority, execution authority, Chat/frontend send authority, retry
+authority, or Automation-to-Gmail bridge is introduced.
+
+D87 and D88 remain separately unauthorized.

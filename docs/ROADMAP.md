@@ -494,7 +494,7 @@ Natural-language Calendar update/delete via Chat remain unsupported.
 
 ## D85 — Gmail Read UX v2
 
-Status: **IMPLEMENTATION + MANUAL ACCEPTANCE COMPLETE — REPOSITORY FINALIZATION PENDING**
+Status: **COMPLETE**
 
 D85 upgrades the existing D77 read-only Gmail path into a bounded natural-Chat
 and owner-facing read UX without adding a second Gmail reader or widening Gmail
@@ -560,9 +560,80 @@ Manual Acceptance A-F evidence:
   Gmail invocation on Approve, zero ordinary-AI ingestion of email content,
   zero Gmail send/write authority, and zero retry authority: PASS.
 
-D85 implementation and Manual Acceptance A-F are complete. Repository
-finalization remains pending explicit owner authorization for stage/commit/push.
+D85 implementation, Manual Acceptance A-F, and repository finalization are
+complete. Repository finalization completed at
+`b058118ac60342a1b4117977079788423ec001e9`.
 
-D86 is not authorized by D85 implementation, Manual Acceptance, or repository
-finalization. D86 requires its own approved Design/Implementation Spec and
-explicit owner authorization.
+D86 was authorized separately under its approved Design/Implementation Spec v1;
+that separate authorization does not widen D85 Gmail read authority.
+
+## D86 — Gmail Send Contract v1
+
+Status: **COMPLETE**
+
+D86 establishes an immutable provider-neutral Gmail send request contract while
+deliberately stopping before owner approval, authorization, credential access,
+provider/network access, or email send execution.
+
+Delivered:
+
+- separate `GmailSendDraft` and `GmailSendRequest` contracts;
+- contract version `1` and operation `send_message`;
+- exactly one validated ASCII mailbox recipient with no display-name,
+  multi-recipient, CC, or BCC surface;
+- bounded non-empty trimmed subject with control-character and CR/LF rejection;
+- bounded non-empty plain-text body with exact Unicode preservation and only
+  newline/tab controls allowed;
+- UTF-8 byte limits for recipient, subject, and body;
+- immutable/slotted contract objects with no caller-settable operation or
+  contract version;
+- Repair 01 fail-closed local-part validation for leading/trailing dot and
+  consecutive-dot forms;
+- dedicated authority-isolation regression proving no Gmail send credential,
+  OAuth scope, connector, network, approval, execution, Chat, or frontend
+  wiring;
+- existing D76/D77/D85 Gmail read identity and `gmail.readonly` scope preserved;
+- D81 Gmail capability truth continues to report Write/Send unsupported;
+- full backend regression and backend compile validation;
+- ADR-080 and D86 architecture documentation.
+
+Repository acceptance:
+
+- Batch 01: PASS — immutable Gmail send contract foundation;
+- Batch 02: PASS after Repair 01 — negative/security matrix;
+- Batch 03: PASS — authority-isolation and full backend regression;
+- Batch 04: PASS — documentation reconciliation and final verification.
+
+D86 remains contract-only. It adds no `gmail.send` OAuth scope, credential
+profile, send adapter/capability, approval store, approval digest, decision API,
+Chat send route, frontend send UI, provider request, retry authority,
+Automation-to-Gmail bridge, dependency, migration, Docker change, or public/LAN
+authority.
+
+Manual/Owner Acceptance A-F: **PASS**
+
+Acceptance evidence:
+
+- A — one valid exact recipient/subject/body request produced the deterministic
+  immutable D86 contract with fixed contract version and operation: PASS;
+- B — display-name, multiple-recipient, separator, leading-dot, and
+  consecutive-dot recipient forms failed closed: PASS;
+- C — CR, LF, CRLF header-injection, NUL, and other forbidden subject controls
+  failed closed: PASS;
+- D — composed/decomposed Unicode subject forms and exact plain-text body
+  content were preserved without normalization or rewriting: PASS;
+- E — live local-owner D81 Gmail status still reported Write/Send unsupported;
+  the existing D85 Gmail READ lane produced its normal D45 proposal and a
+  structured Deny terminated with the expected D45 `blocked` status,
+  `owner_approval_denied`, no execution result, and zero execution: PASS;
+- F — D86 regression/static checks confirmed zero `gmail.send` OAuth/runtime
+  wiring, zero D86 production runtime wiring, zero Chat/frontend send authority,
+  and zero credential/network/approval/execution/send authority: PASS.
+
+Gmail send performed during D86 acceptance: **ZERO**
+
+D86 implementation, Manual/Owner Acceptance A-F, documentation reconciliation,
+and repository finalization are complete. The commit containing this record is
+the controlled D86 repository-finalization commit.
+
+D87 and D88 remain separately unauthorized.
