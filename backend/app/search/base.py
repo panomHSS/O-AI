@@ -5,7 +5,7 @@ from app.models.document_chunk import DocumentChunk
 
 
 class KnowledgeSearchPort(Protocol):
-    """O-AI-owned contract for derived knowledge search."""
+    """O-AI-owned contract for derived workspace-scoped knowledge search."""
 
     def delete_document(
         self,
@@ -22,8 +22,8 @@ class KnowledgeSearchPort(Protocol):
 
     def search(
         self,
+        workspace_id: str,
         query: str,
         limit: int,
     ) -> list[dict[str, object]]:
-        """Return ranked knowledge-search results."""
-        
+        """Return ranked results from one exact authoritative workspace."""

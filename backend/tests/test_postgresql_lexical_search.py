@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_ID
+
 import unittest
 from unittest.mock import MagicMock
 
@@ -19,7 +21,7 @@ class PostgreSQLLexicalSearchTests(unittest.TestCase):
 
         search = PostgreSQLLexicalSearch(session)
 
-        results = search.search(
+        results = search.search(TEST_WORKSPACE_ID,
             "pump pressure problem",
             10,
         )
@@ -73,7 +75,7 @@ class PostgreSQLLexicalSearchTests(unittest.TestCase):
 
         search = PostgreSQLLexicalSearch(session)
 
-        results = search.search(
+        results = search.search(TEST_WORKSPACE_ID,
             "pump pressure",
             5,
         )
@@ -95,7 +97,7 @@ class PostgreSQLLexicalSearchTests(unittest.TestCase):
 
         search = PostgreSQLLexicalSearch(session)
 
-        search.search(
+        search.search(TEST_WORKSPACE_ID,
             "gearbox vibration",
             7,
         )

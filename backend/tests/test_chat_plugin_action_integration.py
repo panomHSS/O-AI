@@ -1,3 +1,4 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
 import json
 import unittest
 from types import SimpleNamespace
@@ -185,6 +186,7 @@ class ChatPluginActionIntegrationTests(unittest.TestCase):
             module_runtime=ModuleRuntime(registry=registry),
         )
         approval = ExecutionApprovalService(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             planner=planner,
             permission_policy=policy,
             coordinator=coordinator,

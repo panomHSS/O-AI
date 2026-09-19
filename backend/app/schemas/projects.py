@@ -70,6 +70,7 @@ class ProjectRevisionResponse(BaseModel):
 
 class ProjectResponse(BaseModel):
     id: UUID
+    workspace_id: Literal["personal", "company"]
     title: str
     objective: str
     status: ProjectStatus

@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_ID
+
 import asyncio
 import json
 import unittest
@@ -40,7 +42,7 @@ class TestKnowledgeAnswerService:
         return KnowledgeAnswerResponse(answer="Grounded answer S1", citations=[], evidence_quality="insufficient", conversation_id=UUID("11111111-1111-1111-1111-111111111111"), retrieval_summary=RetrievalSummaryResponse(candidates_considered=0, evidence_selected=0, duplicates_removed=0, filtered_out=0, conflicting_evidence_count=0, queries_used=[]), conflicts=[], reasoning_plan=ReasoningPlan(intent="general", normalized_question="", required_information=[], missing_information=[], evidence_map=[]), planning_plan=PlanningPlan(intent="general"))
 
 
-async def invoke_app(path: str, method: str = "GET", body: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], dict[str, Any]]:
+async def invoke_app(path: str, method: str = "GET", body: dict[str, Any] | None = None, headers: dict[str, str] | None = None, include_workspace: bool = True) -> tuple[int, dict[str, str], dict[str, Any]]:
     target = urlsplit(path)
     encoded_body = json.dumps(body).encode() if body is not None else b""
     has_received = False
@@ -57,6 +59,8 @@ async def invoke_app(path: str, method: str = "GET", body: dict[str, Any] | None
         messages.append(message)
 
     request_headers = {"Content-Type": "application/json"} if body is not None else {}
+    if include_workspace:
+        request_headers["X-OAI-Workspace"] = TEST_WORKSPACE_ID
     request_headers.update(headers or {})
     scope = {
         "type": "http",
@@ -122,6 +126,7 @@ class ApiStandardizationTests(unittest.TestCase):
     {
         "success": True,
         "data": {
+            "workspace_id": "personal",
             "reply": "Test reply: Hello",
             "conversation_id": "11111111-1111-1111-1111-111111111111",
             "action": None,

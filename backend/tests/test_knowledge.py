@@ -1,4 +1,6 @@
-﻿import asyncio
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -62,6 +64,7 @@ class KnowledgeTests(unittest.TestCase):
         repository = KnowledgeRepository(
             session=session,
             search=SQLiteFTS5SearchAdapter(session),
+            workspace_scope=TEST_WORKSPACE_SCOPE,
         )
 
         return KnowledgeService(

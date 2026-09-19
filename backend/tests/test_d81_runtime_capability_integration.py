@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import inspect
 import unittest
 from types import SimpleNamespace
@@ -258,6 +260,7 @@ class D81RuntimeCapabilityChatRouteTests(unittest.TestCase):
     ):
         conversation_id = uuid4()
         result = send_chat_message(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             request=request_for_test(),
             payload=ChatRequest(
                 message=message,

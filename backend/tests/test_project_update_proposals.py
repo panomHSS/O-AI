@@ -1,4 +1,6 @@
-﻿import os
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
+import os
 import tempfile
 import unittest
 import asyncio
@@ -285,14 +287,12 @@ class ProjectUpdateProposalTests(unittest.TestCase):
         session = self.Session()
         self.sessions.append(session)
 
-        project_repository = ProjectRepository(session)
+        project_repository = ProjectRepository(session, TEST_WORKSPACE_SCOPE)
         project_service = ProjectService(project_repository)
 
-        conversation_repository = ConversationRepository(session)
+        conversation_repository = ConversationRepository(session, TEST_WORKSPACE_SCOPE)
 
-        proposal_repository = ProjectUpdateProposalRepository(
-            session
-        )
+        proposal_repository = ProjectUpdateProposalRepository(session, TEST_WORKSPACE_SCOPE)
 
         proposal_service = ProjectUpdateProposalService(
             repository=proposal_repository,

@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE, create_project_action_proposal
+
 import unittest
 
 from sqlalchemy import create_engine
@@ -20,9 +22,7 @@ class ProjectActionExecutionProposalRepositoryTests(
         Base.metadata.create_all(self.engine)
         self.session = Session(self.engine)
         self.repository = (
-            ProjectActionExecutionProposalRepository(
-                self.session
-            )
+            ProjectActionExecutionProposalRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
     def tearDown(self) -> None:
@@ -32,7 +32,7 @@ class ProjectActionExecutionProposalRepositoryTests(
     def test_create_and_get_execution_proposal(
         self,
     ) -> None:
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id="11111111-1111-1111-1111-111111111111",
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -78,7 +78,7 @@ class ProjectActionExecutionProposalRepositoryTests(
     def test_decide_if_pending_updates_proposal_once(
         self,
     ) -> None:
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id="11111111-1111-1111-1111-111111111111",
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -139,7 +139,7 @@ class ProjectActionExecutionProposalRepositoryTests(
 
         self.session.add(project)
         self.session.flush()
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -205,7 +205,7 @@ class ProjectActionExecutionProposalRepositoryTests(
                 approved=approved,
                 executed=executed,
             ):
-                proposal = self.repository.create(
+                proposal = create_project_action_proposal(self.repository, self.session,
                     project_id=(
                         "11111111-1111-1111-1111-111111111111"
                     ),
@@ -255,7 +255,7 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -307,7 +307,7 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -343,46 +343,31 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.assertFalse(loaded.executed)
 
 
-    def test_claim_if_executable_rejects_missing_project(
+    def test_create_rejects_missing_project_parent(
         self,
     ) -> None:
-        proposal = self.repository.create(
-            project_id=(
-                "11111111-1111-1111-1111-111111111111"
-            ),
-            conversation_id=(
-                "22222222-2222-2222-2222-222222222222"
-            ),
-            project_revision=17,
-            source_action="Run acceptance tests",
-            steps=[
-                {
-                    "sequence": 1,
-                    "description": "Run acceptance tests",
-                }
-            ],
-        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "workspace_mismatch",
+        ):
+            ProjectActionExecutionProposalRepository.create(
+                self.repository,
+                project_id=(
+                    "99999999-9999-9999-9999-999999999999"
+                ),
+                conversation_id=(
+                    "88888888-8888-8888-8888-888888888888"
+                ),
+                project_revision=17,
+                source_action="Run acceptance tests",
+                steps=[
+                    {
+                        "sequence": 1,
+                        "description": "Run acceptance tests",
+                    }
+                ],
+            )
 
-        proposal.status = "APPROVED"
-        proposal.approved = True
-        proposal.executed = False
-
-        self.repository.commit()
-
-        claimed = self.repository.claim_if_executable(
-            proposal.id,
-        )
-
-        self.assertFalse(claimed)
-
-        self.repository.rollback()
-
-        loaded = self.repository.get(proposal.id)
-
-        self.assertIsNotNone(loaded)
-        self.assertEqual(loaded.status, "APPROVED")
-        self.assertTrue(loaded.approved)
-        self.assertFalse(loaded.executed)
 
     def test_complete_if_executing_marks_claimed_proposal_executed_once(
         self,
@@ -397,7 +382,7 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -473,7 +458,7 @@ class ProjectActionExecutionProposalRepositoryTests(
                 approved=approved,
                 executed=executed,
             ):
-                proposal = self.repository.create(
+                proposal = create_project_action_proposal(self.repository, self.session,
                     project_id=(
                         "11111111-1111-1111-1111-111111111111"
                     ),
@@ -532,7 +517,7 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -598,7 +583,7 @@ class ProjectActionExecutionProposalRepositoryTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -670,7 +655,7 @@ class ProjectActionExecutionProposalRepositoryTests(
                 approved=approved,
                 executed=executed,
             ):
-                proposal = self.repository.create(
+                proposal = create_project_action_proposal(self.repository, self.session,
                     project_id=(
                         "11111111-1111-1111-1111-111111111111"
                     ),

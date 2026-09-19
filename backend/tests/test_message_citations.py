@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,7 +35,7 @@ class MessageCitationTests(unittest.TestCase):
     def _service(self, citations: MessageCitationRepository | None = None) -> ConversationService:
         session = self.Session()
         self.sessions.append(session)
-        return ConversationService(ConversationRepository(session), ChatService(None), 2, citations or MessageCitationRepository(session))
+        return ConversationService(ConversationRepository(session, TEST_WORKSPACE_SCOPE), ChatService(None), 2, citations or MessageCitationRepository(session))
 
     @staticmethod
     def _snapshot(index: int) -> CitationSnapshot:
@@ -63,7 +65,7 @@ class MessageCitationTests(unittest.TestCase):
                 super().add_snapshots(message, snapshots)
                 raise RuntimeError("citation write failed")
 
-        service = ConversationService(ConversationRepository(session), ChatService(None), 2, FailingCitationRepository(session))
+        service = ConversationService(ConversationRepository(session, TEST_WORKSPACE_SCOPE), ChatService(None), 2, FailingCitationRepository(session))
         conversation, _ = service.begin_turn("Question")
         with self.assertRaisesRegex(RuntimeError, "citation write failed"):
             service.complete_turn(conversation.id, "Answer", [self._snapshot(1)])

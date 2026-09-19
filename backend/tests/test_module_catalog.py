@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -103,7 +105,10 @@ class ModuleCatalogTests(unittest.TestCase):
                 self.assertEqual(adapter.module_name, module_name)
 
     def test_dependency_catalog_registers_exact_expected_ids(self) -> None:
-        adapters = get_module_catalog_adapters(database_session=object())  # type: ignore[arg-type]
+        adapters = get_module_catalog_adapters(
+            database_session=object(),  # type: ignore[arg-type]
+            workspace_scope=TEST_WORKSPACE_SCOPE,
+        )
         self.assertEqual(
             tuple(adapter.adapter_id for adapter in adapters),
             (

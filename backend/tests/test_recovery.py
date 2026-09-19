@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import os
 import sqlite3
 import tempfile
@@ -371,7 +373,7 @@ class RecoveryTests(unittest.TestCase):
         engine = create_engine(f"sqlite:///{database.as_posix()}")
         session_factory = sessionmaker(bind=engine, expire_on_commit=False)
         with session_factory() as session:
-            service = MemoryService(MemoryRepository(session))
+            service = MemoryService(MemoryRepository(session, TEST_WORKSPACE_SCOPE))
             created = service.create(
                 CreateMemoryRequest(
                     key="service_archived",

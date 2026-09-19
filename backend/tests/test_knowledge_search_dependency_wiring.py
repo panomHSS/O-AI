@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -42,9 +44,7 @@ class KnowledgeSearchDependencyWiringTests(
             "sqlite"
         )
 
-        repository = get_knowledge_repository(
-            session
-        )
+        repository = get_knowledge_repository(session, TEST_WORKSPACE_SCOPE)
 
         get_embedding_provider.assert_not_called()
 
@@ -67,9 +67,7 @@ class KnowledgeSearchDependencyWiringTests(
 
         get_embedding_provider.return_value = embeddings
 
-        repository = get_knowledge_repository(
-            session
-        )
+        repository = get_knowledge_repository(session, TEST_WORKSPACE_SCOPE)
 
         get_embedding_provider.assert_called_once_with()
 

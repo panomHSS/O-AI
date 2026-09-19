@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import unittest
 
 from sqlalchemy import create_engine
@@ -36,15 +38,11 @@ class ConversationProjectActionExecutionDurabilityTests(
         self.session = Session(self.engine)
 
         self.conversation_repository = (
-            ConversationRepository(self.session)
+            ConversationRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
-        self.project_repository = ProjectRepository(
-            self.session
-        )
+        self.project_repository = ProjectRepository(self.session, TEST_WORKSPACE_SCOPE)
         self.execution_repository = (
-            ProjectActionExecutionProposalRepository(
-                self.session
-            )
+            ProjectActionExecutionProposalRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
         self.service = ConversationService(
@@ -52,7 +50,7 @@ class ConversationProjectActionExecutionDurabilityTests(
             chat_service=ChatService(StaticProvider()),
             context_message_limit=20,
             project_context_resolver=ProjectContextResolver(
-                ProjectContextReader(self.session)
+                ProjectContextReader(self.session, TEST_WORKSPACE_SCOPE)
             ),
             project_action_execution_persistence_service=(
                 ProjectActionExecutionPersistenceService(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -304,6 +306,7 @@ class ChatRouteTests(unittest.TestCase):
         conversation_id = uuid4()
         bridge = _RouteBridge(conversation_id)
         response = send_chat_message(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             request=SimpleNamespace(
                 state=SimpleNamespace(request_id="request-1")
             ),
@@ -329,6 +332,7 @@ class ChatRouteTests(unittest.TestCase):
         bridge = _RouteBridge(conversation_id)
         with self.assertRaises(HTTPException) as caught:
             send_chat_message(
+                workspace_scope=TEST_WORKSPACE_SCOPE,
                 request=SimpleNamespace(
                     state=SimpleNamespace(request_id="request-1")
                 ),

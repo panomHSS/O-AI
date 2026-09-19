@@ -253,4 +253,4 @@ class KnowledgeService:
 
     @staticmethod
     def _summary(document: Document) -> DocumentSummaryResponse:
-        return DocumentSummaryResponse(id=UUID(document.id), source_path=document.source_path, file_name=document.file_name, file_extension=document.file_extension, mime_type=document.mime_type, file_size=document.file_size, status=document.status, error_message=document.error_message, created_at=document.created_at, updated_at=document.updated_at, indexed_at=document.indexed_at)
+        return DocumentSummaryResponse(id=UUID(document.id), workspace_id=document.workspace_id, source_path=document.source_path, file_name=document.file_name, file_extension=document.file_extension, mime_type=document.mime_type, file_size=document.file_size, status=document.status, error_message=document.error_message, created_at=document.created_at, updated_at=document.updated_at, indexed_at=document.indexed_at)

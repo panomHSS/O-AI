@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import unittest
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -17,6 +19,7 @@ class CrossStub:
 class CrossConnectorApiTests(unittest.TestCase):
     def call(self, payload, service, header="1"):
         return send_chat_message(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             request=SimpleNamespace(state=SimpleNamespace(request_id="req-78")), payload=payload,
             command_input_pipeline=Exploding(), command_orchestrator=Exploding(),
             project_update_orchestrator=Exploding(), chat_action_bridge=Exploding(),

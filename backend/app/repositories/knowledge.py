@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import Select, delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.contracts.workspace import WorkspaceScope
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.readers.base import SourceSection
@@ -11,15 +12,17 @@ from app.search.base import KnowledgeSearchPort
 
 
 class KnowledgeRepository:
-    """Repository for authoritative document knowledge state."""
+    """Workspace-scoped repository for authoritative document knowledge state."""
 
     def __init__(
         self,
         session: Session,
         search: KnowledgeSearchPort,
+        workspace_scope: WorkspaceScope,
     ) -> None:
         self._session = session
         self._search = search
+        self._workspace_id = workspace_scope.workspace_id.value
 
     def get_by_path(
         self,
@@ -27,7 +30,10 @@ class KnowledgeRepository:
     ) -> Document | None:
         statement: Select[tuple[Document]] = (
             select(Document)
-            .where(Document.source_path == source_path)
+            .where(
+                Document.source_path == source_path,
+                Document.workspace_id == self._workspace_id,
+            )
             .options(selectinload(Document.chunks))
         )
         return self._session.scalar(statement)
@@ -38,7 +44,10 @@ class KnowledgeRepository:
     ) -> Document | None:
         statement: Select[tuple[Document]] = (
             select(Document)
-            .where(Document.id == document_id)
+            .where(
+                Document.id == document_id,
+                Document.workspace_id == self._workspace_id,
+            )
             .options(selectinload(Document.chunks))
         )
         return self._session.scalar(statement)
@@ -49,11 +58,9 @@ class KnowledgeRepository:
         page_size: int,
         status: str | None,
     ) -> tuple[Sequence[Document], int]:
-        filters = (
-            [Document.status == status]
-            if status
-            else []
-        )
+        filters = [Document.workspace_id == self._workspace_id]
+        if status:
+            filters.append(Document.status == status)
 
         statement: Select[tuple[Document]] = (
             select(Document)
@@ -68,17 +75,12 @@ class KnowledgeRepository:
 
         total = (
             self._session.scalar(
-                select(func.count(Document.id)).where(
-                    *filters
-                )
+                select(func.count(Document.id)).where(*filters)
             )
             or 0
         )
 
-        return (
-            self._session.scalars(statement).all(),
-            total,
-        )
+        return self._session.scalars(statement).all(), total
 
     def create_failed(
         self,
@@ -87,14 +89,13 @@ class KnowledgeRepository:
     ) -> Document:
         document = Document(
             **metadata,
+            workspace_id=self._workspace_id,
             status="failed",
             error_message=error_message,
             indexed_at=None,
         )
-
         self._session.add(document)
         self._session.flush()
-
         return document
 
     def replace_index(
@@ -104,8 +105,12 @@ class KnowledgeRepository:
         sections: list[SourceSection],
         indexed_at: datetime,
     ) -> Document:
+        if document is not None:
+            self._require_owned(document)
+
         target = document or Document(
             **metadata,
+            workspace_id=self._workspace_id,
             status="indexed",
             error_message=None,
             indexed_at=indexed_at,
@@ -121,15 +126,10 @@ class KnowledgeRepository:
 
             self._session.execute(
                 delete(DocumentChunk).where(
-                    DocumentChunk.document_id
-                    == target.id
+                    DocumentChunk.document_id == target.id
                 )
             )
-
-            self._search.delete_document(
-                target.id
-            )
-
+            self._search.delete_document(target.id)
         else:
             self._session.add(target)
             self._session.flush()
@@ -146,12 +146,7 @@ class KnowledgeRepository:
 
         self._session.add_all(chunks)
         self._session.flush()
-
-        self._search.index_chunks(
-            target.id,
-            chunks,
-        )
-
+        self._search.index_chunks(target.id, chunks)
         return target
 
     def record_failure(
@@ -161,14 +156,11 @@ class KnowledgeRepository:
         error_message: str,
     ) -> None:
         if document is None:
-            self.create_failed(
-                metadata,
-                error_message,
-            )
+            self.create_failed(metadata, error_message)
             return
 
+        self._require_owned(document)
         document.error_message = error_message
-
         if document.status != "indexed":
             document.status = "failed"
 
@@ -178,7 +170,8 @@ class KnowledgeRepository:
     ) -> None:
         documents = self._session.scalars(
             select(Document).where(
-                Document.status == "indexed"
+                Document.workspace_id == self._workspace_id,
+                Document.status == "indexed",
             )
         ).all()
 
@@ -195,7 +188,9 @@ class KnowledgeRepository:
         match_query: str,
         limit: int,
     ) -> list[dict[str, object]]:
+        """Search only within the exact authoritative workspace before limit."""
         return self._search.search(
+            self._workspace_id,
             match_query,
             limit,
         )
@@ -204,10 +199,13 @@ class KnowledgeRepository:
         self,
         document: Document,
     ) -> None:
-        self._search.delete_document(
-            document.id
-        )
+        self._require_owned(document)
+        self._search.delete_document(document.id)
         self._session.delete(document)
+
+    def _require_owned(self, document: Document) -> None:
+        if document.workspace_id != self._workspace_id:
+            raise ValueError("workspace_mismatch")
 
     def commit(self) -> None:
         self._session.commit()

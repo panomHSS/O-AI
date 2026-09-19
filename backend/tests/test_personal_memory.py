@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import asyncio
 import tempfile
 import unittest
@@ -21,7 +23,7 @@ class PersonalMemoryTests(unittest.TestCase):
         initialize_test_database(self.engine)
         self.Session = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, expire_on_commit=False)
         self.session = self.Session()
-        self.service = MemoryService(MemoryRepository(self.session))
+        self.service = MemoryService(MemoryRepository(self.session, TEST_WORKSPACE_SCOPE))
         app.dependency_overrides[get_memory_service] = lambda: self.service
 
     def tearDown(self) -> None:

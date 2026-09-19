@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE, create_project_action_proposal
+
 import unittest
 
 from sqlalchemy import create_engine
@@ -24,9 +26,7 @@ class ProjectActionExecutionDurableApprovalTests(
         self.session = Session(self.engine)
 
         self.repository = (
-            ProjectActionExecutionProposalRepository(
-                self.session
-            )
+            ProjectActionExecutionProposalRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
         self.service = (
@@ -42,7 +42,7 @@ class ProjectActionExecutionDurableApprovalTests(
     def test_owner_approval_updates_pending_record_without_execution(
         self,
     ) -> None:
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=(
                 "11111111-1111-1111-1111-111111111111"
             ),
@@ -82,7 +82,7 @@ class ProjectActionExecutionDurableApprovalTests(
     def test_owner_rejection_updates_pending_record_without_execution(
         self,
     ) -> None:
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=(
                 "11111111-1111-1111-1111-111111111111"
             ),
@@ -122,7 +122,7 @@ class ProjectActionExecutionDurableApprovalTests(
     def test_approved_proposal_cannot_be_rejected_later(
         self,
     ) -> None:
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=(
                 "11111111-1111-1111-1111-111111111111"
             ),
@@ -163,7 +163,7 @@ class ProjectActionExecutionDurableApprovalTests(
     def test_rejected_proposal_cannot_be_approved_later(
         self,
     ) -> None:
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=(
                 "11111111-1111-1111-1111-111111111111"
             ),

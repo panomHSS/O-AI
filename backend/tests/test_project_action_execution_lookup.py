@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE, create_project_action_proposal
+
 import unittest
 
 from sqlalchemy import create_engine
@@ -24,9 +26,7 @@ class ProjectActionExecutionLookupServiceTests(
         self.session = Session(self.engine)
 
         self.repository = (
-            ProjectActionExecutionProposalRepository(
-                self.session
-            )
+            ProjectActionExecutionProposalRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
         self.service = ProjectActionExecutionLookupService(
@@ -40,7 +40,7 @@ class ProjectActionExecutionLookupServiceTests(
     def test_get_returns_existing_proposal(
         self,
     ) -> None:
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=(
                 "11111111-1111-1111-1111-111111111111"
             ),

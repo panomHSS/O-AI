@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -31,6 +33,7 @@ class KnowledgeIntelligenceDependencyWiringTests(unittest.TestCase):
 
         service = get_knowledge_answer_service(
             database_session=database_session,
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             chat_service=chat_service,
             execution_planner=execution_planner,
             execution_guard=execution_guard,

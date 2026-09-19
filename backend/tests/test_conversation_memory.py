@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import asyncio
 import json
 import tempfile
@@ -54,7 +56,7 @@ class ConversationMemoryTests(unittest.TestCase):
         app.dependency_overrides[get_chat_service] = lambda: ChatService(self.provider)
 
         def test_conversation_service(database_session: Session = Depends(get_db)) -> ConversationService:
-            return ConversationService(ConversationRepository(database_session), ChatService(self.provider), context_message_limit=2)
+            return ConversationService(ConversationRepository(database_session, TEST_WORKSPACE_SCOPE), ChatService(self.provider), context_message_limit=2)
 
         app.dependency_overrides[get_conversation_service] = test_conversation_service
 

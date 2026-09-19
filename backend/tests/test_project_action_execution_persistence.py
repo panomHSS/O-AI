@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE, ensure_project_action_parents
+
 import unittest
 
 from sqlalchemy import create_engine
@@ -30,15 +32,20 @@ class ProjectActionExecutionPersistenceTests(
         self.session = Session(self.engine)
 
         self.repository = (
-            ProjectActionExecutionProposalRepository(
-                self.session
-            )
+            ProjectActionExecutionProposalRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
         self.service = (
             ProjectActionExecutionPersistenceService(
                 self.repository
             )
+        )
+
+        ensure_project_action_parents(
+            self.session,
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+            1,
         )
 
     def tearDown(self) -> None:

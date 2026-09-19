@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import asyncio
 import json
 import tempfile
@@ -98,7 +100,7 @@ class ProjectContextTests(unittest.TestCase):
         self.Session = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, expire_on_commit=False)
         self.session = self.Session()
         self.provider = RecordingProvider()
-        self.projects = ProjectService(ProjectRepository(self.session))
+        self.projects = ProjectService(ProjectRepository(self.session, TEST_WORKSPACE_SCOPE))
 
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
@@ -108,11 +110,11 @@ class ProjectContextTests(unittest.TestCase):
 
     def _conversation_service(self, resolver: ProjectContextResolver | None = None) -> ConversationService:
         return ConversationService(
-            ConversationRepository(self.session),
+            ConversationRepository(self.session, TEST_WORKSPACE_SCOPE),
             ChatService(self.provider),
             context_message_limit=2,
             citation_repository=MessageCitationRepository(self.session),
-            project_context_resolver=resolver or ProjectContextResolver(ProjectContextReader(self.session)),
+            project_context_resolver=resolver or ProjectContextResolver(ProjectContextReader(self.session, TEST_WORKSPACE_SCOPE)),
         )
 
     def _project(self, title: str = "Launch", objective: str = "Deliver the approved launch."):
@@ -232,7 +234,7 @@ class ProjectContextTests(unittest.TestCase):
 
     def test_concrete_reader_has_only_read_capability_and_does_not_mutate_project(self) -> None:
         project = self._project()
-        reader = ProjectContextReader(self.session)
+        reader = ProjectContextReader(self.session, TEST_WORKSPACE_SCOPE)
         resolver = ProjectContextResolver(reader)
         before_revisions = self.session.scalar(select(func.count(ProjectRevision.id)))
         before_revision = self.session.get(Project, str(project.id)).current_revision
@@ -306,7 +308,7 @@ class ProjectContextTests(unittest.TestCase):
             def execute(self, statement):
                 raise SQLAlchemyError("database unavailable")
 
-        reader = ProjectContextReader(FailingSession())
+        reader = ProjectContextReader(FailingSession(), TEST_WORKSPACE_SCOPE)
 
         with self.assertRaises(ProjectContextReadError):
             reader.get_current("project-id")

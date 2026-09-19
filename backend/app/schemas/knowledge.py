@@ -18,6 +18,7 @@ class ScanKnowledgeResponse(BaseModel):
 
 class DocumentSummaryResponse(BaseModel):
     id: UUID
+    workspace_id: Literal["personal", "company"]
     source_path: str
     file_name: str
     file_extension: str

@@ -1,4 +1,6 @@
-﻿import unittest
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
+import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import UUID
@@ -409,6 +411,7 @@ class ChatActionBridgeTests(unittest.TestCase):
 
         route_bridge = RouteBridge()
         response = send_chat_message(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             request=SimpleNamespace(
                 state=SimpleNamespace(request_id="request-1"),
                 app=SimpleNamespace(state=SimpleNamespace()),

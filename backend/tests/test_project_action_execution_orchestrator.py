@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE, create_project_action_proposal
+
 import unittest
 
 from sqlalchemy import create_engine
@@ -85,9 +87,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session = Session(self.engine)
 
         self.repository = (
-            ProjectActionExecutionProposalRepository(
-                self.session
-            )
+            ProjectActionExecutionProposalRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
         self.lookup_service = (
@@ -143,7 +143,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -201,7 +201,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -250,7 +250,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -315,7 +315,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -381,7 +381,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -462,7 +462,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -534,7 +534,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -617,7 +617,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -690,7 +690,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -758,7 +758,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -836,7 +836,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -922,7 +922,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -996,7 +996,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -1065,7 +1065,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -1146,7 +1146,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -1220,7 +1220,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -1304,7 +1304,7 @@ class ProjectActionExecutionOrchestratorTests(
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -1403,7 +1403,7 @@ class DenyingCapabilityValidator:
         raise ValueError(
             "Unsupported execution capability."
         )
-    
+
 class AllowingCapabilityValidator:
     def __init__(self) -> None:
         self.calls: list[str] = []

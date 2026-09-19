@@ -11,6 +11,7 @@ SearchRecord = dict[str, object]
 class SearchProvider(Protocol):
     def search(
         self,
+        workspace_id: str,
         query: str,
         limit: int,
     ) -> list[SearchRecord]:
@@ -33,7 +34,7 @@ class SemanticSearchProvider(SearchProvider, Protocol):
 
 
 class PostgreSQLHybridSearchAdapter:
-    """Combine PostgreSQL semantic and lexical knowledge retrieval."""
+    """Combine exact-workspace PostgreSQL semantic and lexical retrieval."""
 
     def __init__(
         self,
@@ -48,31 +49,29 @@ class PostgreSQLHybridSearchAdapter:
         self,
         document_id: str,
     ) -> None:
-        self._semantic.delete_document(
-            document_id
-        )
+        self._semantic.delete_document(document_id)
 
     def index_chunks(
         self,
         document_id: str,
         chunks: Sequence[DocumentChunk],
     ) -> None:
-        self._semantic.index_chunks(
-            document_id,
-            chunks,
-        )
+        self._semantic.index_chunks(document_id, chunks)
 
     def search(
         self,
+        workspace_id: str,
         query: str,
         limit: int,
     ) -> list[SearchRecord]:
         semantic_results = self._semantic.search(
+            workspace_id,
             query,
             limit,
         )
 
         lexical_results = self._lexical.search(
+            workspace_id,
             query,
             limit,
         )

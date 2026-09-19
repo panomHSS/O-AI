@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 
 class PostgreSQLLexicalSearch:
-    """PostgreSQL full-text lexical knowledge retrieval."""
+    """PostgreSQL workspace-scoped full-text lexical knowledge retrieval."""
 
     def __init__(
         self,
@@ -13,6 +13,7 @@ class PostgreSQLLexicalSearch:
 
     def search(
         self,
+        workspace_id: str,
         query: str,
         limit: int,
     ) -> list[dict[str, object]]:
@@ -42,6 +43,7 @@ class PostgreSQLLexicalSearch:
             "document_chunks.document_id "
             "CROSS JOIN search_query "
             "WHERE documents.status = 'indexed' "
+            "AND documents.workspace_id = :workspace_id "
             "AND to_tsvector("
             "'simple', document_chunks.content"
             ") @@ search_query.query "
@@ -53,6 +55,7 @@ class PostgreSQLLexicalSearch:
         rows = self._session.execute(
             statement,
             {
+                "workspace_id": workspace_id,
                 "query": query,
                 "limit": limit,
             },

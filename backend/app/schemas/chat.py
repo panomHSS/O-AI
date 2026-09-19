@@ -41,6 +41,7 @@ class ChatActionResponse(BaseModel):
 class ChatResponse(BaseModel):
     """Stable response contract for a chat turn."""
 
+    workspace_id: Literal["personal", "company"]
     reply: str
     conversation_id: UUID
     action: ChatActionResponse | None = None

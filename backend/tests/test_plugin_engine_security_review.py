@@ -1,3 +1,4 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
 import inspect
 import unittest
 
@@ -184,6 +185,7 @@ class PluginEngineSecurityReviewTests(unittest.TestCase):
             module_runtime=ModuleRuntime(registry=registry),
         )
         approval = ExecutionApprovalService(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             planner=planner,
             permission_policy=policy,
             coordinator=coordinator,

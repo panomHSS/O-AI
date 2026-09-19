@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import asyncio
 import os
 import tempfile
@@ -83,21 +85,21 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
         self.session = self.Session()
 
         self.projects = ProjectService(
-            ProjectRepository(self.session)
+            ProjectRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
         self.conversations = ConversationService(
-            repository=ConversationRepository(self.session),
+            repository=ConversationRepository(self.session, TEST_WORKSPACE_SCOPE),
             chat_service=ChatService(StaticProvider()),
             context_message_limit=20,
             project_context_resolver=ProjectContextResolver(
-                ProjectContextReader(self.session)
+                ProjectContextReader(self.session, TEST_WORKSPACE_SCOPE)
             ),
         )
 
         self.proposals = ProjectUpdateProposalService(
-            repository=ProjectUpdateProposalRepository(self.session),
-            conversation_repository=ConversationRepository(self.session),
+            repository=ProjectUpdateProposalRepository(self.session, TEST_WORKSPACE_SCOPE),
+            conversation_repository=ConversationRepository(self.session, TEST_WORKSPACE_SCOPE),
             project_service=self.projects,
         )
 

@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import unittest
 from unittest.mock import Mock
 
@@ -15,6 +17,7 @@ class ConversationDependencyWiringTests(unittest.TestCase):
         service = get_conversation_service(
             database_session=database_session,
             chat_service=chat_service,
+            workspace_scope=TEST_WORKSPACE_SCOPE,
         )
 
         self.assertIsNotNone(

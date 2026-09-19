@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_ID
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,6 +39,7 @@ class SQLiteFTS5SearchAdapterTests(unittest.TestCase):
 
     def _create_document_with_chunk(self):
         document = Document(
+            workspace_id=TEST_WORKSPACE_ID,
             source_path="knowledge/test.txt",
             file_name="test.txt",
             file_extension=".txt",
@@ -66,7 +69,7 @@ class SQLiteFTS5SearchAdapterTests(unittest.TestCase):
 
         self.adapter.index_chunks(document.id, [chunk])
 
-        results = self.adapter.search("searchable", 10)
+        results = self.adapter.search(TEST_WORKSPACE_ID, "searchable", 10)
 
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["document_id"], document.id)
@@ -85,7 +88,7 @@ class SQLiteFTS5SearchAdapterTests(unittest.TestCase):
 
         self.adapter.delete_document(document.id)
 
-        results = self.adapter.search("searchable", 10)
+        results = self.adapter.search(TEST_WORKSPACE_ID, "searchable", 10)
         stored_chunk = self.session.scalar(
             select(DocumentChunk).where(
                 DocumentChunk.id == chunk.id

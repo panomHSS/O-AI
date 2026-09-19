@@ -1,4 +1,4 @@
-﻿from dataclasses import dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -110,6 +110,11 @@ class ConversationService:
         self._project_action_execution_persistence_service = (
             project_action_execution_persistence_service
         )
+
+    @property
+    def workspace_id(self) -> str:
+        """Return the exact request workspace bound to this service."""
+        return self._repository.workspace_id
 
     def default_ai_adapter(self) -> AIAdapter:
         """Return the adapter that wraps this service's configured chat provider."""
@@ -261,6 +266,7 @@ class ConversationService:
     def _to_summary(conversation: Conversation) -> ConversationSummaryResponse:
         return ConversationSummaryResponse(
             id=UUID(conversation.id),
+            workspace_id=conversation.workspace_id,
             title=conversation.title,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,

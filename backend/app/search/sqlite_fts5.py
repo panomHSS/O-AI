@@ -8,9 +8,8 @@ from sqlalchemy.orm import Session
 from app.models.document_chunk import DocumentChunk
 
 
-
 class SQLiteFTS5SearchAdapter:
-    """SQLite FTS5 implementation of O-AI knowledge search."""
+    """SQLite FTS5 implementation of workspace-scoped O-AI knowledge search."""
 
     def __init__(
         self,
@@ -58,6 +57,7 @@ class SQLiteFTS5SearchAdapter:
 
     def search(
         self,
+        workspace_id: str,
         query: str,
         limit: int,
     ) -> list[dict[str, object]]:
@@ -89,6 +89,7 @@ class SQLiteFTS5SearchAdapter:
             "ON documents.id = document_chunks.document_id "
             "WHERE document_chunks_fts MATCH :match_query "
             "AND documents.status = 'indexed' "
+            "AND documents.workspace_id = :workspace_id "
             "ORDER BY relevance_score DESC "
             "LIMIT :limit"
         )
@@ -99,6 +100,7 @@ class SQLiteFTS5SearchAdapter:
                 statement,
                 {
                     "match_query": match_query,
+                    "workspace_id": workspace_id,
                     "limit": limit,
                 },
             ).mappings()

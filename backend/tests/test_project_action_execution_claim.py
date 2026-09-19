@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE, create_project_action_proposal
+
 import unittest
 
 from sqlalchemy import create_engine
@@ -23,9 +25,7 @@ class ProjectActionExecutionClaimTests(unittest.TestCase):
         self.session = Session(self.engine)
 
         self.repository = (
-            ProjectActionExecutionProposalRepository(
-                self.session
-            )
+            ProjectActionExecutionProposalRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
         self.service = ProjectActionExecutionClaimService(
@@ -49,7 +49,7 @@ class ProjectActionExecutionClaimTests(unittest.TestCase):
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -101,7 +101,7 @@ class ProjectActionExecutionClaimTests(unittest.TestCase):
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -162,7 +162,7 @@ class ProjectActionExecutionClaimTests(unittest.TestCase):
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"
@@ -226,7 +226,7 @@ class ProjectActionExecutionClaimTests(unittest.TestCase):
         self.session.add(project)
         self.session.flush()
 
-        proposal = self.repository.create(
+        proposal = create_project_action_proposal(self.repository, self.session,
             project_id=project.id,
             conversation_id=(
                 "22222222-2222-2222-2222-222222222222"

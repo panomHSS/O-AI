@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.schemas.api import ApiError, ApiErrorDetail
+from app.api.workspace_scope import WorkspaceRequestError
 from app.services.chat import ChatConfigurationError, ChatProviderError
 from app.services.conversations import ConversationAssociationError, ConversationNotFoundError
 from app.services.knowledge import (
@@ -50,6 +51,21 @@ def unexpected_error_response(request: Request, error: Exception) -> JSONRespons
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register exception mappings at the API boundary."""
+
+    @app.exception_handler(WorkspaceRequestError)
+    async def handle_workspace_request_error(
+        _: Request,
+        error: WorkspaceRequestError,
+    ) -> JSONResponse:
+        messages = {
+            "workspace_required": "An exact workspace is required.",
+            "workspace_id_invalid": "The workspace identifier is invalid.",
+        }
+        return error_response(
+            status.HTTP_400_BAD_REQUEST,
+            error.code,
+            messages[error.code],
+        )
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(_: Request, __: RequestValidationError) -> JSONResponse:

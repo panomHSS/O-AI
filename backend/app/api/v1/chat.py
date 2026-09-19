@@ -15,6 +15,8 @@ from app.api.dependencies import (
     get_command_orchestrator,
     get_project_update_turn_orchestrator,
 )
+from app.api.workspace_scope import get_workspace_scope
+from app.contracts.workspace import WorkspaceScope
 from app.db.verification import TARGET_REVISION
 from app.schemas.api import ApiSuccess
 from app.schemas.chat import (
@@ -56,6 +58,10 @@ LOCAL_REQUEST_HEADER_VALUE = "1"
 def send_chat_message(
     request: Request,
     payload: ChatRequest,
+    workspace_scope: Annotated[
+        WorkspaceScope,
+        Depends(get_workspace_scope),
+    ],
     command_input_pipeline: Annotated[
         CommandInputPipeline,
         Depends(get_command_input_pipeline),
@@ -104,7 +110,7 @@ def send_chat_message(
             request_id=request.state.request_id, message=payload.message,
             conversation_id=payload.conversation_id,
         )
-        return ApiSuccess(data=ChatResponse(
+        return ApiSuccess(data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
             reply=cross_outcome.reply, conversation_id=cross_outcome.conversation_id,
         ))
 
@@ -139,7 +145,7 @@ def send_chat_message(
             else None
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=action_outcome.reply,
                 conversation_id=action_outcome.conversation_id,
                 action=ChatActionResponse(
@@ -207,7 +213,7 @@ def send_chat_message(
             else None
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=action_outcome.reply,
                 conversation_id=action_outcome.conversation_id,
                 action=ChatActionResponse(
@@ -249,7 +255,7 @@ def send_chat_message(
             project_id=payload.project_id,
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=action_outcome.reply,
                 conversation_id=action_outcome.conversation_id,
                 action=ChatActionResponse(
@@ -292,7 +298,7 @@ def send_chat_message(
             project_id=payload.project_id,
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=action_outcome.reply,
                 conversation_id=action_outcome.conversation_id,
                 action=ChatActionResponse(
@@ -345,7 +351,7 @@ def send_chat_message(
             reply,
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=reply,
                 conversation_id=resolved_conversation_id,
             )
@@ -388,7 +394,7 @@ def send_chat_message(
             project_id=payload.project_id,
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=calendar_write_outcome.reply,
                 conversation_id=(
                     calendar_write_outcome.conversation_id
@@ -438,7 +444,7 @@ def send_chat_message(
                     reply,
                 )
                 return ApiSuccess(
-                    data=ChatResponse(
+                    data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                         reply=reply,
                         conversation_id=resolved_conversation_id,
                     )
@@ -459,7 +465,7 @@ def send_chat_message(
                 proposal_outcome.reply,
             )
             return ApiSuccess(
-                data=ChatResponse(
+                data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                     reply=proposal_outcome.reply,
                     conversation_id=resolved_conversation_id,
                     action=None,
@@ -487,7 +493,7 @@ def send_chat_message(
             project_id=payload.project_id,
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=calendar_write_outcome.reply,
                 conversation_id=(
                     calendar_write_outcome.conversation_id
@@ -512,7 +518,7 @@ def send_chat_message(
             database_revision=revision,
         )
         return ApiSuccess(
-            data=ChatResponse(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
                 reply=runtime_outcome.reply,
                 conversation_id=runtime_outcome.conversation_id,
             )
@@ -547,7 +553,7 @@ def send_chat_message(
         )
 
     return ApiSuccess(
-        data=ChatResponse(
+        data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
             reply=result.reply,
             conversation_id=result.conversation_id,
             project_update_proposal=project_update_proposal,

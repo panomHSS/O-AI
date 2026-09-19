@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +34,8 @@ class Settings(BaseSettings):
     oai_memory_context_max_chars: int = Field(default=2_000, ge=100, le=10_000)
     oai_memory_context_max_item_chars: int = Field(default=500, ge=1, le=10_000)
     oai_knowledge_root: str = "./knowledge"
+    oai_personal_knowledge_root: str = "./knowledge/personal"
+    oai_company_knowledge_root: str = "./knowledge/company"
     oai_document_max_file_size_mb: int = Field(default=50, gt=0, le=1024)
     oai_chunk_size_chars: int = Field(default=2000, gt=0, le=100_000)
     oai_chunk_overlap_chars: int = Field(default=200, ge=0, le=99_999)
@@ -86,6 +89,25 @@ class Settings(BaseSettings):
                 "OAI_EMBEDDING_DIMENSIONS must be 1536 "
                 "for the current pgvector schema."
             )
+
+        personal_root = Path(
+            self.oai_personal_knowledge_root
+        ).expanduser().resolve(strict=False)
+        company_root = Path(
+            self.oai_company_knowledge_root
+        ).expanduser().resolve(strict=False)
+
+        if (
+            personal_root == company_root
+            or personal_root in company_root.parents
+            or company_root in personal_root.parents
+        ):
+            raise ValueError(
+                "OAI_PERSONAL_KNOWLEDGE_ROOT and "
+                "OAI_COMPANY_KNOWLEDGE_ROOT must be distinct "
+                "non-overlapping paths."
+            )
+
         return self
 
 

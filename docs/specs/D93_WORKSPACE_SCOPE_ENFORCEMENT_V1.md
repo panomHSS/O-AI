@@ -1,6 +1,6 @@
 # D93 Workspace Scope Enforcement v1
 
-Status: **PROPOSED — implementation not started; owner approval of this spec is required before production-code changes.**
+Status: **APPROVED — implementation authorized; D93 work is in progress.**
 
 Roadmap authorization:
 
@@ -921,3 +921,52 @@ D91 exact identity
 ```
 
 Context selection in D94 must not weaken D93 workspace isolation.
+
+## D93 Implementation Closeout - 2026-09-19
+
+Status: **IMPLEMENTED / VERIFIED**
+
+D93 Workspace Scope Enforcement v1 is complete at the application boundary.
+
+Implementation evidence:
+
+- `X-OAI-Workspace` accepts only exact `personal` or `company` values; missing or invalid scope fails closed with bounded workspace errors.
+- Conversation, Project, Memory, and Knowledge roots are composed with an explicit `WorkspaceScope`; there is no default workspace and no `NULL -> personal/company` inference.
+- Derived Project update/action proposal paths derive and enforce the same workspace through their authoritative parents.
+- Knowledge uses distinct Personal/Company roots and filters authoritative document workspace before search ranking/limit.
+- Chat receives the exact request workspace explicitly and returns response workspace truth from that scope.
+- Generic D45 pending execution approvals are bound to the exact workspace as process-local continuation metadata. A cross-workspace approval decision is treated as `approval_not_pending`, does not consume the valid ticket, and cannot start execution.
+- Workspace identity remains classification/scope metadata only. It does not grant authentication, authorization, owner approval, credential authority, connector authority, AI-provider authority, or execution authority.
+- Legacy unscoped (`workspace_id IS NULL`) data remains quarantined and is not treated as Personal or Company.
+- Infrastructure/integration routes that are outside workspace data scope remain outside the workspace header boundary (including health, diagnostics, OAuth, automations, and dedicated Calendar/Gmail approval/execution lanes). Chat-linked and generic execution-approval paths that transitively use workspace-scoped conversation/module composition remain workspace-scoped.
+
+Security invariants preserved:
+
+```text
+PERSONAL != COMPANY
+REQUEST WORKSPACE != AUTHENTICATION
+REQUEST WORKSPACE != AUTHORIZATION
+REQUEST WORKSPACE != OWNER APPROVAL
+REQUEST WORKSPACE != EXECUTION AUTHORITY
+REQUEST WORKSPACE != CREDENTIAL AUTHORITY
+REQUEST WORKSPACE != CONNECTOR AUTHORITY
+REQUEST WORKSPACE != AI PROVIDER AUTHORITY
+LEGACY UNSCOPED != PERSONAL
+LEGACY UNSCOPED != COMPANY
+NULL WORKSPACE != NORMAL REQUEST SCOPE
+CROSS-WORKSPACE ID -> NOT FOUND / FAIL CLOSED
+MISSING WORKSPACE -> FAIL CLOSED
+INVALID WORKSPACE -> FAIL CLOSED
+WORKSPACE HEADER != LOCAL REQUEST MARKER
+WORKSPACE HEADER != STRUCTURED OWNER APPROVAL
+```
+
+Verification evidence:
+
+- D93 targeted/focused workspace and security tests: PASS.
+- Pre-final-repair full backend baseline: `1813 passed, 4 skipped, 13 warnings, 928 subtests passed`.
+- Post-security-repair verification gate: focused tests PASS; full backend suite PASS; `compileall` PASS; `git diff --check` PASS.
+- Static dependency audit confirmed workspace vs non-workspace API boundaries and exposed the execution-approval continuation gap that was repaired before closeout.
+- No frontend change, live database migration, staging, commit, or push was performed as part of verification.
+
+D93 does not introduce the D99 workspace switcher/UX and does not start D94 Context Layer Contract work.

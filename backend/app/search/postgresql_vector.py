@@ -10,7 +10,7 @@ from app.models.document_chunk_embedding import DocumentChunkEmbedding
 
 
 class PostgreSQLVectorSearchAdapter:
-    """PostgreSQL pgvector implementation of O-AI knowledge search."""
+    """PostgreSQL pgvector workspace-scoped knowledge search."""
 
     def __init__(
         self,
@@ -66,12 +66,11 @@ class PostgreSQLVectorSearchAdapter:
 
     def search(
         self,
+        workspace_id: str,
         query: str,
         limit: int,
     ) -> list[dict[str, object]]:
-        query_vector = self._embeddings.embed_query(
-            query
-        )
+        query_vector = self._embeddings.embed_query(query)
 
         distance = (
             DocumentChunkEmbedding.embedding.cosine_distance(
@@ -96,19 +95,17 @@ class PostgreSQLVectorSearchAdapter:
             )
             .join(
                 DocumentChunkEmbedding,
-                DocumentChunkEmbedding.chunk_id
-                == DocumentChunk.id,
+                DocumentChunkEmbedding.chunk_id == DocumentChunk.id,
             )
             .where(
-                Document.status == "indexed"
+                Document.status == "indexed",
+                Document.workspace_id == workspace_id,
             )
             .order_by(distance.asc())
             .limit(limit)
         )
 
-        rows = self._session.execute(
-            statement
-        ).mappings()
+        rows = self._session.execute(statement).mappings()
 
         return [
             {
@@ -120,9 +117,7 @@ class PostgreSQLVectorSearchAdapter:
                 "content": row["content"],
                 "source_locator": row["source_locator"],
                 "excerpt": row["content"],
-                "relevance_score": (
-                    1.0 - float(row["distance"])
-                ),
+                "relevance_score": 1.0 - float(row["distance"]),
             }
             for row in rows
         ]

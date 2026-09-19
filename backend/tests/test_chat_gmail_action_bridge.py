@@ -1,3 +1,4 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
 import unittest
 from types import SimpleNamespace
 from uuid import UUID
@@ -225,6 +226,7 @@ class GmailChatActionBridgeTests(unittest.TestCase):
             module_runtime=ModuleRuntime(registry=registry),
         )
         approval = ExecutionApprovalService(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             planner=planner,
             permission_policy=policy,
             coordinator=coordinator,

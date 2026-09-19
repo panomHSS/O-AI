@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import asyncio
 import json
 import tempfile
@@ -55,10 +57,10 @@ class MemoryAwareChatTests(unittest.TestCase):
         initialize_test_database(self.engine)
         self.Session = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, expire_on_commit=False)
         self.session = self.Session()
-        self.memories = MemoryService(MemoryRepository(self.session))
+        self.memories = MemoryService(MemoryRepository(self.session, TEST_WORKSPACE_SCOPE))
         self.provider = RecordingProvider()
-        self.resolver = MemoryResolver(MemoryRepository(self.session), item_limit=8, char_budget=2_000, item_char_limit=500)
-        self.conversations = ConversationService(ConversationRepository(self.session), ChatService(self.provider), context_message_limit=2, memory_resolver=self.resolver)
+        self.resolver = MemoryResolver(MemoryRepository(self.session, TEST_WORKSPACE_SCOPE), item_limit=8, char_budget=2_000, item_char_limit=500)
+        self.conversations = ConversationService(ConversationRepository(self.session, TEST_WORKSPACE_SCOPE), ChatService(self.provider), context_message_limit=2, memory_resolver=self.resolver)
         app.dependency_overrides[get_conversation_service] = lambda: self.conversations
 
     def tearDown(self) -> None:
@@ -186,10 +188,10 @@ class MemoryAwareChatTests(unittest.TestCase):
         self.assertNotIn("SYSTEM-GENERATED PLANNING PLAN", "\n".join(message.content for message in detail.messages))
         self.assertNotIn("SYSTEM-GENERATED DECISION ANALYSIS", "\n".join(message.content for message in detail.messages))
         self.assertFalse(any(hasattr(message, "memories_used") for message in detail.messages))
-        failing = ConversationService(ConversationRepository(self.session), ChatService(RecordingProvider(fail=True)), 2, memory_resolver=self.resolver)
+        failing = ConversationService(ConversationRepository(self.session, TEST_WORKSPACE_SCOPE), ChatService(RecordingProvider(fail=True)), 2, memory_resolver=self.resolver)
         with self.assertRaises(ChatProviderError):
             failing.send_message("color")
-        failed_detail = failing.get_conversation(ConversationRepository(self.session).list()[0].id)
+        failed_detail = failing.get_conversation(ConversationRepository(self.session, TEST_WORKSPACE_SCOPE).list()[0].id)
         self.assertEqual([(item.role, item.content) for item in failed_detail.messages], [("user", "color")])
         self.assertNotIn("SYSTEM-GENERATED REASONING PLAN", "\n".join(item.content for item in failed_detail.messages))
         self.assertNotIn("SYSTEM-GENERATED PLANNING PLAN", "\n".join(item.content for item in failed_detail.messages))
@@ -204,7 +206,7 @@ class MemoryAwareChatTests(unittest.TestCase):
             def search(self, query: str, limit: int):
                 return [{"document_id": "00000000-0000-0000-0000-000000000001", "chunk_id": "chunk-1", "file_name": "manual.txt", "source_path": "manual.txt", "source_locator": "line 1", "content": "Document evidence says blue is configured.", "relevance_score": 1.0, "file_extension": ".txt"}]
 
-        conversations = ConversationService(ConversationRepository(self.session), ChatService(self.provider), 2, MessageCitationRepository(self.session))
+        conversations = ConversationService(ConversationRepository(self.session, TEST_WORKSPACE_SCOPE), ChatService(self.provider), 2, MessageCitationRepository(self.session))
         service = KnowledgeAnswerService(KnowledgeRepository(), conversations, ChatService(self.provider), IntentAnalyzer(), RetrievalPlanner(1), EvidenceRanker(1), ConflictDetector(), ContextBuilder(1_000), GroundedPromptBuilder(), CitationEngine(), ConfidenceEvaluator(), 1, 1, self.resolver)
         response = service.answer("color", None)
         prompt = self.provider.inputs[-1]
@@ -230,11 +232,11 @@ class MemoryAwareChatTests(unittest.TestCase):
                 return [{"document_id": "00000000-0000-0000-0000-000000000001", "chunk_id": "chunk-1", "file_name": "manual.txt", "source_path": "manual.txt", "source_locator": "line 1", "content": "Document evidence", "relevance_score": 1.0, "file_extension": ".txt"}]
 
         failing_provider = RecordingProvider(fail=True)
-        conversations = ConversationService(ConversationRepository(self.session), ChatService(failing_provider), 2, MessageCitationRepository(self.session))
+        conversations = ConversationService(ConversationRepository(self.session, TEST_WORKSPACE_SCOPE), ChatService(failing_provider), 2, MessageCitationRepository(self.session))
         service = KnowledgeAnswerService(KnowledgeRepository(), conversations, ChatService(failing_provider), IntentAnalyzer(), RetrievalPlanner(1), EvidenceRanker(1), ConflictDetector(), ContextBuilder(1_000), GroundedPromptBuilder(), CitationEngine(), ConfidenceEvaluator(), 1, 1, self.resolver)
         with self.assertRaises(ChatProviderError):
             service.answer("color", None)
-        detail = conversations.get_conversation(ConversationRepository(self.session).list()[0].id)
+        detail = conversations.get_conversation(ConversationRepository(self.session, TEST_WORKSPACE_SCOPE).list()[0].id)
         self.assertEqual([(item.role, item.content) for item in detail.messages], [("user", "color")])
         self.assertNotIn("SYSTEM-GENERATED REASONING PLAN", "\n".join(item.content for item in detail.messages))
         self.assertNotIn("SYSTEM-GENERATED PLANNING PLAN", "\n".join(item.content for item in detail.messages))

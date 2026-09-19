@@ -1,4 +1,4 @@
-﻿from uuid import UUID
+from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError, OperationalError
 
@@ -250,7 +250,7 @@ class ProjectService:
 
     @staticmethod
     def _response(project: Project) -> ProjectResponse:
-        return ProjectResponse(id=UUID(project.id), title=project.title, objective=project.objective, status=project.status, current_summary=project.current_summary, next_action=project.next_action, current_revision=project.current_revision, created_at=project.created_at, updated_at=project.updated_at)
+        return ProjectResponse(id=UUID(project.id), workspace_id=project.workspace_id, title=project.title, objective=project.objective, status=project.status, current_summary=project.current_summary, next_action=project.next_action, current_revision=project.current_revision, created_at=project.created_at, updated_at=project.updated_at)
 
     @staticmethod
     def _revision_response(item: ProjectRevision) -> ProjectRevisionResponse:

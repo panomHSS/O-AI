@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.contracts.workspace import WorkspaceScope
 from app.models.project import Project
 
 
@@ -53,10 +54,15 @@ class ProjectContextReaderPort(Protocol):
 
 
 class ProjectContextReader:
-    """Read current provider-safe Project fields without exposing write operations."""
+    """Read current Project fields only inside one exact workspace."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: Session,
+        workspace_scope: WorkspaceScope,
+    ) -> None:
         self._session = session
+        self._workspace_id = workspace_scope.workspace_id.value
 
     def get_current(self, project_id: str) -> ProjectContextRecord | None:
         try:
@@ -68,12 +74,19 @@ class ProjectContextReader:
                     Project.current_summary,
                     Project.next_action,
                     Project.current_revision,
-                ).where(Project.id == project_id)
+                ).where(
+                    Project.id == project_id,
+                    Project.workspace_id == self._workspace_id,
+                )
             ).mappings().one_or_none()
         except SQLAlchemyError as error:
-            raise ProjectContextReadError("Project context could not be read.") from error
+            raise ProjectContextReadError(
+                "Project context could not be read."
+            ) from error
+
         if row is None:
             return None
+
         return ProjectContextRecord(
             title=row["title"],
             objective=row["objective"],
@@ -108,20 +121,32 @@ class ProjectContextResolver:
         try:
             project = self._reader.get_current(project_id)
         except ProjectContextReadError as error:
-            raise ProjectContextUnavailableError("The associated Project context is unavailable.") from error
+            raise ProjectContextUnavailableError(
+                "The associated Project context is unavailable."
+            ) from error
         if project is None:
-            raise ProjectContextUnavailableError("The associated Project context is unavailable.")
+            raise ProjectContextUnavailableError(
+                "The associated Project context is unavailable."
+            )
         try:
             return ProjectContext(
                 title=_required_bound(project.title, TITLE_MAX_CHARS),
                 objective=_required_bound(project.objective, OBJECTIVE_MAX_CHARS),
                 status=_status(project.status),
-                current_summary=_optional_bound(project.current_summary, SUMMARY_MAX_CHARS),
-                next_action=_optional_bound(project.next_action, NEXT_ACTION_MAX_CHARS),
+                current_summary=_optional_bound(
+                    project.current_summary,
+                    SUMMARY_MAX_CHARS,
+                ),
+                next_action=_optional_bound(
+                    project.next_action,
+                    NEXT_ACTION_MAX_CHARS,
+                ),
                 current_revision=_revision(project.current_revision),
             )
         except (TypeError, UnicodeError, ValueError) as error:
-            raise ProjectContextUnavailableError("The associated Project context is unavailable.") from error
+            raise ProjectContextUnavailableError(
+                "The associated Project context is unavailable."
+            ) from error
 
 
 class ProjectContextBuilder:
@@ -165,6 +190,7 @@ def _status(value: str | None) -> str:
     if not isinstance(value, str) or value not in ALLOWED_PROJECT_STATUSES:
         raise ValueError("Project status is invalid.")
     return value
+
 
 def _revision(value: int | None) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:

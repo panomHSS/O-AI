@@ -60,6 +60,7 @@ async def invoke_app(
         if body is not None
         else {}
     )
+    request_headers["X-OAI-Workspace"] = "personal"
     request_headers.update(headers or {})
     scope = {
         "type": "http",

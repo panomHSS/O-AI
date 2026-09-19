@@ -187,7 +187,7 @@ class MemoryService:
     def _response(self, memory: Memory) -> MemoryResponse:
         active = self._repository.version_by_id(memory.active_version_id)
         pending = self._repository.version_by_id(memory.pending_version_id)
-        return MemoryResponse(id=UUID(memory.id), key=memory.key, value=self._deserialize(active.value, active.value_type) if active else None, value_type=active.value_type if active else None, state=memory.state, created_at=memory.created_at, updated_at=memory.updated_at, current_version=memory.current_version, active_version=self._version_response(active) if active else None, pending_version=self._version_response(pending) if pending else None)
+        return MemoryResponse(id=UUID(memory.id), workspace_id=memory.workspace_id, key=memory.key, value=self._deserialize(active.value, active.value_type) if active else None, value_type=active.value_type if active else None, state=memory.state, created_at=memory.created_at, updated_at=memory.updated_at, current_version=memory.current_version, active_version=self._version_response(active) if active else None, pending_version=self._version_response(pending) if pending else None)
 
     @staticmethod
     def _version_response(version: MemoryVersion) -> MemoryVersionResponse:

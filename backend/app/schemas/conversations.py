@@ -29,6 +29,7 @@ class StoredMessageResponse(BaseModel):
 
 class ConversationSummaryResponse(BaseModel):
     id: UUID
+    workspace_id: Literal["personal", "company"]
     title: str
     created_at: datetime
     updated_at: datetime

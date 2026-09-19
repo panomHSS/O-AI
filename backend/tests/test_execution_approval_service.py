@@ -1,3 +1,4 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -170,6 +171,7 @@ class ExecutionApprovalServiceTests(unittest.TestCase):
             approval_id_factory=SequenceFactory("approval"),
         )
         service = ExecutionApprovalService(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             planner=planner,  # type: ignore[arg-type]
             permission_policy=policy,
             coordinator=coordinator,

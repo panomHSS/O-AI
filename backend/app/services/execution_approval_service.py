@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from app.contracts.capability_permission import ExecutableTargetKind
 from app.contracts.command import CommandRequest
+from app.contracts.workspace import WorkspaceId, WorkspaceScope
 from app.contracts.execution_approval import (
     ExecutionApprovalDecisionOutcome,
     ExecutionApprovalProposal,
@@ -90,7 +91,10 @@ class PendingExecutionApprovalStore:
         self._max_pending = max_pending
         self._clock = clock
         self._approval_id_factory = approval_id_factory
-        self._items: dict[str, PendingExecutionApproval] = {}
+        self._items: dict[
+            str,
+            tuple[WorkspaceId, PendingExecutionApproval],
+        ] = {}
         self._lock = threading.Lock()
 
     @property
@@ -103,6 +107,7 @@ class PendingExecutionApprovalStore:
     def create(
         self,
         *,
+        workspace_id: WorkspaceId,
         request: CommandRequest,
         plan_digest: str,
         target_kind: ExecutableTargetKind,
@@ -111,6 +116,8 @@ class PendingExecutionApprovalStore:
         data_class: str,
         owner_approval_required: bool,
     ) -> PendingExecutionApproval:
+        if not isinstance(workspace_id, WorkspaceId):
+            raise ValueError("workspace_id_invalid")
         now = self._clock()
         with self._lock:
             self._cleanup_expired(now)
@@ -147,18 +154,27 @@ class PendingExecutionApprovalStore:
                 created_at=now,
                 expires_at=now + self._ttl,
             )
-            self._items[approval_id] = pending
+            self._items[approval_id] = (workspace_id, pending)
             return pending
 
     def consume(
         self,
         approval_id: str,
         plan_digest: str,
+        *,
+        workspace_id: WorkspaceId,
     ) -> PendingExecutionApproval:
+        if not isinstance(workspace_id, WorkspaceId):
+            raise ValueError("workspace_id_invalid")
         now = self._clock()
         with self._lock:
-            pending = self._items.get(approval_id)
-            if pending is None:
+            stored = self._items.get(approval_id)
+            if stored is None:
+                raise ExecutionApprovalNotPendingError(
+                    "The approval is not pending."
+                )
+            pending_workspace_id, pending = stored
+            if pending_workspace_id is not workspace_id:
                 raise ExecutionApprovalNotPendingError(
                     "The approval is not pending."
                 )
@@ -188,7 +204,7 @@ class PendingExecutionApprovalStore:
     def _cleanup_expired(self, now: datetime) -> None:
         expired = [
             approval_id
-            for approval_id, pending in self._items.items()
+            for approval_id, (_, pending) in self._items.items()
             if now >= pending.expires_at
         ]
         for approval_id in expired:
@@ -205,12 +221,16 @@ class ExecutionApprovalService:
         permission_policy: CapabilityPermissionPolicy,
         coordinator: CommandExecutionCoordinator,
         store: PendingExecutionApprovalStore,
+        workspace_scope: WorkspaceScope,
         request_id_factory: Callable[[], str] = _new_request_id,
     ) -> None:
         self._planner = planner
         self._permission_policy = permission_policy
+        if not isinstance(workspace_scope, WorkspaceScope):
+            raise ValueError("workspace_scope_invalid")
         self._coordinator = coordinator
         self._store = store
+        self._workspace_id = workspace_scope.workspace_id
         self._request_id_factory = request_id_factory
 
     def propose(
@@ -312,6 +332,7 @@ class ExecutionApprovalService:
             ) from error
 
         pending = self._store.create(
+            workspace_id=self._workspace_id,
             request=request,
             plan_digest=digest,
             target_kind=target_kind,  # type: ignore[arg-type]
@@ -372,7 +393,11 @@ class ExecutionApprovalService:
         *,
         decision: str,
     ) -> ExecutionApprovalDecisionOutcome:
-        pending = self._store.consume(approval_id, plan_digest)
+        pending = self._store.consume(
+            approval_id,
+            plan_digest,
+            workspace_id=self._workspace_id,
+        )
         evidence = OwnerApprovalEvidence(
             request_id=pending.request.request_id,
             plan_digest=pending.plan_digest,

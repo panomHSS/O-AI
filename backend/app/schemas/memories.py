@@ -54,6 +54,7 @@ class MemoryVersionResponse(BaseModel):
 
 class MemoryResponse(BaseModel):
     id: UUID
+    workspace_id: Literal["personal", "company"]
     key: str
     value: Any | None
     value_type: MemoryValueType | None

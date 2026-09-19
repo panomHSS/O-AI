@@ -3,6 +3,8 @@ from pathlib import Path
 
 from fastapi import Depends
 
+from app.api.workspace_scope import get_workspace_scope
+from app.contracts.workspace import WorkspaceScope
 from app.contracts.execution_audit import AuditSink
 from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.google_calendar_create_execution import (
@@ -260,6 +262,7 @@ from app.intelligence.steps import (
     GoalStep,
 )
 from app.services.goals import GoalService
+from app.services.workspace_knowledge_root import WorkspaceKnowledgeRootResolver
 from app.pipeline.retrieval import RetrievalPipeline
 from app.pipeline.components import RetrievalComponents
 
@@ -313,12 +316,14 @@ def get_automation_delivery_service(
 def get_conversation_service(
     database_session: Session = Depends(get_db),
     chat_service: ChatService = Depends(get_chat_service),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> ConversationService:
     settings = get_settings()
 
     execution_proposal_repository = (
         ProjectActionExecutionProposalRepository(
-            database_session
+            database_session,
+            workspace_scope,
         )
     )
 
@@ -330,7 +335,8 @@ def get_conversation_service(
 
     return ConversationService(
         repository=ConversationRepository(
-            database_session
+            database_session,
+            workspace_scope,
         ),
         chat_service=chat_service,
         context_message_limit=(
@@ -341,7 +347,8 @@ def get_conversation_service(
         ),
         memory_resolver=MemoryResolver(
             reader=MemoryRepository(
-                database_session
+                database_session,
+                workspace_scope,
             ),
             item_limit=(
                 settings.oai_memory_context_max_items
@@ -355,7 +362,8 @@ def get_conversation_service(
         ),
         project_context_resolver=ProjectContextResolver(
             ProjectContextReader(
-                database_session
+                database_session,
+                workspace_scope,
             )
         ),
         project_action_execution_persistence_service=(
@@ -472,11 +480,15 @@ def get_safe_write_tool_adapters() -> tuple[object, ...]:
 
 def get_module_catalog_adapters(
     database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> tuple[object, ...]:
     """Compose D43 modules plus the explicit D51 Plugin bridge."""
     workspace_root = Path(__file__).resolve().parents[3]
     project_resolver = ProjectContextResolver(
-        ProjectContextReader(database_session)
+        ProjectContextReader(
+            database_session,
+            workspace_scope,
+        )
     )
     return (
         WorkspaceOverviewModuleAdapter(workspace_root),
@@ -1477,6 +1489,7 @@ def get_execution_approval_service(
     store: PendingExecutionApprovalStore = Depends(
         get_pending_execution_approval_store
     ),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> ExecutionApprovalService:
     """Compose D45 review/decision without moving execution authority."""
     return ExecutionApprovalService(
@@ -1484,6 +1497,7 @@ def get_execution_approval_service(
         permission_policy=permission_policy,
         coordinator=coordinator,
         store=store,
+        workspace_scope=workspace_scope,
     )
 
 
@@ -1638,6 +1652,7 @@ def get_embedding_provider() -> EmbeddingPort:
 
 def get_knowledge_repository(
     database_session: Session,
+    workspace_scope: WorkspaceScope,
 ) -> KnowledgeRepository:
     """Compose authoritative knowledge storage with derived search."""
 
@@ -1658,19 +1673,27 @@ def get_knowledge_repository(
     return KnowledgeRepository(
         session=database_session,
         search=search,
+        workspace_scope=workspace_scope,
     )
 
 def get_knowledge_service(
     database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> KnowledgeService:
     settings = get_settings()
 
+    root = WorkspaceKnowledgeRootResolver(
+        personal_root=settings.oai_personal_knowledge_root,
+        company_root=settings.oai_company_knowledge_root,
+    ).resolve(workspace_scope)
+
     return KnowledgeService(
         repository=get_knowledge_repository(
-            database_session
+            database_session,
+            workspace_scope,
         ),
         readers=get_document_reader_registry(),
-        root=settings.oai_knowledge_root,
+        root=root,
         max_file_size_mb=(
             settings.oai_document_max_file_size_mb
         ),
@@ -1683,39 +1706,47 @@ def get_knowledge_service(
 
 def get_memory_service(
     database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> MemoryService:
     return MemoryService(
         MemoryRepository(
-            database_session
+            database_session,
+            workspace_scope,
         )
     )
 
 
 def get_project_service(
     database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> ProjectService:
     return ProjectService(
         ProjectRepository(
-            database_session
+            database_session,
+            workspace_scope,
         )
     )
 
 
 def get_project_update_proposal_service(
     database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> ProjectUpdateProposalService:
     project_service = ProjectService(
         ProjectRepository(
-            database_session
+            database_session,
+            workspace_scope,
         )
     )
 
     return ProjectUpdateProposalService(
         repository=ProjectUpdateProposalRepository(
-            database_session
+            database_session,
+            workspace_scope,
         ),
         conversation_repository=ConversationRepository(
-            database_session
+            database_session,
+            workspace_scope,
         ),
         project_service=project_service,
     )
@@ -1737,6 +1768,7 @@ def get_knowledge_answer_service(
     chat_service: ChatService = Depends(
         get_chat_service
     ),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
     execution_planner: ExecutionPlanner = Depends(
         get_execution_planner
     ),
@@ -1757,7 +1789,8 @@ def get_knowledge_answer_service(
 
     conversation_service = ConversationService(
         ConversationRepository(
-            database_session
+            database_session,
+            workspace_scope,
         ),
         chat_service,
         settings.oai_chat_context_message_limit,
@@ -1766,18 +1799,21 @@ def get_knowledge_answer_service(
         ),
         project_context_resolver=ProjectContextResolver(
             ProjectContextReader(
-                database_session
+                database_session,
+                workspace_scope,
             )
         ),
     )
 
     knowledge_repository = get_knowledge_repository(
-        database_session
+        database_session,
+        workspace_scope,
     )
 
     memory_resolver = MemoryResolver(
         MemoryRepository(
-            database_session
+            database_session,
+            workspace_scope,
         ),
         settings.oai_memory_context_max_items,
         settings.oai_memory_context_max_chars,

@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_ID
+
 import unittest
 from unittest.mock import MagicMock
 
@@ -42,16 +44,18 @@ class PostgreSQLHybridSearchAdapterTests(
             lexical=lexical,
         )
 
-        results = adapter.search(
+        results = adapter.search(TEST_WORKSPACE_ID,
             "pump pressure problem",
             3,
         )
 
         semantic.search.assert_called_once_with(
+            TEST_WORKSPACE_ID,
             "pump pressure problem",
             3,
         )
         lexical.search.assert_called_once_with(
+            TEST_WORKSPACE_ID,
             "pump pressure problem",
             3,
         )
@@ -139,7 +143,7 @@ class PostgreSQLHybridSearchAdapterTests(
             lexical=lexical,
         )
 
-        results = adapter.search(
+        results = adapter.search(TEST_WORKSPACE_ID,
             "gearbox vibration",
             2,
         )

@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import os
 import tempfile
 import unittest
@@ -58,7 +60,7 @@ class ProjectBackboneTests(unittest.TestCase):
     def service(self) -> tuple[ProjectService, object]:
         session = self.Session()
         self.sessions.append(session)
-        return ProjectService(ProjectRepository(session)), session
+        return ProjectService(ProjectRepository(session, TEST_WORKSPACE_SCOPE)), session
 
     def test_create_is_atomic_and_initial_snapshot_is_immutable(self) -> None:
         service, session = self.service()
@@ -100,7 +102,7 @@ class ProjectBackboneTests(unittest.TestCase):
         project = service.create(CreateProjectRequest(title="Launch", objective="Ship safely"))
         session = self.Session()
         self.sessions.append(session)
-        repository = ConversationRepository(session)
+        repository = ConversationRepository(session, TEST_WORKSPACE_SCOPE)
         conversation_service = ConversationService(repository, ChatService(type("Provider", (), {"generate_reply": lambda _, __: "reply"})()), 20)
         result = conversation_service.send_message("hello", project_id=project.id)
         detail = conversation_service.get_conversation(result.conversation_id)
@@ -155,14 +157,16 @@ class ProjectBackboneTests(unittest.TestCase):
         class BarrierRepository(ProjectRepository):
             def get(self, project_id: str):
                 item = super().get(project_id)
-                barrier.wait(timeout=5)
+                if not getattr(self, "_concurrency_barrier_passed", False):
+                    self._concurrency_barrier_passed = True
+                    barrier.wait(timeout=5)
                 return item
 
         def mutate(summary: str) -> None:
             session = self.Session()
             self.sessions.append(session)
             try:
-                ProjectService(BarrierRepository(session)).record_progress(project.id, RecordProjectProgressRequest(expected_revision=1, current_summary=summary, change_note=f"Owner {summary}."))
+                ProjectService(BarrierRepository(session, TEST_WORKSPACE_SCOPE)).record_progress(project.id, RecordProjectProgressRequest(expected_revision=1, current_summary=summary, change_note=f"Owner {summary}."))
                 outcomes.append("success")
             except ProjectConflictError:
                 outcomes.append("conflict")
@@ -198,7 +202,7 @@ class ProjectBackboneTests(unittest.TestCase):
         project = project_service.create(CreateProjectRequest(title="Chat Project", objective="Use explicitly"))
         session = self.Session()
         self.sessions.append(session)
-        conversation_service = ConversationService(ConversationRepository(session), ChatService(type("Provider", (), {"generate_reply": lambda _, __: "reply"})()), 20)
+        conversation_service = ConversationService(ConversationRepository(session, TEST_WORKSPACE_SCOPE), ChatService(type("Provider", (), {"generate_reply": lambda _, __: "reply"})()), 20)
         app.dependency_overrides[get_conversation_service] = lambda: conversation_service
         status, _, created = asyncio.run(invoke_app("/api/v1/chat", method="POST", body={"message": "first", "project_id": str(project.id)}))
         self.assertEqual(status, 200)
@@ -236,7 +240,7 @@ class ProjectBackboneTests(unittest.TestCase):
         service, _ = self.service()
         session = self.Session()
         self.sessions.append(session)
-        conversations = ConversationService(ConversationRepository(session), ChatService(type("Provider", (), {"generate_reply": lambda _, __: "reply"})()), 20)
+        conversations = ConversationService(ConversationRepository(session, TEST_WORKSPACE_SCOPE), ChatService(type("Provider", (), {"generate_reply": lambda _, __: "reply"})()), 20)
         for status_value in ("COMPLETED", "ARCHIVED"):
             project = service.create(CreateProjectRequest(title=f"Historical {status_value}", objective="Keep history"))
             transitioned = service.change_status(project.id, ChangeProjectStatusRequest(expected_revision=1, status=status_value, change_note=f"Owner {status_value.lower()}."))
@@ -275,7 +279,7 @@ class ProjectBackboneTests(unittest.TestCase):
             def snapshot(self, project, change_note):
                 raise RuntimeError("forced revision failure")
 
-        failing = ProjectService(FailingSnapshots(session))
+        failing = ProjectService(FailingSnapshots(session, TEST_WORKSPACE_SCOPE))
         with self.assertRaisesRegex(RuntimeError, "forced revision failure"):
             failing.record_progress(created.id, RecordProjectProgressRequest(expected_revision=1, current_summary="must not persist", change_note="Owner progress."))
         unchanged = service.get(created.id)

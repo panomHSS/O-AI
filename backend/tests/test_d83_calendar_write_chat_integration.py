@@ -1,3 +1,5 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import inspect
 import unittest
 from types import SimpleNamespace
@@ -228,6 +230,7 @@ class D83CalendarWriteChatRouteTests(unittest.TestCase):
         action_bridge: object | None = None,
     ):
         return send_chat_message(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             request=request_for_test(),
             payload=ChatRequest(
                 message=message,

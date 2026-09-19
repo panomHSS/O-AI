@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
+
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -206,6 +208,7 @@ class PlaintextApprovalGuardApiTests(unittest.TestCase):
         )
 
         response = send_chat_message(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             request=request,
             payload=ChatRequest(
                 message="อนุมัติครับ",

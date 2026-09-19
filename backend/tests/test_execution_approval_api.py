@@ -1,3 +1,4 @@
+from tests.workspace_fixture import TEST_WORKSPACE_SCOPE
 import asyncio
 import json
 import unittest
@@ -187,6 +188,7 @@ class ExecutionApprovalApiTests(unittest.TestCase):
             approval_id_factory=SequenceFactory("approval"),
         )
         self.service = ExecutionApprovalService(
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             planner=planner,
             permission_policy=policy,
             coordinator=coordinator,
