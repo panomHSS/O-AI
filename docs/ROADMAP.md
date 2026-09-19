@@ -942,6 +942,23 @@ The remaining Workspace & Context Intelligence milestones are also complete:
 
 D100 closes the D91-D100 Workspace & Context Intelligence phase.
 
-No post-D100 implementation milestone is approved by this roadmap at this
-checkpoint. Future work requires separate owner-approved planning and
-milestone-specific scope.
+## O-AI D101-D110 — Owner Control & Local Intelligence Phase
+
+Roadmap status: **APPROVED**
+
+- D101 — Calendar Exact Update/Delete Owner UX v1
+- D102 — Local AI Runtime & Model Visibility v1
+- D103 — Local AI Owner Control UX v1
+- D104 — Task-Aware AI Routing Contract v1
+- D105 — Task-Aware AI Routing Integration v1
+- D106 — Engineering Assistant Read-Only Foundation v1
+- D107 — Engineering Change Proposal Contract v1
+- D108 — Controlled Engineering Apply v1
+- D109 — Owner Productivity UX & Acceptance v1
+- D110 — Integration Security Review v5
+
+The phase direction and sequencing are owner-approved. Each milestone requires
+its own approved Design/Implementation Spec before implementation.
+
+D101 has an owner-approved Design/Implementation Scope v1. Implementation has
+not started.
