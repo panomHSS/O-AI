@@ -10,6 +10,51 @@ from uuid import UUID
 from app.models.memory_version import MemoryVersion
 
 
+_MEMORY_TERM_PATTERN = re.compile(
+    r"[\u0E00-\u0E7F]+|[A-Za-z]+(?:[-_.][A-Za-z0-9]+)*|\d+(?:[._-]\d+)*"
+)
+_MEMORY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def memory_context_terms(value: str) -> set[str]:
+    return {
+        term.casefold()
+        for term in _MEMORY_TERM_PATTERN.findall(value.strip())
+    }
+
+
+def memory_context_key_is_valid(value: object) -> bool:
+    return (
+        type(value) is str
+        and bool(value)
+        and _MEMORY_KEY_PATTERN.fullmatch(value) is not None
+    )
+
+
+def decode_memory_context_value(raw_value: str) -> object | None:
+    if type(raw_value) is not str or not raw_value:
+        return None
+    try:
+        value = json.loads(raw_value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if value is None or value == "" or value == [] or value == {}:
+        return None
+    return value
+
+
+def memory_context_score(
+    key: str,
+    raw_value: str,
+    terms: set[str],
+) -> int:
+    key_terms = memory_context_terms(
+        key.replace(".", " ").replace("_", " ")
+    )
+    value_terms = memory_context_terms(raw_value)
+    return 3 * len(terms & key_terms) + len(terms & value_terms)
+
+
 class ConfirmedMemoryReader(Protocol):
     """The resolver's intentionally narrow, read-only persistence boundary."""
 
@@ -59,8 +104,8 @@ class MemoryContextBuilder:
 class MemoryResolver:
     """Ranks confirmed memory without any mutation capability or side effects."""
 
-    _TERM_PATTERN = re.compile(r"[\u0E00-\u0E7F]+|[A-Za-z]+(?:[-_.][A-Za-z0-9]+)*|\d+(?:[._-]\d+)*")
-    _KEY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+    _TERM_PATTERN = _MEMORY_TERM_PATTERN
+    _KEY_PATTERN = _MEMORY_KEY_PATTERN
 
     def __init__(self, reader: ConfirmedMemoryReader, item_limit: int, char_budget: int, item_char_limit: int) -> None:
         self._reader = reader
@@ -103,20 +148,12 @@ class MemoryResolver:
     def _safe_value(self, raw_value: str) -> object | None:
         if not raw_value or len(raw_value) > self._item_char_limit:
             return None
-        try:
-            value = json.loads(raw_value)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            return None
-        if value is None or value == "" or value == [] or value == {}:
-            return None
-        return value
+        return decode_memory_context_value(raw_value)
 
     @classmethod
     def _terms(cls, value: str) -> set[str]:
-        return {term.casefold() for term in cls._TERM_PATTERN.findall(value.strip())}
+        return memory_context_terms(value)
 
     @classmethod
     def _score(cls, key: str, raw_value: str, terms: set[str]) -> int:
-        key_terms = cls._terms(key.replace(".", " ").replace("_", " "))
-        value_terms = cls._terms(raw_value)
-        return 3 * len(terms & key_terms) + len(terms & value_terms)
+        return memory_context_score(key, raw_value, terms)

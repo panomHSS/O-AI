@@ -3944,3 +3944,163 @@ CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
 ```
 
 D95 owns Context Resolver & Budgeting under a separately approved spec.
+
+## ADR-089: Context Resolver & Budgeting v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce one deterministic read-only Context resolution boundary over the exact
+D94 layers:
+
+```text
+conversation
+project
+memory
+knowledge
+```
+
+D95 consumes existing workspace-scoped source truth and produces one immutable
+D94 `ContextBundle`.
+
+Resolution is separated from Chat composition. D95 does not change the live
+Chat path, provider routing, API behavior, database schema, frontend behavior,
+or execution authority.
+
+The D95 request contract carries only:
+
+```text
+WorkspaceScope
+query
+optional conversation_id
+optional project_id
+```
+
+It carries no provider, credential, approval, authorization, command, or
+execution field.
+
+D95 budgeting is provider-neutral. The standard v1
+`Utf8ByteBudgetCounter` counts:
+
+```text
+len(text.encode("utf-8"))
+```
+
+and reports budget units, not exact provider/model tokens.
+
+The typed budget policy defines one bounded budget for each D94 layer plus one
+total cap. Unused capacity is not silently borrowed across layers. Selection is
+whole-item only; D95 never silently truncates candidate text to make it fit.
+
+D95 reuses authoritative source truth:
+
+```text
+Conversation -> workspace-scoped persisted messages
+Project      -> validated current Project context
+Memory       -> exact-workspace active confirmed versions
+Knowledge    -> exact-workspace ranked Knowledge search
+```
+
+Legacy Memory relevance/value parsing was factored into shared pure helpers so
+both the existing live Memory path and D95 use the same deterministic
+eligibility/relevance semantics. D95 does not call the legacy pre-budgeted
+Memory resolver and therefore avoids hidden double budgeting.
+
+Exact source identity is:
+
+```text
+(workspace_id, layer, source_id)
+```
+
+Identical duplicates collapse once. Conflicting projections for the same exact
+source identity fail closed.
+
+Final Context order is deterministic:
+
+```text
+Conversation -> chronological selected order
+Project      -> one current item
+Memory       -> deterministic relevance order
+Knowledge    -> deterministic search rank order
+```
+
+Selection/rank/order are utility metadata only and are removed when candidates
+become D94 `ContextItem` values.
+
+**Rationale**
+
+D96-D98 require one stable selection/budgeting boundary before provenance,
+Context-aware Chat composition, or workspace/provider routing can be added.
+
+Keeping D95 additive and non-wired allows the resolver to be tested against
+cross-workspace leakage, malformed source candidates, budget abuse, duplicate
+identity conflicts, and authority escalation before the live Chat path consumes
+it.
+
+A provider-neutral byte counter avoids claiming model-token precision before a
+provider/model has been selected and avoids adding a tokenizer dependency.
+
+**Consequences**
+
+D95 adds:
+
+```text
+ContextResolveRequest
+ContextLayerBudget
+ContextBudgetPolicy
+ContextBudgetCounter
+Utf8ByteBudgetCounter
+ContextCandidate
+ConversationContextSource
+ProjectContextSource
+MemoryContextSource
+KnowledgeContextSource
+ContextResolver
+```
+
+D95 adds no:
+
+```text
+Chat integration
+prompt assembly
+provider message roles
+provider/model routing
+cloud egress policy
+automatic cloud fallback
+Context snapshot persistence
+Context provenance persistence
+database migration
+HTTP API
+frontend UI
+connector Context layer
+credential access
+owner approval
+execution authority
+```
+
+Frozen invariants include:
+
+```text
+CONTEXT RESOLUTION != AUTHORIZATION
+CONTEXT RESOLUTION != OWNER APPROVAL
+CONTEXT RESOLUTION != EXECUTION AUTHORITY
+CONTEXT RESOLUTION != CREDENTIAL AUTHORITY
+CONTEXT RESOLUTION != CONNECTOR AUTHORITY
+CONTEXT RESOLUTION != AI PROVIDER AUTHORITY
+
+QUERY != COMMAND
+RELEVANCE != AUTHORITY
+RANK != INSTRUCTION PRIORITY
+LAYER ORDER != INSTRUCTION PRIORITY
+BUDGET ADMISSION != ACTION PERMISSION
+
+SOURCE FAILURE != CROSS-WORKSPACE FALLBACK
+BUDGET EXHAUSTION != FALLBACK AUTHORITY
+EMPTY RESULT != FALLBACK AUTHORITY
+LEGACY UNSCOPED != CONTEXT ELIGIBLE
+CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
+```
+
+D96 owns Context Provenance & Snapshot v1 under a separately approved
+Design/Implementation Spec.

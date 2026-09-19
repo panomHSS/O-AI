@@ -3856,3 +3856,98 @@ integration, and D98 workspace/provider routing policy.
 
 D94 status: **COMPLETE** after focused security tests, D90-D93 regressions, full
 backend regression, backend compileall, and `git diff --check` pass.
+
+## D95 Context Resolver & Budgeting v1
+
+D95 adds one deterministic, read-only Context resolution layer over the exact
+D94 Context contract.
+
+The internal flow is:
+
+```text
+exact WorkspaceScope + bounded query/ids
+-> read-only source adapters
+-> ContextCandidate values
+-> exact-source validation/deduplication
+-> whole-item per-layer budget admission
+-> deterministic layer ordering
+-> D94 ContextBundle
+```
+
+Source ownership remains unchanged:
+
+```text
+ConversationRepository / persisted Message
+ProjectContextResolver / current Project
+MemoryRepository / confirmed active MemoryVersion
+KnowledgeSearchPort / ranked exact-workspace chunks
+```
+
+D95 does not create a second persistence truth.
+
+The standard v1 budget counter is provider-neutral UTF-8 byte counting:
+
+```text
+budget_units = len(context_text.encode("utf-8"))
+```
+
+Budget units are not exact model tokens.
+
+The budget model is explicitly typed per layer:
+
+```text
+candidate_limit
+max_items
+max_units
+max_item_units
+```
+
+and one total policy cap. Unused budget from one layer is not silently borrowed
+by another layer.
+
+Selection is whole-item:
+
+```text
+NO SILENT TRUNCATION
+```
+
+An oversized candidate is skipped without mutating or deleting the source.
+
+Exact duplicate identity is:
+
+```text
+(workspace_id, layer, source_id)
+```
+
+Repeated identical projections collapse once. Conflicting projections for the
+same exact identity fail closed.
+
+D95 candidate ranking/order metadata is ephemeral and never enters D94
+`ContextItem` as instruction or execution authority.
+
+```text
+RELEVANCE != AUTHORITY
+RANK != INSTRUCTION PRIORITY
+LAYER ORDER != INSTRUCTION PRIORITY
+STORED MESSAGE ROLE != PROVIDER MESSAGE AUTHORITY
+```
+
+D95 remains deliberately non-wired:
+
+```text
+NO Chat integration
+NO API change
+NO database migration
+NO provider routing
+NO cloud/local policy
+NO connector/credential authority
+NO execution authority
+NO snapshot/provenance persistence
+```
+
+D96 owns Context provenance/snapshot. D97 owns migration of the live Chat path
+to D94/D95 Context. D98 owns workspace/provider routing policy.
+
+D95 status: **COMPLETE** after focused contract/resolver/security tests,
+D90-D94 authority/workspace/context regressions, legacy source-path regressions,
+full backend regression, backend compileall, and `git diff --check` pass.
