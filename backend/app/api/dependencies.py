@@ -179,6 +179,10 @@ from app.services.calendar_write_chat_ux import (
     CalendarWriteChatBindingStore,
     CalendarWriteChatUXService,
 )
+from app.services.calendar_write_followup import (
+    CalendarWriteFollowupService,
+    CalendarWriteFollowupStore,
+)
 from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.cross_connector_context import (
@@ -1514,6 +1518,19 @@ def get_calendar_create_execution_service(
 def get_calendar_write_chat_binding_store() -> CalendarWriteChatBindingStore:
     'Keep bounded, process-local, non-authoritative D84 correlation only.'
     return CalendarWriteChatBindingStore()
+
+
+@lru_cache
+def get_calendar_write_followup_store() -> CalendarWriteFollowupStore:
+    'Keep bounded, process-local, non-authoritative D101 exact-target correlation.'
+    return CalendarWriteFollowupStore()
+
+
+def get_calendar_write_followup_service() -> CalendarWriteFollowupService:
+    'Compose D101 exact-target follow-up binding only; no approval or execution.'
+    return CalendarWriteFollowupService(
+        store=get_calendar_write_followup_store(),
+    )
 
 
 def get_calendar_write_chat_ux_service(
