@@ -3951,3 +3951,105 @@ to D94/D95 Context. D98 owns workspace/provider routing policy.
 D95 status: **COMPLETE** after focused contract/resolver/security tests,
 D90-D94 authority/workspace/context regressions, legacy source-path regressions,
 full backend regression, backend compileall, and `git diff --check` pass.
+
+## D96 Context Provenance & Snapshot v1
+
+D96 adds immutable source provenance and snapshot integrity on top of the exact
+D94/D95 Context path without wiring Context into live Chat.
+
+The D96 flow is:
+
+```text
+D95 ContextBundle
+-> exact-workspace source re-observation
+-> verify source/text/label still match
+-> typed ContextSourceProvenance
+-> ContextSnapshotItem
+-> canonical ContextSnapshot digest
+```
+
+D96 uses verify-before-freeze. A selected Context item is never given provenance
+from a newer or substituted source version.
+
+```text
+SOURCE CHANGED -> FAIL CLOSED
+SOURCE MISSING -> FAIL CLOSED
+SOURCE SUBSTITUTION -> FAIL CLOSED
+CROSS-WORKSPACE SOURCE -> FAIL CLOSED
+NO PARTIAL SNAPSHOT
+```
+
+The provenance model is explicit and typed:
+
+```text
+source
+content_sha256
+parent_source_id
+version_ref
+source_locator
+source_timestamp
+```
+
+There is no arbitrary metadata map.
+
+Layer provenance remains descriptive:
+
+```text
+Conversation -> Message + parent Conversation + created_at
+Project      -> Project + current_revision + updated_at
+Memory       -> active confirmed MemoryVersion + version + created_at
+Knowledge    -> indexed DocumentChunk + Document content_hash/locator/indexed_at
+```
+
+D95 and D96 share deterministic projection helpers so the re-observed source
+must reproduce the exact selected Context text and label.
+
+Each item binds exact text with:
+
+```text
+SHA-256(item.text UTF-8)
+```
+
+The snapshot-level digest canonically binds:
+
+```text
+workspace
+captured_at
+ordered item identity
+label
+content digest
+parent source
+version reference
+source locator
+source timestamp
+```
+
+Digest and provenance values are integrity/evidence metadata only:
+
+```text
+PROVENANCE != AUTHORITY
+DIGEST != AUTHORIZATION
+SOURCE VERSION != AUTHORITY
+SOURCE LOCATOR != AUTHORITY
+SNAPSHOT != COMMAND
+```
+
+D96 remains deliberately in-memory and non-wired:
+
+```text
+NO snapshot database table
+NO migration
+NO Chat integration
+NO API change
+NO provider delivery record
+NO provider routing
+NO cloud/local policy
+NO credential/connector/execution authority
+```
+
+D97 owns migration of live Chat to D94-D96 Context and the exact turn/message
+lifecycle for any future durable snapshot attachment.
+
+D96 status: **COMPLETE** after focused contract/snapshot/security tests,
+D90-D95 authority/workspace/context regressions, legacy source-path regressions,
+full backend regression, backend compileall, and `git diff --check` pass.

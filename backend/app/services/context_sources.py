@@ -90,6 +90,87 @@ class ConversationContextReaderPort(Protocol):
     ) -> Sequence[Message]: ...
 
 
+def conversation_context_projection(
+    role: str,
+    content: str,
+) -> tuple[str, str]:
+    """Return the exact deterministic D95 Conversation data projection."""
+
+    if role not in {"user", "assistant"} or type(content) is not str:
+        raise ValueError("conversation_context_projection_invalid")
+    return (
+        json.dumps(
+            {"content": content, "role": role},
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        (
+            "conversation_user"
+            if role == "user"
+            else "conversation_assistant"
+        ),
+    )
+
+
+def project_context_projection(context: ProjectContext) -> str:
+    """Return the exact deterministic D95 Project data projection."""
+
+    if not isinstance(context, ProjectContext):
+        raise ValueError("project_context_projection_invalid")
+    payload: dict[str, object] = {
+        "current_revision": context.current_revision,
+        "objective": context.objective,
+        "status": context.status,
+        "title": context.title,
+    }
+    if context.current_summary is not None:
+        payload["current_summary"] = context.current_summary
+    if context.next_action is not None:
+        payload["next_action"] = context.next_action
+    return json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def memory_context_projection(
+    *,
+    key: str,
+    value: object,
+    value_type: str,
+) -> str:
+    """Return the exact deterministic D95 Memory data projection."""
+
+    if (
+        type(key) is not str
+        or not key
+        or type(value_type) is not str
+        or not value_type
+    ):
+        raise ValueError("memory_context_projection_invalid")
+    return json.dumps(
+        {
+            "key": key,
+            "value": value,
+            "value_type": value_type,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def knowledge_context_projection(content: str) -> tuple[str, str]:
+    """Return the exact D95 Knowledge projection and descriptive label."""
+
+    if type(content) is not str or not content.strip():
+        raise ValueError("knowledge_context_projection_invalid")
+    return content, "knowledge"
+
+
 class ConversationContextSource:
     """Project persisted Conversation messages into data-only D94 candidates."""
 
@@ -111,18 +192,11 @@ class ConversationContextSource:
             rows = self._reader.recent_messages(conversation_id, candidate_limit)
             chronological: list[ContextCandidate] = []
             for row in rows:
-                if (
-                    type(row.id) is not str
-                    or not row.id
-                    or row.role not in {"user", "assistant"}
-                    or type(row.content) is not str
-                ):
+                if type(row.id) is not str or not row.id:
                     raise ValueError("conversation_candidate_invalid")
-                text = json.dumps(
-                    {"content": row.content, "role": row.role},
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                    sort_keys=True,
+                text, label = conversation_context_projection(
+                    row.role,
+                    row.content,
                 )
                 chronological.append(
                     ContextCandidate(
@@ -132,11 +206,7 @@ class ConversationContextSource:
                             source_id=row.id,
                         ),
                         text=text,
-                        label=(
-                            "conversation_user"
-                            if row.role == "user"
-                            else "conversation_assistant"
-                        ),
+                        label=label,
                         relevance=None,
                         order_key=(row.created_at.isoformat(), row.id),
                     )
@@ -177,7 +247,7 @@ class ProjectContextSource:
                         layer=ContextLayer.PROJECT,
                         source_id=project_id,
                     ),
-                    text=_project_context_text(context),
+                    text=project_context_projection(context),
                     label="project_current",
                     relevance=None,
                     order_key=(project_id,),
@@ -243,17 +313,12 @@ class MemoryContextSource:
 
             candidates: list[ContextCandidate] = []
             for score, memory, value in ranked[:candidate_limit]:
-                text = json.dumps(
-                    {
-                        "key": memory.key,
-                        "value": value,
-                        "value_type": memory.value_type,
-                    },
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                )
                 try:
+                    text = memory_context_projection(
+                        key=memory.key,
+                        value=value,
+                        value_type=memory.value_type,
+                    )
                     candidate = ContextCandidate(
                         source=ContextSourceRef(
                             workspace_id=request.workspace_scope.workspace_id,
@@ -310,13 +375,9 @@ class KnowledgeContextSource:
             for rank, record in enumerate(records, start=1):
                 chunk_id = record.get("chunk_id")
                 content = record.get("content")
-                if (
-                    type(chunk_id) is not str
-                    or not chunk_id
-                    or type(content) is not str
-                    or not content.strip()
-                ):
+                if type(chunk_id) is not str or not chunk_id:
                     raise ValueError("knowledge_candidate_invalid")
+                text, label = knowledge_context_projection(content)  # type: ignore[arg-type]
 
                 relevance_raw = record.get("relevance_score")
                 relevance: int | float | None = None
@@ -334,8 +395,8 @@ class KnowledgeContextSource:
                             layer=ContextLayer.KNOWLEDGE,
                             source_id=chunk_id,
                         ),
-                        text=content,
-                        label="knowledge",
+                        text=text,
+                        label=label,
                         relevance=relevance,
                         order_key=(rank, chunk_id),
                     )
@@ -347,25 +408,6 @@ class KnowledgeContextSource:
             ) from error
 
 
-def _project_context_text(context: ProjectContext) -> str:
-    payload: dict[str, object] = {
-        "current_revision": context.current_revision,
-        "objective": context.objective,
-        "status": context.status,
-        "title": context.title,
-    }
-    if context.current_summary is not None:
-        payload["current_summary"] = context.current_summary
-    if context.next_action is not None:
-        payload["next_action"] = context.next_action
-    return json.dumps(
-        payload,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-
-
 __all__ = [
     "ContextCandidate",
     "ContextSourcePort",
@@ -375,4 +417,8 @@ __all__ = [
     "KnowledgeContextSource",
     "MemoryContextSource",
     "ProjectContextSource",
+    "conversation_context_projection",
+    "knowledge_context_projection",
+    "memory_context_projection",
+    "project_context_projection",
 ]

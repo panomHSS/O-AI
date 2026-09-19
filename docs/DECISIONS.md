@@ -4104,3 +4104,164 @@ CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
 
 D96 owns Context Provenance & Snapshot v1 under a separately approved
 Design/Implementation Spec.
+
+## ADR-090: Context Provenance & Snapshot v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce one immutable, provider-neutral Context provenance and snapshot
+boundary on top of the exact D94/D95 Context output.
+
+D96 consumes one selected `ContextBundle` and produces one immutable
+`ContextSnapshot` containing the exact selected Context plus typed source
+provenance and deterministic SHA-256 integrity values.
+
+D96 follows verify-before-freeze:
+
+```text
+D95 selected ContextItem
+-> exact-workspace authoritative source re-observation
+-> reproduce exact source / text / label
+-> freeze typed provenance
+-> compute content SHA-256
+-> compute canonical snapshot SHA-256
+```
+
+If the source is missing, changes, crosses workspace, changes layer/source
+identity, or can no longer reproduce the selected projection, D96 fails closed
+and returns no partial snapshot.
+
+The typed provenance fields are:
+
+```text
+source
+content_sha256
+parent_source_id
+version_ref
+source_locator
+source_timestamp
+```
+
+No unrestricted metadata map is introduced.
+
+Layer-specific provenance is:
+
+```text
+Conversation:
+  source_id        = Message.id
+  parent_source_id = Conversation.id
+  source_timestamp = Message.created_at
+
+Project:
+  source_id        = Project.id
+  version_ref      = current_revision
+  source_timestamp = Project.updated_at
+
+Memory:
+  source_id        = MemoryVersion.id
+  parent_source_id = Memory.id
+  version_ref      = MemoryVersion.version
+  source_timestamp = MemoryVersion.created_at
+
+Knowledge:
+  source_id        = DocumentChunk.id
+  parent_source_id = Document.id
+  version_ref      = Document.content_hash
+  source_locator   = DocumentChunk.source_locator
+  source_timestamp = Document.indexed_at
+```
+
+D95 deterministic projection helpers are shared with D96 so provenance
+verification uses the same Conversation, Project, Memory, and Knowledge
+projection semantics as selection.
+
+Each `ContextSnapshotItem` requires:
+
+```text
+item.source == provenance.source
+sha256(item.text UTF-8) == provenance.content_sha256
+```
+
+The snapshot carries one UTC `captured_at` and one canonical
+`snapshot_digest`. The canonical digest binds the exact workspace, capture time,
+ordered items, source identity, label, content digest, and provenance fields.
+
+The D96 snapshot is an in-memory immutable value only. D96 does not persist
+snapshot rows. D97 will own the exact Chat turn/message lifecycle that may later
+persist or attach a snapshot.
+
+**Rationale**
+
+D97 needs a reproducible, integrity-checkable record of exactly which Context
+was selected before the live Chat path consumes it.
+
+Capturing provenance only after source re-verification prevents a stale D95
+selection from being labeled with a newer Project revision, newer Memory state,
+or re-indexed Knowledge version.
+
+Keeping D96 non-persistent avoids creating orphan durable copies of sensitive
+Personal/Company Context before a live Chat turn owns that lifecycle.
+
+**Consequences**
+
+D96 adds:
+
+```text
+ContextSourceProvenance
+ContextSnapshotItem
+ContextSnapshot
+ContextSnapshotClock
+SystemContextSnapshotClock
+ContextSourceObservation
+ConversationProvenanceSource
+ProjectProvenanceSource
+MemoryProvenanceSource
+KnowledgeProvenanceSource
+ContextSnapshotService
+```
+
+D96 adds no:
+
+```text
+Chat integration
+prompt assembly
+provider roles
+provider delivery record
+provider/model routing
+cloud egress policy
+automatic cloud fallback
+database table
+database migration
+snapshot retention policy
+HTTP API
+frontend UI
+connector Context layer
+credential access
+owner approval
+execution authority
+```
+
+Frozen invariants include:
+
+```text
+PROVENANCE != AUTHORITY
+DIGEST != AUTHORIZATION
+SNAPSHOT != AUTHORITATIVE SOURCE
+SNAPSHOT != DATABASE
+SNAPSHOT != COMMAND
+SNAPSHOT != OWNER APPROVAL
+SNAPSHOT != EXECUTION AUTHORITY
+
+SOURCE CHANGED -> SNAPSHOT FAIL CLOSED
+SOURCE MISSING -> SNAPSHOT FAIL CLOSED
+CROSS-WORKSPACE SOURCE -> SNAPSHOT FAIL CLOSED
+
+SNAPSHOT CAPTURE != PROVIDER DELIVERY
+SNAPSHOT PRESENCE != CLOUD EGRESS AUTHORITY
+LEGACY UNSCOPED != PROVENANCE ELIGIBLE
+```
+
+D97 owns Context-Aware Chat Integration v1 under a separately approved
+Design/Implementation Spec.
