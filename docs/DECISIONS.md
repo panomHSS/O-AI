@@ -3637,3 +3637,150 @@ D91 is COMPLETE.
 D91 completion does not authorize D92 implementation. D92 requires its own
 approved Design/Implementation Spec and must consume the exact D91 identities
 without silently classifying legacy data.
+
+## ADR-086: Workspace Persistence & Migration v1
+
+**Status:** Accepted
+
+**Decision**
+
+Persist the exact D91 workspace identity vocabulary only on the four root data
+owners:
+
+```text
+conversations
+projects
+memories
+documents
+```
+
+Each root stores nullable `workspace_id VARCHAR(16)` constrained to:
+
+```text
+NULL
+personal
+company
+```
+
+`NULL` is not a workspace identity. It means the row is still unclassified.
+
+D92 intentionally does not duplicate workspace columns onto Messages,
+Citations, Memory versions, Project revisions/proposals, Document chunks,
+Execution Audit, OAuth credentials, or Automation records.
+
+Existing data remains unscoped during the migration:
+
+```text
+LEGACY ROW -> workspace_id = NULL
+```
+
+The migration contains no Personal/Company default and no content/title/path/
+Project/Memory/AI/connector heuristic.
+
+Memory key uniqueness becomes:
+
+```text
+workspace_id IS NULL:
+    key unique
+
+workspace_id IS NOT NULL:
+    (workspace_id, key) unique
+```
+
+Document source-path uniqueness becomes:
+
+```text
+workspace_id IS NULL:
+    source_path unique
+
+workspace_id IS NOT NULL:
+    (workspace_id, source_path) unique
+```
+
+This preserves current legacy behavior while allowing future Personal and
+Company workspaces to contain the same Memory key or root-relative Knowledge
+path without collision.
+
+Downgrade is fail-closed. If any of the four root tables contains non-NULL
+workspace data, D92 downgrade raises
+`d92_workspace_downgrade_scoped_data` rather than deleting classification.
+
+SQLite downgrade Repair 01 drops each named workspace CHECK constraint before
+dropping its column during Alembic batch table rebuild.
+
+**Rationale**
+
+D93 requires durable workspace metadata, but scope enforcement must not be mixed
+into the migration milestone. Storing workspace identity only on roots avoids
+duplicated truth while nullable migration preserves every legacy row without
+guessing ownership.
+
+Keeping current application writes unscoped until D93 also prevents D92 from
+silently turning persistence metadata into a runtime access policy.
+
+**Consequences**
+
+D92 changes the managed database revision from:
+
+```text
+0011_automation_foundation
+```
+
+to:
+
+```text
+0012_workspace_persistence
+```
+
+Application startup remains read-only and never auto-runs Alembic.
+
+D92 adds no:
+
+- workspace-aware repository query;
+- workspace-aware service behavior;
+- required workspace application write;
+- Workspace API;
+- browser active-workspace state;
+- legacy classification workflow;
+- Chat scope enforcement;
+- Memory scoped resolution;
+- Knowledge scoped retrieval;
+- AI routing;
+- connector/credential/Automation workspace binding;
+- Tool/Module authority;
+- new OAuth or connector capability.
+
+Security invariants:
+
+```text
+SCHEMA SUPPORT != SCOPE ENFORCEMENT
+DATABASE COLUMN != ACCESS AUTHORITY
+NULL WORKSPACE != PERSONAL
+NULL WORKSPACE != COMPANY
+MIGRATION != LEGACY CLASSIFICATION
+WORKSPACE IDENTITY != EXECUTION AUTHORITY
+```
+
+Verification completed with:
+
+```text
+Targeted D92 + D91 + D90 regression:
+62 passed, 4 warnings in 7.82s
+
+Full backend:
+1795 passed, 4 skipped, 13 warnings, 920 subtests passed in 81.05s
+
+Backend compileall:
+PASS
+
+git diff --check:
+PASS (Windows LF/CRLF warnings only)
+```
+
+D92 implementation testing used temporary/fresh databases. Applying
+`0012_workspace_persistence` to the owner's live O-AI database remains a
+separate deliberate owner-controlled deployment action.
+
+D92 is COMPLETE.
+
+D92 completion does not authorize D93 implementation.

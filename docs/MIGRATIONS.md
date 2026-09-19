@@ -99,3 +99,66 @@ The `backups/` directory contains recoverable database copies and should be reta
 `app.db.recovery` is a developer/test primitive for isolated SQLite paths. It resolves protected paths from the repository root, uses `sqlite3.Connection.backup()` through an operation-owned temporary artifact, and publishes only a new destination without overwriting an existing file. It verifies integrity, foreign keys, the current O-AI schema, operational FTS5 access, Alembic revision, effective Memory version immutability/governance, and citation/message relationships. Its structural fingerprint contains only revision, table names, row counts, and identifiers/relationships; it excludes application content. It is not an operational production restore command or policy.
 
 See [Recovery Runbook](RECOVERY.md) for the owner policy, recovery-set boundaries, approval gates, and isolated drill guidance. It does not turn this primitive into live production backup or restore tooling.
+
+## Workspace persistence (D92)
+
+Revision `0012_workspace_persistence` adds nullable workspace classification
+metadata to exactly four root tables:
+
+```text
+conversations.workspace_id
+projects.workspace_id
+memories.workspace_id
+documents.workspace_id
+```
+
+The only allowed persisted values are `NULL`, `personal`, and `company`.
+Existing rows are not backfilled: every pre-D92 row remains `NULL` after the
+upgrade.
+
+D92 does not infer workspace from content, title, source path, Project
+association, Memory values, AI output, or connector source.
+
+Memory and Document uniqueness are made workspace-capable while preserving
+legacy behavior:
+
+```text
+Memory:
+workspace_id IS NULL     -> unique key
+workspace_id IS NOT NULL -> unique (workspace_id, key)
+
+Document:
+workspace_id IS NULL     -> unique source_path
+workspace_id IS NOT NULL -> unique (workspace_id, source_path)
+```
+
+Application startup continues to verify the database in read-only mode and now
+requires exact revision `0012_workspace_persistence`. It does not run Alembic
+automatically.
+
+For an existing managed deployment, first make and verify the normal owner
+backup according to the recovery policy. Then, from the repository root, the
+owner may deliberately apply:
+
+```powershell
+D:\O-AI\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
+```
+
+After migration, verify the configured database before starting the backend:
+
+```powershell
+D:\O-AI\.venv\Scripts\python.exe backend/scripts/verify_database.py --database <path-to-oai.db>
+```
+
+Downgrade from D92 is intentionally blocked if any Conversation, Project,
+Memory, or Document row has a non-NULL workspace id:
+
+```text
+SCOPED ROW EXISTS -> DOWNGRADE REFUSED
+```
+
+This prevents deletion of workspace classification. A downgrade is permitted
+only while every D92 root row remains unscoped.
+
+D92 development and regression verification used temporary/fresh databases.
+Repository finalization does not itself migrate the owner's live O-AI database.

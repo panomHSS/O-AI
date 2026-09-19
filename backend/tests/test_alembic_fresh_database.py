@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0011_automation_foundation"
+REVISION = "0012_workspace_persistence"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -45,14 +45,15 @@ EXPECTED_INDEXES = {
     "conversations": {
         "ix_conversations_updated_at",
         "ix_conversations_project_id",
-    },    "documents": {"ix_documents_source_path", "ix_documents_content_hash", "ix_documents_status", "ix_documents_updated_at"},
+        "ix_conversations_workspace_id",
+    },    "documents": {"ix_documents_source_path", "ix_documents_content_hash", "ix_documents_status", "ix_documents_updated_at", "ix_documents_workspace_id", "uq_documents_legacy_source_path", "uq_documents_workspace_source_path"},
     "document_chunks": {"ix_document_chunks_document_id"},
     "message_citations": {"ix_message_citations_message_id"},
     "project_action_execution_proposals": {"ix_project_action_execution_proposals_project_id", "ix_project_action_execution_proposals_conversation_id"},
     "execution_audit_events": {"ix_execution_audit_events_request_id", "ix_execution_audit_events_occurred_at"},
-    "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at"},
+    "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at", "ix_memories_workspace_id", "uq_memories_legacy_key", "uq_memories_workspace_key"},
     "memory_versions": {"ix_memory_versions_memory_id"},
-    "projects": {"ix_projects_status", "ix_projects_updated_at"},
+    "projects": {"ix_projects_status", "ix_projects_updated_at", "ix_projects_workspace_id"},
     "project_revisions": {"ix_project_revisions_project_id"},
     "automation_definitions": {
         "ix_automation_definitions_status_due",

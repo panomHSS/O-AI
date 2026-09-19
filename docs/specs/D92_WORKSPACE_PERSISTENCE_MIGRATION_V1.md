@@ -1,6 +1,6 @@
 # D92 Workspace Persistence & Migration v1
 
-Status: **PROPOSED — implementation not started; owner approval of this spec is required before production-code changes.**
+Status: **COMPLETE**
 
 Roadmap authorization:
 
@@ -658,3 +658,70 @@ D91 exact identity
     -> D93 application scope enforcement
     -> D94-D97 context layers / resolver / Chat
 ```
+
+## 21. Implementation closure
+
+D92 remained persistence-only and introduced no repository/service/API/frontend
+scope enforcement.
+
+Implemented:
+
+- Alembic revision `0012_workspace_persistence`;
+- nullable `workspace_id VARCHAR(16)` on exactly:
+  - `conversations`;
+  - `projects`;
+  - `memories`;
+  - `documents`;
+- exact database CHECK constraints allowing only `NULL`, `personal`, or
+  `company`;
+- no default workspace and no legacy backfill;
+- root-level workspace lookup indexes;
+- legacy-preserving partial uniqueness for Memory keys;
+- workspace-scoped partial uniqueness for Memory keys;
+- legacy-preserving partial uniqueness for Document source paths;
+- workspace-scoped partial uniqueness for Document source paths;
+- exact read-only startup database verification targeting revision
+  `0012_workspace_persistence`;
+- fail-closed downgrade when any root row contains non-NULL workspace data.
+
+Repair 01 corrected the SQLite downgrade path by dropping the named workspace
+CHECK constraint before dropping each `workspace_id` column during batch table
+rebuild. This did not widen D92 scope or change upgrade semantics.
+
+Preserved:
+
+```text
+LEGACY ROW -> workspace_id = NULL
+
+NULL WORKSPACE != PERSONAL
+NULL WORKSPACE != COMPANY
+
+SCHEMA SUPPORT != SCOPE ENFORCEMENT
+DATABASE COLUMN != ACCESS AUTHORITY
+MIGRATION != LEGACY CLASSIFICATION
+```
+
+Verification:
+
+```text
+Targeted D92 + D91 + D90 regression:
+62 passed, 4 warnings in 7.82s
+
+Full backend:
+1795 passed, 4 skipped, 13 warnings, 920 subtests passed in 81.05s
+
+Backend compileall:
+PASS
+
+git diff --check:
+PASS (Windows LF/CRLF warnings only)
+```
+
+All migration behavior verified during D92 development used fresh/temporary test
+databases. D92 documentation finalization does not itself run
+`alembic upgrade head` against the owner's live O-AI database.
+
+D92 status: **COMPLETE**.
+
+D92 completion does not authorize D93 implementation automatically. D93 requires
+its own approved Design/Implementation Spec.

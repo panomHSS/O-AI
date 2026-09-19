@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0011_automation_foundation"
+TARGET_REVISION = "0012_workspace_persistence"
 EXPECTED_TABLES = {
     "alembic_version",
     "conversations",
@@ -31,14 +31,14 @@ EXPECTED_TABLES = {
     "automation_runs",
 }
 EXPECTED_COLUMNS = {
-    "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0)],
+    "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0), ("workspace_id", "VARCHAR(16)", 0)],
     "messages": [("id", "VARCHAR(36)", 1), ("conversation_id", "VARCHAR(36)", 0), ("role", "VARCHAR(16)", 0), ("content", "VARCHAR", 0), ("created_at", "DATETIME", 0)],
-    "documents": [("id", "VARCHAR(36)", 1), ("source_path", "VARCHAR(1024)", 0), ("file_name", "VARCHAR(512)", 0), ("file_extension", "VARCHAR(32)", 0), ("mime_type", "VARCHAR(255)", 0), ("file_size", "INTEGER", 0), ("content_hash", "VARCHAR(64)", 0), ("status", "VARCHAR(32)", 0), ("error_message", "TEXT", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("indexed_at", "DATETIME", 0)],
+    "documents": [("id", "VARCHAR(36)", 1), ("source_path", "VARCHAR(1024)", 0), ("file_name", "VARCHAR(512)", 0), ("file_extension", "VARCHAR(32)", 0), ("mime_type", "VARCHAR(255)", 0), ("file_size", "INTEGER", 0), ("content_hash", "VARCHAR(64)", 0), ("status", "VARCHAR(32)", 0), ("error_message", "TEXT", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("indexed_at", "DATETIME", 0), ("workspace_id", "VARCHAR(16)", 0)],
     "document_chunks": [("id", "VARCHAR(36)", 1), ("document_id", "VARCHAR(36)", 0), ("chunk_index", "INTEGER", 0), ("content", "TEXT", 0), ("source_locator", "VARCHAR(512)", 0), ("created_at", "DATETIME", 0)],
     "message_citations": [("id", "VARCHAR(36)", 1), ("message_id", "VARCHAR(36)", 0), ("citation_order", "INTEGER", 0), ("citation_id", "VARCHAR(16)", 0), ("document_id", "VARCHAR(36)", 0), ("file_name", "VARCHAR(512)", 0), ("source_path", "VARCHAR(1024)", 0), ("source_locator", "VARCHAR(512)", 0), ("excerpt", "TEXT", 0), ("excerpt_hash", "VARCHAR(64)", 0), ("confidence", "FLOAT", 0), ("evidence_type", "VARCHAR(32)", 0), ("created_at", "DATETIME", 0)],
-    "memories": [("id", "VARCHAR(36)", 1), ("key", "VARCHAR(128)", 0), ("value", "TEXT", 0), ("value_type", "VARCHAR(16)", 0), ("state", "VARCHAR(16)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("current_version", "INTEGER", 0), ("active_version_id", "VARCHAR(36)", 0), ("pending_version_id", "VARCHAR(36)", 0)],
+    "memories": [("id", "VARCHAR(36)", 1), ("key", "VARCHAR(128)", 0), ("value", "TEXT", 0), ("value_type", "VARCHAR(16)", 0), ("state", "VARCHAR(16)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("current_version", "INTEGER", 0), ("active_version_id", "VARCHAR(36)", 0), ("pending_version_id", "VARCHAR(36)", 0), ("workspace_id", "VARCHAR(16)", 0)],
     "memory_versions": [("id", "VARCHAR(36)", 1), ("memory_id", "VARCHAR(36)", 0), ("version", "INTEGER", 0), ("key", "VARCHAR(128)", 0), ("value", "TEXT", 0), ("value_type", "VARCHAR(16)", 0), ("state", "VARCHAR(16)", 0), ("change_reason", "VARCHAR(512)", 0), ("decision_comment", "TEXT", 0), ("evidence_snapshot", "TEXT", 0), ("created_by", "VARCHAR(64)", 0), ("proposed_by", "VARCHAR(64)", 0), ("proposed_at", "DATETIME", 0), ("decided_by", "VARCHAR(64)", 0), ("decided_at", "DATETIME", 0), ("created_at", "DATETIME", 0)],
-    "projects": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(160)", 0), ("objective", "TEXT", 0), ("status", "VARCHAR(16)", 0), ("current_summary", "TEXT", 0), ("next_action", "VARCHAR(512)", 0), ("current_revision", "INTEGER", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0)],
+    "projects": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(160)", 0), ("objective", "TEXT", 0), ("status", "VARCHAR(16)", 0), ("current_summary", "TEXT", 0), ("next_action", "VARCHAR(512)", 0), ("current_revision", "INTEGER", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("workspace_id", "VARCHAR(16)", 0)],
     "project_revisions": [("id", "VARCHAR(36)", 1), ("project_id", "VARCHAR(36)", 0), ("revision_number", "INTEGER", 0), ("title", "VARCHAR(160)", 0), ("objective", "TEXT", 0), ("status", "VARCHAR(16)", 0), ("current_summary", "TEXT", 0), ("next_action", "VARCHAR(512)", 0), ("change_note", "VARCHAR(512)", 0), ("created_at", "DATETIME", 0)],
     "project_update_proposals": [
         ("id", "VARCHAR(36)", 1),
@@ -124,14 +124,14 @@ EXPECTED_COLUMNS = {
     ],
 }
 EXPECTED_INDEXES = {
-    "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False)},
+    "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False), "ix_conversations_workspace_id": (["workspace_id"], False)},
     "messages": {"ix_messages_conversation_id": (["conversation_id"], False), "ix_messages_created_at": (["created_at"], False)},
-    "documents": {"ix_documents_source_path": (["source_path"], True), "ix_documents_content_hash": (["content_hash"], False), "ix_documents_status": (["status"], False), "ix_documents_updated_at": (["updated_at"], False)},
+    "documents": {"ix_documents_source_path": (["source_path"], False), "ix_documents_content_hash": (["content_hash"], False), "ix_documents_status": (["status"], False), "ix_documents_updated_at": (["updated_at"], False), "ix_documents_workspace_id": (["workspace_id"], False), "uq_documents_legacy_source_path": (["source_path"], True), "uq_documents_workspace_source_path": (["workspace_id", "source_path"], True)},
     "document_chunks": {"ix_document_chunks_document_id": (["document_id"], False)},
     "message_citations": {"ix_message_citations_message_id": (["message_id"], False)},
-    "memories": {"ix_memories_key": (["key"], True), "ix_memories_state": (["state"], False), "ix_memories_updated_at": (["updated_at"], False)},
+    "memories": {"ix_memories_key": (["key"], False), "ix_memories_state": (["state"], False), "ix_memories_updated_at": (["updated_at"], False), "ix_memories_workspace_id": (["workspace_id"], False), "uq_memories_legacy_key": (["key"], True), "uq_memories_workspace_key": (["workspace_id", "key"], True)},
     "memory_versions": {"ix_memory_versions_memory_id": (["memory_id"], False)},
-    "projects": {"ix_projects_status": (["status"], False), "ix_projects_updated_at": (["updated_at"], False)},
+    "projects": {"ix_projects_status": (["status"], False), "ix_projects_updated_at": (["updated_at"], False), "ix_projects_workspace_id": (["workspace_id"], False)},
     "project_revisions": {"ix_project_revisions_project_id": (["project_id"], False)},
     "project_update_proposals": {
         "ix_project_update_proposals_project_id": (["project_id"], False),
@@ -173,16 +173,16 @@ EXPECTED_FOREIGN_KEYS = {
     },
 }
 NULLABLE_COLUMNS = {
-    "documents": {"error_message", "indexed_at"},
-    "memories": {"active_version_id", "pending_version_id"},
+    "documents": {"error_message", "indexed_at", "workspace_id"},
+    "memories": {"active_version_id", "pending_version_id", "workspace_id"},
     "memory_versions": {
         "decision_comment",
         "evidence_snapshot",
         "decided_by",
         "decided_at",
     },
-    "conversations": {"project_id"},
-    "projects": {"current_summary", "next_action"},
+    "conversations": {"project_id", "workspace_id"},
+    "projects": {"current_summary", "next_action", "workspace_id"},
     "project_revisions": {"current_summary", "next_action"},
     "project_update_proposals": {
         "proposed_summary",
@@ -396,6 +396,47 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
         raise DatabaseVerificationError(
             "Configured database is missing automation due-slot uniqueness."
         )
+
+    workspace_constraint = (
+        "WORKSPACE_ID IS NULL OR WORKSPACE_ID IN ('PERSONAL', 'COMPANY')"
+    )
+    for table_name in ("conversations", "projects", "memories", "documents"):
+        table_sql = connection.execute(
+            "SELECT sql FROM sqlite_schema "
+            "WHERE type = 'table' AND name = ?",
+            (table_name,),
+        ).fetchone()
+        normalized = (
+            ""
+            if table_sql is None or table_sql[0] is None
+            else " ".join(table_sql[0].upper().split())
+        )
+        if workspace_constraint not in normalized:
+            raise DatabaseVerificationError(
+                f"Configured database is missing workspace constraint in {table_name}."
+            )
+
+    required_partial_indexes = {
+        "uq_memories_legacy_key": "WHERE WORKSPACE_ID IS NULL",
+        "uq_memories_workspace_key": "WHERE WORKSPACE_ID IS NOT NULL",
+        "uq_documents_legacy_source_path": "WHERE WORKSPACE_ID IS NULL",
+        "uq_documents_workspace_source_path": "WHERE WORKSPACE_ID IS NOT NULL",
+    }
+    for index_name, predicate in required_partial_indexes.items():
+        index_sql = connection.execute(
+            "SELECT sql FROM sqlite_schema "
+            "WHERE type = 'index' AND name = ?",
+            (index_name,),
+        ).fetchone()
+        normalized = (
+            ""
+            if index_sql is None or index_sql[0] is None
+            else " ".join(index_sql[0].upper().split())
+        )
+        if predicate not in normalized:
+            raise DatabaseVerificationError(
+                f"Configured database has incompatible partial index {index_name}."
+            )
 
     memory_foreign_keys = connection.execute("PRAGMA foreign_key_list(memories)").fetchall()
     if {(row[3], row[2], row[4]) for row in memory_foreign_keys} != {("active_version_id", "memory_versions", "id"), ("pending_version_id", "memory_versions", "id")}:

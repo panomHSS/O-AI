@@ -3632,3 +3632,105 @@ git diff --check: PASS
 ```
 
 D91 status: **COMPLETE**.
+
+## D92 Workspace Persistence & Migration v1
+
+D92 persists the D91 workspace identity vocabulary while deliberately stopping
+before application-level scope enforcement.
+
+Root persistence:
+
+```text
+Conversation.workspace_id
+Project.workspace_id
+Memory.workspace_id
+Document.workspace_id
+```
+
+Exact persisted state:
+
+```text
+workspace_id = NULL
+workspace_id = personal
+workspace_id = company
+```
+
+There is no database default. Existing rows upgraded from D91 remain `NULL`.
+
+Scope ownership remains rooted rather than duplicated:
+
+```text
+Conversation
+    -> Messages
+    -> Message Citations
+
+Project
+    -> Project Revisions
+    -> Project Update Proposals
+    -> Project Action Execution Proposals
+
+Memory
+    -> Memory Versions
+
+Document
+    -> Document Chunks
+```
+
+D92 does not add workspace columns to those child records.
+
+The persistence boundary is:
+
+```text
+LEGACY UNSCOPED != PERSONAL
+LEGACY UNSCOPED != COMPANY
+
+SCHEMA SUPPORT != SCOPE ENFORCEMENT
+DATABASE COLUMN != ACCESS AUTHORITY
+MIGRATION != LEGACY CLASSIFICATION
+```
+
+Memory and Knowledge uniqueness are split so unscoped legacy rows preserve
+their previous uniqueness while future Personal and Company rows can use the
+same key/path independently.
+
+```text
+Memory:
+NULL -> unique(key)
+scoped -> unique(workspace_id, key)
+
+Document:
+NULL -> unique(source_path)
+scoped -> unique(workspace_id, source_path)
+```
+
+Startup database verification remains read-only and now requires exact Alembic
+revision:
+
+```text
+0012_workspace_persistence
+```
+
+Downgrade refuses to proceed while any scoped root row exists. This prevents
+loss of workspace classification and avoids collapsing scoped duplicate
+key/path values back into the old global uniqueness model.
+
+SQLite/Alembic downgrade Repair 01 explicitly drops the named workspace CHECK
+constraint before dropping each workspace column during batch rebuild.
+
+D92 does not change repository/service/API/frontend behavior. Until D93, normal
+application creation paths continue producing `workspace_id = NULL`; this is a
+temporary compatibility state, not a default workspace.
+
+Verification:
+
+```text
+Targeted D92 + D91 + D90: 62 passed, 4 warnings
+Full backend: 1795 passed, 4 skipped, 13 warnings, 920 subtests passed
+Backend compileall: PASS
+git diff --check: PASS
+```
+
+D92 status: **COMPLETE**.
+
+D93 will own application-level scoped reads/writes and cross-entity workspace
+consistency under its own separately approved Design/Implementation Spec.

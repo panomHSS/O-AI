@@ -835,25 +835,44 @@ requires its own approved Design/Implementation Spec.
 
 ## D92 — Workspace Persistence & Migration v1
 
-Status: **SPEC OPEN — IMPLEMENTATION NOT STARTED**
+Status: **COMPLETE**
 
-D92 is defined by
-`docs/specs/D92_WORKSPACE_PERSISTENCE_MIGRATION_V1.md`.
+D92 establishes nullable persistence for the exact D91 workspace identities
+without yet enforcing workspace scope in repositories, services, APIs, Chat, or
+frontend UX.
 
-The proposed scope is deliberately persistence-only:
+Delivered:
 
+- Alembic revision `0012_workspace_persistence`;
 - nullable exact `workspace_id` on Conversation, Project, Memory, and Document
-  roots;
-- all existing rows remain unscoped (`NULL`);
-- no automatic Personal/Company classification;
-- child records derive scope from their root rather than duplicating workspace
-  identity;
-- Memory key and Knowledge source-path uniqueness become workspace-capable
-  while preserving current legacy/unscoped uniqueness;
-- exact Alembic migration and read-only startup verification;
-- fail-closed downgrade if scoped data exists;
-- no repository/service/API/frontend scope enforcement yet.
+  roots only;
+- exact database values limited to `NULL`, `personal`, or `company`;
+- all pre-existing rows remain `NULL`;
+- no automatic Personal/Company inference or backfill;
+- child records continue deriving workspace from their root instead of storing
+  duplicate scope;
+- Memory key uniqueness is preserved for legacy/unscoped rows and separated per
+  workspace for scoped rows;
+- Document source-path uniqueness is preserved for legacy/unscoped rows and
+  separated per workspace for scoped rows;
+- read-only startup database verification now requires exact revision
+  `0012_workspace_persistence`;
+- downgrade refuses to remove D92 workspace persistence while any scoped root
+  data exists;
+- SQLite downgrade Repair 01 drops the named workspace CHECK constraint before
+  the workspace column during batch rebuild.
 
-D92 implementation requires separate owner approval of its milestone-specific
-Design/Implementation Spec. D92 completion will not authorize D93
-automatically.
+Verification:
+
+```text
+Targeted D92 + D91 + D90: 62 passed, 4 warnings
+Full backend: 1795 passed, 4 skipped, 13 warnings, 920 subtests passed
+Backend compileall: PASS
+git diff --check: PASS (Windows LF/CRLF warnings only)
+```
+
+ADR-086 records the D92 persistence decision.
+
+D92 adds no repository/service/API/frontend scope enforcement and does not
+authorize D93 automatically. Live deployment migration remains a separate
+owner-controlled operation.

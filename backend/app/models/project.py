@@ -20,6 +20,10 @@ class Project(Base):
         CheckConstraint("current_summary IS NULL OR length(current_summary) <= 4000", name="ck_projects_summary_length"),
         CheckConstraint("next_action IS NULL OR length(next_action) <= 512", name="ck_projects_next_action_length"),
         CheckConstraint("current_revision >= 1", name="ck_projects_current_revision"),
+        CheckConstraint(
+            "workspace_id IS NULL OR workspace_id IN ('personal', 'company')",
+            name="ck_projects_workspace_id",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
@@ -31,3 +35,4 @@ class Project(Base):
     current_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False, index=True)
+    workspace_id: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
