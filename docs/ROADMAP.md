@@ -876,3 +876,32 @@ ADR-086 records the D92 persistence decision.
 D92 adds no repository/service/API/frontend scope enforcement and does not
 authorize D93 automatically. Live deployment migration remains a separate
 owner-controlled operation.
+
+## D93 — Workspace Scope Enforcement v1
+
+Status: **SPEC OPEN — IMPLEMENTATION NOT STARTED**
+
+D93 is defined by
+`docs/specs/D93_WORKSPACE_SCOPE_ENFORCEMENT_V1.md`.
+
+The proposed milestone makes D91/D92 workspace scope mandatory across normal
+backend data access:
+
+- exact `X-OAI-Workspace: personal|company` request context;
+- request-scoped dependency/repository binding with no ambient default;
+- exact scoped create/read/list/write behavior for Conversation, Project,
+  Memory, and Knowledge roots;
+- legacy `workspace_id = NULL` rows quarantined from normal scoped APIs;
+- Conversation/Project same-workspace consistency;
+- Memory and Project context isolation before provider composition;
+- exact parent-scope enforcement for Project update/action proposals;
+- distinct non-overlapping Personal/Company Knowledge filesystem roots;
+- exact Knowledge search filtering across SQLite/PostgreSQL adapters;
+- no new database migration;
+- no frontend workspace UX;
+- no legacy auto-classification;
+- no added approval, credential, connector, AI-provider, or execution authority.
+
+D93 implementation requires separate owner approval of this milestone-specific
+Design/Implementation Spec. D93 completion will not authorize D94
+automatically.
