@@ -179,8 +179,10 @@ export default function GoogleCalendarCard() {
             Google Calendar
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-            Primary Calendar read-only access. Connecting an account
-            does not approve or authorize any Calendar action.
+            Primary Calendar access. Connecting an account only establishes
+            the Google credential; it does not approve or authorize Calendar
+            reads or writes. Each Calendar action must pass its own approval
+            and authorization flow.
           </p>
         </div>
         <span className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300">
