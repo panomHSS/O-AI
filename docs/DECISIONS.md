@@ -4668,3 +4668,112 @@ D99 adds no database table or Alembic revision. The live database remains at
 `0013_context_snapshot_persistence`.
 
 D100 owns Integration Security Review v4 under a separately approved spec.
+
+## ADR-094: Integration Security Review v4
+
+**Status:** Accepted
+
+**Decision**
+
+D100 closes the D91-D99 Workspace & Context Intelligence phase with an
+integration-wide adversarial security review. It adds no new product capability
+and does not widen Workspace, Context, provider, credential, connector,
+approval, or execution authority.
+
+The reviewed normal-AI authority order remains:
+
+```text
+exact workspace
+-> workspace AI policy
+-> route planning
+-> authorization
+-> one-shot adapter binding
+-> Context resolution
+-> verify-before-freeze
+-> provider call
+-> persistence
+-> read-only UX metadata
+```
+
+Special lanes retain their own explicit authority boundaries. Workspace,
+Context, retrieved data, UI state, local-request markers, approval correlation,
+and provider metadata cannot substitute for authentication, authorization,
+owner approval, credentials, connector permission, or execution authority.
+
+D100 confirmed and repaired two integration defects.
+
+First, a stale `projectId` query could clear the newly selected workspace's
+saved Conversation before the Project had been validated in that workspace.
+The backend already failed closed on the cross-workspace Project id, so no
+cross-workspace data disclosure occurred, but valid client state could be lost.
+The frontend now validates the Project in the selected workspace before
+clearing that workspace's saved Conversation.
+
+Second, Calendar Write Chat approve/deny endpoints could consume D73 decision
+authority, and the approve path could reach D74 execution, before the bound
+Conversation was proven visible in the request workspace. D84 now exposes a
+read-only correlation preflight and the API verifies the bound Conversation
+through the existing exact-workspace `ConversationService` before approve or
+deny authority can proceed.
+
+The repaired Calendar Write Chat order is:
+
+```text
+approval_id + write_digest
+-> resolve non-authoritative D84 binding
+-> exact-request-workspace Conversation lookup
+-> structured owner approve / deny
+-> D36 authorization and D74 execution when approved
+-> Conversation completion
+```
+
+Cross-workspace lookup failure occurs before D73 state consumption and before
+D74 execution.
+
+The review also verified:
+
+```text
+Personal != Company
+cross-workspace ids -> not found / fail closed
+missing or invalid workspace -> fail closed
+legacy unscoped client state -> neither workspace
+Context != command / approval / authorization / provider authority
+Company default AI -> local_only
+Company explicit Cloud escalation -> rejected
+provider failure -> no alternate-provider fallback
+authorized AI adapter -> one-shot
+snapshot/source drift or tamper -> fail closed
+generic execution approvals -> exact-workspace scoped
+Calendar/Gmail approval -> authorization -> claim -> one provider attempt
+cross-connector Context -> untrusted data only
+Project update proposals -> exact-workspace and revision-safe
+```
+
+**Rationale**
+
+D91-D99 introduced multiple individually safe boundaries. D100 verifies their
+composition, because integration order can create authority bugs even when each
+component is locally correct.
+
+The two D100 findings were composition defects: one in client-state ordering and
+one in Calendar Chat authority ordering. Both were repaired at the smallest
+bounded layer without adding a new schema, Workspace type, provider selector,
+credential system, connector capability, or fallback path.
+
+**Consequences**
+
+D100 adds adversarial regression coverage for trust-boundary inventory,
+cross-workspace probing, stale client state, Context routing/egress injection,
+provider failure and replay, special-lane composition, and Calendar Chat
+cross-workspace authority order.
+
+D100 adds no database table, Alembic migration, new Workspace type, new Context
+layer, provider selector, automatic fallback, runtime policy mutation, new
+connector capability, new credential authority, new execution capability, or
+legacy data reclassification.
+
+The live database target remains:
+
+```text
+0013_context_snapshot_persistence
+```

@@ -124,9 +124,11 @@ export function Chat() {
     const pendingProjectId = new URLSearchParams(window.location.search).get("projectId");
 
     if (pendingProjectId) {
-      window.localStorage.removeItem(storageKey);
       getProject(workspaceId, pendingProjectId)
-        .then(setPendingProject)
+        .then((project) => {
+          window.localStorage.removeItem(storageKey);
+          setPendingProject(project);
+        })
         .catch((caughtError) =>
           setError(
             caughtError instanceof ApiError

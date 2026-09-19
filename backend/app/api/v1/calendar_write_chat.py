@@ -58,6 +58,21 @@ def _decision_error(error: Exception) -> HTTPException:
     )
 
 
+def _require_original_conversation_scope(
+    *,
+    approval_id: str,
+    write_digest: str,
+    service: CalendarWriteChatUXService,
+    conversation_service: ConversationService,
+) -> None:
+    """Verify request-workspace ownership before consuming decision authority."""
+    binding = service.decision_binding(
+        approval_id=approval_id,
+        write_digest=write_digest,
+    )
+    conversation_service.get_conversation(binding.conversation_id)
+
+
 @router.post(
     "/{approval_id}/deny",
     response_model=ApiSuccess[CalendarWriteChatDecisionResponse],
@@ -77,6 +92,12 @@ def deny_calendar_write_chat(
     ],
 ) -> ApiSuccess[CalendarWriteChatDecisionResponse]:
     try:
+        _require_original_conversation_scope(
+            approval_id=approval_id,
+            write_digest=payload.write_digest,
+            service=service,
+            conversation_service=conversation_service,
+        )
         outcome = service.deny(
             approval_id=approval_id,
             write_digest=payload.write_digest,
@@ -112,6 +133,12 @@ def approve_calendar_write_chat(
     ],
 ) -> ApiSuccess[CalendarWriteChatDecisionResponse]:
     try:
+        _require_original_conversation_scope(
+            approval_id=approval_id,
+            write_digest=payload.write_digest,
+            service=service,
+            conversation_service=conversation_service,
+        )
         outcome = service.approve(
             approval_id=approval_id,
             write_digest=payload.write_digest,

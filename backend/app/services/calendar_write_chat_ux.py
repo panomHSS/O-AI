@@ -510,6 +510,18 @@ class CalendarWriteChatUXService:
             )
         return self._composer.plaintext_decision_required(binding.language)
 
+    def decision_binding(
+        self,
+        *,
+        approval_id: str,
+        write_digest: str,
+    ) -> CalendarWriteChatBinding:
+        """Resolve non-authoritative Chat correlation before owner decision."""
+        return self._binding_store.resolve(
+            approval_id,
+            write_digest,
+        )
+
     def deny(
         self,
         *,

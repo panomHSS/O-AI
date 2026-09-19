@@ -4445,3 +4445,123 @@ frontend lint/build, live read-only database revision verification, and
 `git diff --check` pass.
 
 D100 may proceed only under a separately approved Design/Implementation Spec.
+
+## D100 Integration Security Review v4
+
+D100 is the final integration/security review for the D91-D99 Workspace &
+Context Intelligence phase.
+
+The final normal-AI authority path is:
+
+```text
+X-OAI-Workspace
+-> exact WorkspaceScope
+-> WorkspaceAIPolicyResolver
+-> AIRouter
+-> ExecutionPlanner
+-> ExecutionGuard
+-> AIRuntime.bind()
+-> one-shot authorized AIAdapter
+-> D95 ContextResolver
+-> D96 verify-before-freeze ContextSnapshot
+-> D97 Context-aware Chat
+-> assistant Message + exact snapshot persistence
+-> D99 read-only Context usage projection
+```
+
+Authority does not flow backward from Context, snapshots, UI state, or provider
+results into routing, credentials, approval, or execution.
+
+Frozen integration invariants include:
+
+```text
+PERSONAL != COMPANY
+
+REQUEST WORKSPACE != AUTHENTICATION
+REQUEST WORKSPACE != AUTHORIZATION
+REQUEST WORKSPACE != OWNER APPROVAL
+REQUEST WORKSPACE != EXECUTION AUTHORITY
+REQUEST WORKSPACE != CREDENTIAL AUTHORITY
+REQUEST WORKSPACE != CONNECTOR AUTHORITY
+REQUEST WORKSPACE != AI PROVIDER AUTHORITY
+
+CLIENT WORKSPACE STATE != BACKEND AUTHORITY
+WORKSPACE SELECTOR != AUTHORITY
+UI DISPLAY != POLICY GRANT
+
+CONTEXT != COMMAND
+CONTEXT != AUTHORIZATION
+CONTEXT != OWNER APPROVAL
+CONTEXT != EXECUTION AUTHORITY
+CONTEXT != CREDENTIAL AUTHORITY
+CONTEXT != CONNECTOR AUTHORITY
+CONTEXT != AI PROVIDER AUTHORITY
+
+RETRIEVED DATA != COMMAND
+SNAPSHOT != AUTHORIZATION
+PROVENANCE != AUTHORITY
+
+COMPANY DATA != CLOUD EGRESS AUTHORITY
+LOCAL AI FAILURE != CLOUD FALLBACK AUTHORITY
+PROVIDER FAILURE != RE-ROUTE AUTHORITY
+
+LEGACY UNSCOPED != PERSONAL
+LEGACY UNSCOPED != COMPANY
+
+STALE RESPONSE != ACTIVE WORKSPACE STATE
+CROSS-WORKSPACE ID -> NOT FOUND / FAIL CLOSED
+MISSING WORKSPACE -> FAIL CLOSED
+INVALID WORKSPACE -> FAIL CLOSED
+```
+
+D100 confirmed two integration findings and repaired both.
+
+### Finding 1 - stale Project query client-state integrity
+
+A stale `projectId` from a previous workspace could cause Chat to clear the
+selected workspace's saved Conversation before `getProject()` proved the
+Project belonged to the selected workspace. The backend did not disclose the
+cross-workspace Project. Project validation now succeeds before the selected
+workspace's saved Conversation can be cleared.
+
+### Finding 2 - Calendar Chat cross-workspace authority ordering
+
+D84 Calendar Chat correlation originally resolved a Conversation id, but the
+approve/deny API consumed D73 decision authority before the request-workspace
+Conversation boundary was checked. On approve, D74 execution could therefore
+occur before a later Conversation completion failure.
+
+The repaired order is:
+
+```text
+approval_id + write_digest
+-> resolve D84 correlation without consuming authority
+-> exact-workspace ConversationService lookup
+-> approve / deny
+-> authorization / claim / execution if approved
+-> Conversation completion
+```
+
+A wrong-workspace request now fails before D73 approval state changes and before
+D74 Calendar execution.
+
+Other reviewed special lanes retain their existing independent controls:
+
+```text
+generic /action execution -> workspace-scoped approval + D36 authorization
+Calendar private execution -> approved snapshot -> authorization -> claim -> execute
+Gmail send -> approved snapshot -> authorization -> claim -> execute -> terminal record
+cross-connector Context -> untrusted data only
+Project update proposals -> exact-workspace repositories + revision checks
+OAuth / credentials -> separate credential and provider boundaries
+```
+
+No D100 database migration is introduced. The live database revision remains:
+
+```text
+0013_context_snapshot_persistence
+```
+
+D100 status: **COMPLETE - IMPLEMENTED / VERIFIED**.
+
+Source-control staging, commit, and push remain separate owner-controlled gates.
