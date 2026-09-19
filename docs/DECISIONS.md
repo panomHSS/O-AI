@@ -3784,3 +3784,163 @@ separate deliberate owner-controlled deployment action.
 D92 is COMPLETE.
 
 D92 completion does not authorize D93 implementation.
+
+## ADR-087: Workspace Scope Enforcement v1
+
+**Status:** Accepted
+
+**Decision**
+
+Make the D91/D92 workspace identity mandatory for normal workspace-owned
+backend access through one exact immutable request `WorkspaceScope`.
+
+Normal scoped requests accept only:
+
+```text
+X-OAI-Workspace: personal
+X-OAI-Workspace: company
+```
+
+Missing, invalid, aliased, case-variant, or whitespace-modified values fail
+closed. There is no ambient/default workspace.
+
+Conversation, Project, Memory, Knowledge, Project-derived proposal/action
+persistence, Project Context, and Conversation-backed Chat paths enforce exact
+same-workspace visibility. Legacy `workspace_id = NULL` rows remain quarantined
+from normal Personal and Company access.
+
+Knowledge uses distinct non-overlapping workspace filesystem roots and all
+maintained search adapters filter authoritative Document workspace before
+ranking/limiting.
+
+Cross-workspace resource ids use normal not-found/fail-closed semantics rather
+than disclosing existence in another workspace.
+
+Process-local pending execution approval tickets reached through the
+workspace-scoped generic execution composition are bound to the exact workspace
+as continuation/correlation metadata. A decision made under another workspace
+fails as not pending before execution, does not consume the valid ticket, and
+does not make workspace selection an approval or execution authority.
+
+**Rationale**
+
+D94-D100 Context work requires a trustworthy application-scope boundary before
+retrieved Conversation, Project, Memory, or Knowledge data can be represented
+as Context. Workspace identity therefore must constrain source eligibility
+without becoming authentication, authorization, approval, credential,
+connector, provider, or execution authority.
+
+**Consequences**
+
+D93 adds no database migration and no frontend workspace UX.
+
+Frozen invariants include:
+
+```text
+PERSONAL != COMPANY
+LEGACY UNSCOPED != PERSONAL
+LEGACY UNSCOPED != COMPANY
+CROSS-WORKSPACE ID -> NOT FOUND / FAIL CLOSED
+
+REQUEST WORKSPACE != AUTHENTICATION
+REQUEST WORKSPACE != AUTHORIZATION
+REQUEST WORKSPACE != OWNER APPROVAL
+REQUEST WORKSPACE != EXECUTION AUTHORITY
+REQUEST WORKSPACE != CREDENTIAL AUTHORITY
+REQUEST WORKSPACE != CONNECTOR AUTHORITY
+REQUEST WORKSPACE != AI PROVIDER AUTHORITY
+```
+
+D93 repository finalization commit:
+
+```text
+4dda47c feat: enforce workspace scope v1
+```
+
+Focused security verification, full backend regression, backend compileall, and
+`git diff --check` passed before D93 commit/push.
+
+D93 is COMPLETE.
+
+## ADR-088: Context Layer Contract v1
+
+**Status:** Accepted
+
+**Decision**
+
+Define a pure immutable provider-neutral Context contract with exactly four
+layers:
+
+```text
+conversation
+project
+memory
+knowledge
+```
+
+The contract consists of:
+
+```text
+ContextLayer
+ContextSourceRef
+ContextItem
+ContextBundle
+```
+
+`ContextSourceRef` carries one exact D91 `WorkspaceId`, one exact layer, and one
+bounded opaque source id. `ContextItem` carries a bounded text projection and
+optional bounded label. `ContextBundle` carries one exact `WorkspaceScope` plus
+an immutable tuple of items and rejects any item whose source workspace differs
+from the bundle workspace.
+
+An empty bundle is valid and means that no eligible Context was selected for the
+exact workspace. It never causes fallback to another workspace or to legacy
+unscoped data.
+
+Context text is data only. Instruction-like retrieved text is preserved as text
+without being converted into commands, plans, approval evidence,
+authorization, credentials, connector parameters, provider selection, or state
+changes.
+
+D94 intentionally excludes an unrestricted metadata map from `ContextItem`.
+Future provenance, ranking, budgeting, provider-delivery metadata, or snapshot
+fields require explicit typed contracts in later milestones.
+
+**Rationale**
+
+D95-D98 need one stable workspace-safe representation of Conversation, Project,
+Memory, and Knowledge data before selection, provenance, Chat integration, or
+AI routing policy is introduced.
+
+Keeping D94 contract-only prevents retrieval data from accidentally becoming an
+authority channel and keeps workspace classification separate from execution
+semantics.
+
+**Consequences**
+
+D94 adds no resolver, ranking, token budgeting, retrieval orchestration,
+snapshot persistence, provenance capture, prompt assembly, Chat/API wiring,
+provider routing, cloud/local policy, database schema, migration, frontend
+change, connector Context layer, or execution capability.
+
+Frozen invariants include:
+
+```text
+CONTEXT != DATABASE
+CONTEXT != MEMORY
+CONTEXT != COMMAND
+CONTEXT != OWNER APPROVAL
+CONTEXT != AUTHORIZATION
+CONTEXT != EXECUTION AUTHORITY
+CONTEXT != CREDENTIAL AUTHORITY
+CONTEXT != CONNECTOR AUTHORITY
+CONTEXT != AI PROVIDER AUTHORITY
+
+RETRIEVED DATA != COMMAND
+RETRIEVED TEXT != SYSTEM INSTRUCTION
+RETRIEVED TEXT != DEVELOPER INSTRUCTION
+CONTEXT LAYER != INSTRUCTION PRIORITY
+CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
+```
+
+D95 owns Context Resolver & Budgeting under a separately approved spec.

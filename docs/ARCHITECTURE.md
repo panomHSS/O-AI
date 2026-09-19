@@ -3734,3 +3734,125 @@ D92 status: **COMPLETE**.
 
 D93 will own application-level scoped reads/writes and cross-entity workspace
 consistency under its own separately approved Design/Implementation Spec.
+
+## D93 Workspace Scope Enforcement v1
+
+D93 makes the D91/D92 workspace identity mandatory for normal workspace-owned
+backend data access.
+
+Normal scoped requests use exact `X-OAI-Workspace: personal|company` parsing and
+construct one immutable request `WorkspaceScope`. Missing or invalid scope fails
+closed. There is no default workspace and legacy `workspace_id = NULL` data
+remains quarantined.
+
+Conversation, Project, Memory, Knowledge, Project-derived proposal/action
+persistence, Project Context, and Chat Conversation paths enforce exact
+same-workspace visibility. Knowledge also uses distinct non-overlapping
+workspace filesystem roots and filters authoritative Document workspace before
+rank/limit in maintained search adapters.
+
+Cross-workspace ids use normal not-found/fail-closed semantics rather than
+disclosing that a resource exists in another workspace.
+
+Process-local D45 pending execution approvals that are reached through the
+workspace-scoped generic execution composition are bound to the exact workspace
+as continuation metadata. A decision from another workspace is treated as not
+pending, does not consume the valid ticket, and cannot start execution.
+
+Workspace remains scope/classification metadata only:
+
+```text
+REQUEST WORKSPACE != AUTHENTICATION
+REQUEST WORKSPACE != AUTHORIZATION
+REQUEST WORKSPACE != OWNER APPROVAL
+REQUEST WORKSPACE != EXECUTION AUTHORITY
+REQUEST WORKSPACE != CREDENTIAL AUTHORITY
+REQUEST WORKSPACE != CONNECTOR AUTHORITY
+REQUEST WORKSPACE != AI PROVIDER AUTHORITY
+```
+
+Infrastructure surfaces outside workspace-owned data remain outside the D93
+workspace header boundary, including health, diagnostics, OAuth, automations,
+and dedicated Calendar/Gmail approval/execution lanes.
+
+D93 adds no new database migration and no frontend workspace UX.
+
+Final D93 repository baseline:
+
+```text
+4dda47c feat: enforce workspace scope v1
+```
+
+D93 focused security verification, full backend regression, backend compileall,
+and `git diff --check` passed before commit/push.
+
+D93 status: **COMPLETE**.
+
+D94 may now introduce the Context Layer contract only under its separately
+approved Design/Implementation Spec.
+
+## D94 Context Layer Contract v1
+
+D94 introduces the immutable provider-neutral contract for representing
+workspace-safe Context without adding retrieval, provider, or execution
+behavior.
+
+The exact Context layers are:
+
+```text
+L1 -> conversation
+L2 -> project
+L3 -> memory
+L4 -> knowledge
+```
+
+The contract boundary is:
+
+```text
+ContextSourceRef
+    -> exact WorkspaceId
+    -> exact ContextLayer
+    -> bounded opaque source_id
+
+ContextItem
+    -> one ContextSourceRef
+    -> bounded text data
+    -> optional bounded descriptive label
+
+ContextBundle
+    -> one exact WorkspaceScope
+    -> immutable tuple of ContextItem
+    -> every item must match the exact bundle workspace
+```
+
+Mixed-workspace bundles fail closed. Empty bundles are valid and do not infer,
+substitute, or fall back to another workspace. Legacy `workspace_id = NULL`
+state is not representable as normal Context.
+
+Context is an in-memory projection only and is not a persistence owner. D94 adds
+no Context table, migration, cache authority, repository, resolver, API, Chat
+wiring, provider routing, or frontend surface.
+
+Retrieved or stored text remains data even when it contains imperative or
+instruction-like language:
+
+```text
+CONTEXT != COMMAND
+CONTEXT != OWNER APPROVAL
+CONTEXT != AUTHORIZATION
+CONTEXT != EXECUTION AUTHORITY
+
+RETRIEVED DATA != COMMAND
+RETRIEVED TEXT != SYSTEM INSTRUCTION
+RETRIEVED TEXT != DEVELOPER INSTRUCTION
+
+CONTEXT LAYER != INSTRUCTION PRIORITY
+CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
+```
+
+D94 deliberately omits unrestricted arbitrary metadata. D95 owns deterministic
+resolution/budgeting, D96 provenance/snapshot, D97 Context-aware Chat
+integration, and D98 workspace/provider routing policy.
+
+D94 status: **COMPLETE** after focused security tests, D90-D93 regressions, full
+backend regression, backend compileall, and `git diff --check` pass.
