@@ -20,10 +20,12 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0012_workspace_persistence"
+REVISION = "0013_context_snapshot_persistence"
 
 EXPECTED_TABLES = {
     "alembic_version",
+    "context_snapshots",
+    "context_snapshot_items",
     "conversations",
     "messages",
     "message_citations",
@@ -42,6 +44,8 @@ EXPECTED_TABLES = {
 }
 
 EXPECTED_INDEXES = {
+    "context_snapshots": set(),
+    "context_snapshot_items": {"ix_context_snapshot_items_snapshot_id"},
     "conversations": {
         "ix_conversations_updated_at",
         "ix_conversations_project_id",

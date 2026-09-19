@@ -4053,3 +4053,157 @@ lifecycle for any future durable snapshot attachment.
 D96 status: **COMPLETE** after focused contract/snapshot/security tests,
 D90-D95 authority/workspace/context regressions, legacy source-path regressions,
 full backend regression, backend compileall, and `git diff --check` pass.
+
+## D97 Context-Aware Chat Integration v1
+
+D97 migrates the normal D49 AI Chat lane onto the exact D94-D96 Context
+pipeline.
+
+The live normal-AI path is:
+
+```text
+workspace-scoped request
+-> D49 ExecutionPlanner / ExecutionGuard
+-> AIRuntime.bind(...)
+-> authorized AIAdapter
+-> D95 ContextResolver
+-> D96 ContextSnapshotService
+-> D97 untrusted Context renderer
+-> one provider-neutral AIRequest
+-> assistant Message + durable ContextSnapshot
+```
+
+D97 does not select an AI provider and does not add cloud/local fallback.
+Provider authority remains upstream in D49 until D98 introduces separately
+approved workspace AI policy.
+
+### One Context truth
+
+Normal AI Chat no longer appends legacy Conversation, Project or Memory prompt
+blocks beside D95/D96 Context.
+
+```text
+Conversation Context -> D95/D96
+Project Context      -> D95/D96
+Memory Context       -> D95/D96
+Knowledge Context    -> D95/D96
+```
+
+The current user Message is used as the D95 query and final user request, but is
+not persisted until Context resolution and verify-before-freeze capture
+succeed. It therefore cannot be selected again as same-turn L1 history.
+
+### Untrusted provider rendering
+
+Selected Context is rendered as deterministic JSON data with a fixed
+application-owned guard.
+
+```text
+RETRIEVED TEXT != SYSTEM INSTRUCTION
+RETRIEVED TEXT != DEVELOPER INSTRUCTION
+CONTEXT LABEL != PROVIDER ROLE
+CONTEXT LAYER != PROVIDER ROLE
+```
+
+D96 digest/provenance internals are kept local and are not automatically sent to
+the provider.
+
+### Snapshot-derived compatibility
+
+Project action/update behavior, `memories_used`, and Reasoning evidence use the
+exact selected snapshot instead of performing a second Project or Memory
+retrieval.
+
+```text
+PROVIDER CONTEXT TRUTH
+==
+PROJECT TURN TRUTH
+==
+MEMORY USAGE TRUTH
+```
+
+for the selected D96 snapshot.
+
+Only the bounded D95 `context_project_unavailable` condition is translated back
+to the existing `ProjectContextUnavailableError` API contract. Other Context
+failures remain bounded internal failures.
+
+### Durable snapshot lifecycle
+
+D97 introduces:
+
+```text
+context_snapshots
+context_snapshot_items
+```
+
+under:
+
+```text
+0013_context_snapshot_persistence
+```
+
+Each AI-generated assistant Message may own at most one snapshot. Snapshot
+ownership inherits exact workspace through:
+
+```text
+ContextSnapshot
+-> assistant Message
+-> Conversation
+-> Conversation.workspace_id
+```
+
+No workspace column is duplicated onto the snapshot tables.
+
+Existing pre-D97 Messages are not backfilled or reclassified.
+
+### Failure boundaries
+
+```text
+D95/D96 failure before current-user commit
+-> no provider call
+
+provider failure
+-> user Message remains
+-> no assistant/snapshot
+
+assistant/snapshot persistence failure
+-> completion rolls back
+-> provider is not retried
+```
+
+Source drift, source substitution, malformed persisted snapshot data and
+cross-workspace snapshot access all fail closed.
+
+### Chat-lane isolation
+
+The normal D97 Context path does not absorb:
+
+```text
+/action
+Calendar approval/write lanes
+Gmail approval/read/write lanes
+cross-connector Chat
+runtime capability/status Chat
+deterministic owner-review Chat responses
+```
+
+Those keep their existing explicit authority gates and do not acquire execution
+authority from D97 Context.
+
+### D98 boundary
+
+D97 explicitly does not implement:
+
+```text
+Personal/Company provider policy
+Local AI preference/default routing
+cloud egress policy
+automatic cloud fallback
+provider-specific token budgeting
+```
+
+D98 owns those concerns.
+
+D97 implementation status: **COMPLETE**.
+Automated verification is green and the owner-controlled live SQLite deployment completed from the discovered legacy revision `0004_memory_versioning` to `0013_context_snapshot_persistence` only after a verified backup and an isolated real-data trial migration.

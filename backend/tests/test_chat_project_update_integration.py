@@ -41,6 +41,7 @@ from app.services.project_update_proposals import (
 )
 from app.services.projects import ProjectService
 from tests.test_api_standardization import invoke_app
+from tests.d97_context_chat_fixture import build_context_aware_conversation_service
 from app.api.dependencies import (
     get_conversation_service,
     get_project_update_proposal_service,
@@ -88,12 +89,16 @@ class ChatProjectUpdateIntegrationTests(unittest.TestCase):
             ProjectRepository(self.session, TEST_WORKSPACE_SCOPE)
         )
 
-        self.conversations = ConversationService(
-            repository=ConversationRepository(self.session, TEST_WORKSPACE_SCOPE),
+        self.conversations = build_context_aware_conversation_service(
+            session=self.session,
+            workspace_scope=TEST_WORKSPACE_SCOPE,
             chat_service=ChatService(StaticProvider()),
             context_message_limit=20,
             project_context_resolver=ProjectContextResolver(
-                ProjectContextReader(self.session, TEST_WORKSPACE_SCOPE)
+                ProjectContextReader(
+                    self.session,
+                    TEST_WORKSPACE_SCOPE,
+                )
             ),
         )
 

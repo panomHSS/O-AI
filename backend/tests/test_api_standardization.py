@@ -19,19 +19,19 @@ from app.db.verification import TARGET_REVISION
 
 
 class TestConversationService:
-    def send_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
+    def send_context_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
         _ = (project_id, ai_adapter)
         return ChatTurnResult(reply=f"Test reply: {message}", conversation_id=UUID("11111111-1111-1111-1111-111111111111"))
 
 
 class ConfigurationErrorConversationService:
-    def send_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
+    def send_context_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
         _ = (message, conversation_id, project_id, ai_adapter)
         raise ChatConfigurationError("Chat is not configured.")
 
 
 class ExplodingConversationService:
-    def send_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
+    def send_context_message(self, message: str, conversation_id=None, project_id=None, ai_adapter=None) -> ChatTurnResult:
         _ = (message, conversation_id, project_id, ai_adapter)
         raise RuntimeError("provider internals must not reach the response")
 

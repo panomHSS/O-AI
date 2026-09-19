@@ -8,7 +8,9 @@ from app.providers.base import (
     ChatServiceError,
 )
 from app.contracts.ai import AIAdapter, AIRequest
+from app.contracts.context_provenance import ContextSnapshot
 
+from app.services.context_chat import ContextChatRenderer
 from app.services.memory_resolver import MemoryContextBuilder, ResolvedMemory
 from app.schemas.reasoning import ReasoningPlan
 from app.services.reasoning import ReasoningContextBuilder
@@ -41,17 +43,111 @@ class ChatService:
 
         return ChatGPTAdapter(self._provider)
 
-    def send_message(self, message: str, recent_messages: Sequence[ChatContextMessage] = (), memories: Sequence[ResolvedMemory] = (), reasoning_plan: ReasoningPlan | None = None, planning_plan: PlanningPlan | None = None, decision_analysis: DecisionAnalysis | None = None, goal_analysis: GoalAnalysis | None = None, project_context: ProjectContext | None = None, ai_adapter: AIAdapter | None = None) -> str:
-        formatted = self._format_provider_input(message, recent_messages, memories, reasoning_plan, planning_plan, decision_analysis, goal_analysis, project_context)
+    def send_message(
+        self,
+        message: str,
+        recent_messages: Sequence[ChatContextMessage] = (),
+        memories: Sequence[ResolvedMemory] = (),
+        reasoning_plan: ReasoningPlan | None = None,
+        planning_plan: PlanningPlan | None = None,
+        decision_analysis: DecisionAnalysis | None = None,
+        goal_analysis: GoalAnalysis | None = None,
+        project_context: ProjectContext | None = None,
+        ai_adapter: AIAdapter | None = None,
+    ) -> str:
+        """Preserve the pre-D97 compatibility path for non-migrated callers."""
+
+        formatted = self._format_provider_input(
+            message,
+            recent_messages,
+            memories,
+            reasoning_plan,
+            planning_plan,
+            decision_analysis,
+            goal_analysis,
+            project_context,
+        )
         if ai_adapter is not None:
-            return ai_adapter.generate(AIRequest(content=formatted)).content
+            return ai_adapter.generate(
+                AIRequest(content=formatted)
+            ).content
         return self._provider.generate_reply(formatted)
 
+    def send_context_message(
+        self,
+        *,
+        message: str,
+        snapshot: ContextSnapshot,
+        reasoning_plan: ReasoningPlan | None,
+        planning_plan: PlanningPlan | None,
+        decision_analysis: DecisionAnalysis | None,
+        goal_analysis: GoalAnalysis | None,
+        ai_adapter: AIAdapter,
+    ) -> str:
+        """Invoke one already-authorized adapter with D96 Context exactly once."""
+
+        if not isinstance(snapshot, ContextSnapshot):
+            raise ValueError("context_chat_snapshot_invalid")
+        if ai_adapter is None:
+            raise ValueError("context_chat_ai_adapter_required")
+
+        formatted = self._format_context_provider_input(
+            message=message,
+            snapshot=snapshot,
+            reasoning_plan=reasoning_plan,
+            planning_plan=planning_plan,
+            decision_analysis=decision_analysis,
+            goal_analysis=goal_analysis,
+        )
+        return ai_adapter.generate(
+            AIRequest(content=formatted)
+        ).content
+
     @staticmethod
-    def _format_provider_input(message: str, recent_messages: Sequence[ChatContextMessage], memories: Sequence[ResolvedMemory], reasoning_plan: ReasoningPlan | None = None, planning_plan: PlanningPlan | None = None, decision_analysis: DecisionAnalysis | None = None, goal_analysis: GoalAnalysis | None = None, project_context: ProjectContext | None = None) -> str:
+    def _format_context_provider_input(
+        *,
+        message: str,
+        snapshot: ContextSnapshot,
+        reasoning_plan: ReasoningPlan | None,
+        planning_plan: PlanningPlan | None,
+        decision_analysis: DecisionAnalysis | None,
+        goal_analysis: GoalAnalysis | None,
+    ) -> str:
+        blocks: list[str] = []
+        context_block = ContextChatRenderer.render(snapshot)
+        if context_block:
+            blocks.append(context_block)
+        if reasoning_plan:
+            blocks.append(ReasoningContextBuilder.build(reasoning_plan))
+        if planning_plan:
+            blocks.append(PlanningContextBuilder.build(planning_plan))
+        if decision_analysis:
+            blocks.append(DecisionContextBuilder.build(decision_analysis))
+        if goal_analysis:
+            blocks.append(GoalContextBuilder.build(goal_analysis))
+        blocks.append(f"Current user message:\n{message}")
+        return "\n\n".join(blocks)
+
+    @staticmethod
+    def _format_provider_input(
+        message: str,
+        recent_messages: Sequence[ChatContextMessage],
+        memories: Sequence[ResolvedMemory],
+        reasoning_plan: ReasoningPlan | None = None,
+        planning_plan: PlanningPlan | None = None,
+        decision_analysis: DecisionAnalysis | None = None,
+        goal_analysis: GoalAnalysis | None = None,
+        project_context: ProjectContext | None = None,
+    ) -> str:
         blocks: list[str] = []
         if recent_messages:
-            blocks.append("Conversation context:\n" + "\n".join(f"{item.role}: {item.content}" for item in recent_messages))
+            blocks.append(
+                "Conversation context:\n"
+                + "\n".join(
+                    f"{item.role}: {item.content}"
+                    for item in recent_messages
+                )
+            )
         if reasoning_plan:
             blocks.append(ReasoningContextBuilder.build(reasoning_plan))
         if planning_plan:

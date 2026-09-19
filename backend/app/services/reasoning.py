@@ -85,6 +85,66 @@ class ReasoningService:
         required, missing = self._missing.detect(intent, memories, evidence)
         return ReasoningPlan(intent=intent, normalized_question=normalized, required_information=required, missing_information=missing, evidence_map=self._mapper.map(memories, evidence))
 
+    def plan_from_evidence_map(
+        self,
+        question: str,
+        evidence_map: Sequence[ReasoningEvidence],
+    ) -> ReasoningPlan:
+        """Plan from already-selected D96 Context without a second retrieval."""
+
+        normalized = " ".join(question.split())
+        intent = self._classifier.classify(normalized)
+
+        mapped: list[ReasoningEvidence] = []
+        seen: set[tuple[str, str, str, int | None]] = set()
+        for item in evidence_map:
+            if not isinstance(item, ReasoningEvidence):
+                raise ValueError("context_reasoning_evidence_invalid")
+            reference = item.reference.strip()
+            label = item.label.strip()
+            if not reference or not label:
+                raise ValueError("context_reasoning_evidence_invalid")
+            identity = (item.kind, reference, label, item.version)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            mapped.append(
+                ReasoningEvidence(
+                    kind=item.kind,
+                    reference=reference,
+                    label=label,
+                    version=item.version,
+                )
+            )
+
+        has_memory = any(item.kind == "memory" for item in mapped)
+        has_document = any(item.kind == "document" for item in mapped)
+        required = ["user_question"]
+        if intent in {
+            "factual_lookup",
+            "comparison",
+            "procedure",
+            "troubleshooting",
+            "explanation",
+        }:
+            required.append("document_evidence")
+        if intent == "comparison":
+            required.append("comparison_basis")
+
+        missing: list[str] = []
+        if not has_memory and not has_document:
+            missing.append("no_retrieved_context")
+        if "document_evidence" in required and not has_document:
+            missing.append("no_document_evidence")
+
+        return ReasoningPlan(
+            intent=intent,
+            normalized_question=normalized,
+            required_information=required,
+            missing_information=missing,
+            evidence_map=mapped,
+        )
+
 
 class ReasoningContextBuilder:
     """Formats a plan as data for the provider; it is not an executable instruction set."""

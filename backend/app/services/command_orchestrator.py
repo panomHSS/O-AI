@@ -20,15 +20,11 @@ from app.services.tool_runtime import ToolRuntime
 
 @dataclass(frozen=True, slots=True)
 class CommandOrchestrationOutcome:
-    """One safe response and its chat turn when normal chat succeeded."""
-
     response: Response
     chat_turn: ChatTurnResult | None = None
 
 
 class CommandOrchestrationFailure(Exception):
-    """Carries only a normalized, safe terminal response to the API boundary."""
-
     def __init__(self, response: Response) -> None:
         self.response = response
         super().__init__(response.result.error or "INTERNAL_ERROR")
@@ -57,7 +53,6 @@ class CommandOrchestrator:
         self._tool_runtime = tool_runtime
 
     def process_chat(self, command: CommandRequest) -> CommandOrchestrationOutcome:
-        """Plan, authorize, bind, and execute one normal AI chat turn."""
         try:
             message, conversation_id, project_id = (
                 CommandInputPipeline.validated_chat_arguments(command)
@@ -66,8 +61,8 @@ class CommandOrchestrator:
                 return self._error("AI_ROUTE_REJECTED", command.request_id)
 
             planning = self._planner.plan(command)
-            planning_error = (
-                self._error_normalizer.normalize_execution_planning(planning)
+            planning_error = self._error_normalizer.normalize_execution_planning(
+                planning
             )
             if planning_error is not None:
                 return self._normalized(planning_error)
@@ -85,7 +80,7 @@ class CommandOrchestrator:
                 command,
                 authorization,
             )
-            turn = self._conversation_service.send_message(
+            turn = self._conversation_service.send_context_message(
                 message,
                 conversation_id,
                 project_id,
@@ -113,7 +108,6 @@ class CommandOrchestrator:
         request: CommandRequest,
         authorization: ExecutionAuthorization,
     ) -> Response:
-        """Execute one Tool only through the existing D38 runtime boundary."""
         authorization_error = (
             self._error_normalizer.normalize_execution_authorization(
                 authorization
@@ -122,10 +116,7 @@ class CommandOrchestrator:
         if authorization_error is not None:
             return self._normalized(authorization_error).response
 
-        result = self._tool_runtime.execute(
-            request,
-            authorization,
-        )
+        result = self._tool_runtime.execute(request, authorization)
         return self._response_composer.compose_tool_result(result)
 
     def _normalized(
@@ -155,7 +146,9 @@ class CommandOrchestrator:
             ConversationAssociationError,
             ConversationNotFoundError,
         )
-        from app.services.project_context import ProjectContextUnavailableError
+        from app.services.project_context import (
+            ProjectContextUnavailableError,
+        )
         from app.services.projects import ProjectNotFoundError
 
         return (

@@ -53,7 +53,7 @@ class D92WorkspaceMigrationTests(unittest.TestCase):
         repository_root = Path(__file__).resolve().parents[2]
         return Config(str(repository_root / "alembic.ini"))
 
-    def _upgrade(self, target: str = "head") -> None:
+    def _upgrade(self, target: str = D92_REVISION) -> None:
         command.upgrade(self._config(), target)
 
     def _downgrade(self, target: str) -> None:
@@ -374,17 +374,8 @@ class D92WorkspaceMigrationTests(unittest.TestCase):
                 D91_REVISION,
             )
 
-    def test_database_verification_requires_exact_d92_schema(self) -> None:
+    def test_database_verification_rejects_pre_head_d92_schema(self) -> None:
         self._upgrade()
-        result = verify_database(self.database_url)
-        self.assertEqual(result.revision, D92_REVISION)
-
-        self._open_engine()
-        with self.engine.begin() as connection:
-            connection.execute(text("DROP INDEX ix_projects_workspace_id"))
-        self.engine.dispose()
-        self.engine = None
-
         with self.assertRaises(DatabaseVerificationError):
             verify_database(self.database_url)
 

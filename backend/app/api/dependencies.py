@@ -71,6 +71,24 @@ from app.search.factory import create_knowledge_search
 from app.services.automation_approval import AutomationApprovalService
 from app.services.automation_delivery import AutomationDeliveryService
 from app.services.chat import ChatService
+from app.contracts.context_provenance import SystemContextSnapshotClock
+from app.contracts.context_resolution import Utf8ByteBudgetCounter
+from app.repositories.context_snapshots import ContextSnapshotRepository
+from app.services.context_chat import build_context_chat_budget_policy
+from app.services.context_provenance_sources import (
+    ConversationProvenanceSource,
+    KnowledgeProvenanceSource,
+    MemoryProvenanceSource,
+    ProjectProvenanceSource,
+)
+from app.services.context_resolver import ContextResolver
+from app.services.context_snapshot import ContextSnapshotService
+from app.services.context_sources import (
+    ConversationContextSource,
+    KnowledgeContextSource,
+    MemoryContextSource,
+    ProjectContextSource,
+)
 from app.services.capability_permission_policy import (
     CapabilityPermissionPolicy,
     PRODUCTION_EXECUTABLE_CAPABILITY_PERMISSIONS,
@@ -313,10 +331,98 @@ def get_automation_delivery_service(
     )
 
 
+def get_context_resolver(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> ContextResolver:
+    """Compose the exact-workspace D95 resolver for D97 normal Chat."""
+
+    settings = get_settings()
+    dialect_name = database_session.get_bind().dialect.name
+    embeddings = (
+        get_embedding_provider()
+        if dialect_name == "postgresql"
+        else None
+    )
+    knowledge_search = create_knowledge_search(
+        database_session,
+        embeddings=embeddings,
+    )
+    return ContextResolver(
+        conversation_source=ConversationContextSource(
+            ConversationRepository(database_session, workspace_scope)
+        ),
+        project_source=ProjectContextSource(
+            ProjectContextResolver(
+                ProjectContextReader(database_session, workspace_scope)
+            )
+        ),
+        memory_source=MemoryContextSource(
+            MemoryRepository(database_session, workspace_scope)
+        ),
+        knowledge_source=KnowledgeContextSource(knowledge_search),
+        policy=build_context_chat_budget_policy(
+            conversation_message_limit=(
+                settings.oai_chat_context_message_limit
+            ),
+            memory_max_items=(
+                settings.oai_memory_context_max_items
+            ),
+        ),
+        counter=Utf8ByteBudgetCounter(),
+    )
+
+
+def get_context_snapshot_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> ContextSnapshotService:
+    """Compose D96 verify-before-freeze for D97 normal Chat."""
+
+    return ContextSnapshotService(
+        conversation_source=ConversationProvenanceSource(
+            database_session,
+            workspace_scope,
+        ),
+        project_source=ProjectProvenanceSource(
+            database_session,
+            workspace_scope,
+        ),
+        memory_source=MemoryProvenanceSource(
+            database_session,
+            workspace_scope,
+        ),
+        knowledge_source=KnowledgeProvenanceSource(
+            database_session,
+            workspace_scope,
+        ),
+        clock=SystemContextSnapshotClock(),
+    )
+
+
+def get_context_snapshot_repository(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> ContextSnapshotRepository:
+    """Compose exact-workspace D97 durable snapshot persistence."""
+
+    return ContextSnapshotRepository(
+        database_session,
+        workspace_scope,
+    )
+
+
 def get_conversation_service(
     database_session: Session = Depends(get_db),
     chat_service: ChatService = Depends(get_chat_service),
     workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    context_resolver: ContextResolver = Depends(get_context_resolver),
+    context_snapshot_service: ContextSnapshotService = Depends(
+        get_context_snapshot_service
+    ),
+    context_snapshot_repository: ContextSnapshotRepository = Depends(
+        get_context_snapshot_repository
+    ),
 ) -> ConversationService:
     settings = get_settings()
 
@@ -369,7 +475,9 @@ def get_conversation_service(
         project_action_execution_persistence_service=(
             execution_persistence_service
         ),
-        
+        context_resolver=context_resolver,
+        context_snapshot_service=context_snapshot_service,
+        context_snapshot_repository=context_snapshot_repository,
     )
 
 

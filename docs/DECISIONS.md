@@ -4265,3 +4265,168 @@ LEGACY UNSCOPED != PROVENANCE ELIGIBLE
 
 D97 owns Context-Aware Chat Integration v1 under a separately approved
 Design/Implementation Spec.
+
+## ADR-091: Context-Aware Chat Integration v1
+
+**Status:** Accepted
+
+**Decision**
+
+Migrate the normal D49 AI Chat lane from legacy prompt composition to the
+D94-D96 Context pipeline while preserving the existing upstream AI authority
+boundary.
+
+The normal AI flow is:
+
+```text
+workspace-scoped chat request
+-> D49 planning / authorization
+-> already-authorized AIAdapter
+-> D95 Context resolution
+-> D96 verify-before-freeze snapshot
+-> D97 untrusted Context rendering
+-> exactly one adapter call
+-> assistant Message + exact snapshot persistence
+```
+
+D97 does not choose an AI provider. The adapter remains selected and authorized
+by the existing D49 `ExecutionPlanner` / `ExecutionGuard` / `AIRuntime` path.
+
+The current user Message is intentionally persisted only after D95/D96 Context
+preparation succeeds. This prevents the current Message from being selected
+again as Conversation Context for its own turn.
+
+Normal AI Chat uses one Context truth:
+
+```text
+Conversation -> D95/D96
+Project      -> D95/D96
+Memory       -> D95/D96
+Knowledge    -> D95/D96
+```
+
+Legacy Conversation, Project and Memory prompt blocks are not appended in
+parallel on the migrated normal lane.
+
+Verified Context is rendered as one deterministic JSON data block with a fixed
+application-owned guard. Retrieved text remains quoted/reference data and does
+not become a system/developer instruction, command, approval, credential,
+provider-selection signal, or execution authority.
+
+D96 provenance and digest internals are not included in provider payload merely
+because they exist. Provider Context carries only the selected layer,
+descriptive label and text required for the normal Chat request.
+
+Existing Project action/update compatibility and `memories_used` metadata are
+derived from the exact D96 snapshot rather than re-reading Project or rerunning
+legacy Memory selection.
+
+D97 persists the exact D96 snapshot one-to-one with the AI-generated assistant
+Message. Persistence uses:
+
+```text
+context_snapshots
+context_snapshot_items
+```
+
+under Alembic revision:
+
+```text
+0013_context_snapshot_persistence
+```
+
+No legacy Message is backfilled with a snapshot. An empty snapshot is still
+persisted for a new AI-generated reply so the turn records that no eligible
+D94 Context was selected.
+
+**Failure semantics**
+
+```text
+Context resolution/capture failure
+-> no current user Message
+-> no provider call
+-> no assistant Message
+-> no snapshot
+
+Provider failure
+-> current user Message remains
+-> no assistant Message
+-> no snapshot
+-> no automatic provider retry
+
+Provider success + completion persistence failure
+-> current user Message remains
+-> assistant Message + snapshot rollback
+-> no automatic provider retry
+```
+
+**Special Chat lanes**
+
+Action, Calendar, Gmail, cross-connector, runtime-status and deterministic
+owner-review Chat lanes remain outside D97 normal Context preparation and retain
+their existing explicit authority boundaries.
+
+**Compatibility**
+
+D97 preserves the existing bounded `ProjectContextUnavailableError` API
+semantics by translating only D95 `context_project_unavailable` back to that
+domain error. No generic Context-resolution failure is promoted to Project
+authority and no legacy normal-Chat fallback is added.
+
+**Rationale**
+
+D97 is the first milestone with the exact live Chat turn lifecycle needed to
+consume D95/D96 safely and to own durable snapshot attachment.
+
+Using one selected/snapshotted Context truth removes legacy double-selection and
+double-budgeting risk, while verify-before-freeze prevents stale or substituted
+source data from reaching the provider.
+
+Keeping provider routing upstream preserves the D98 boundary and prevents
+workspace or retrieved Context from silently becoming cloud/local routing
+authority.
+
+**Consequences**
+
+D97 adds:
+
+```text
+ContextChatRenderer
+D97 provider-neutral Context budget policy
+snapshot-derived Project compatibility view
+snapshot-derived Memory usage
+snapshot-derived Reasoning evidence
+ContextSnapshotRecord
+ContextSnapshotItemRecord
+ContextSnapshotRepository
+0013_context_snapshot_persistence
+normal D49 Context-aware Conversation path
+```
+
+Frozen invariants include:
+
+```text
+CONTEXT != COMMAND
+CONTEXT != OWNER APPROVAL
+CONTEXT != AUTHORIZATION
+CONTEXT != EXECUTION AUTHORITY
+CONTEXT != CREDENTIAL AUTHORITY
+CONTEXT != CONNECTOR AUTHORITY
+CONTEXT != AI PROVIDER AUTHORITY
+
+CURRENT USER MESSAGE != SAME-TURN CONVERSATION CONTEXT
+
+SOURCE DRIFT -> NO PROVIDER CALL
+CROSS-WORKSPACE CONTEXT -> NO PROVIDER CALL
+AUTHORIZED ADAPTER FAILURE != LEGACY PROVIDER FALLBACK
+LOCAL AI FAILURE != CLOUD FALLBACK AUTHORITY
+
+SNAPSHOT != PROVIDER DELIVERY RECEIPT
+SNAPSHOT DIGEST != AUTHORIZATION
+PROVENANCE != PROVIDER AUTHORITY
+
+PROVIDER SUCCESS + LOCAL PERSISTENCE FAILURE != RETRY AUTHORITY
+```
+
+D98 owns Workspace AI Policy & Local Routing v1 under a separately approved
+Design/Implementation Spec.

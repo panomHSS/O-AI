@@ -50,6 +50,7 @@ from app.services.project_context import (
 )
 from app.services.projects import ProjectService
 from tests.test_api_standardization import invoke_app
+from tests.d97_context_chat_fixture import build_context_aware_conversation_service
 
 
 class RecordingProvider:
@@ -108,13 +109,27 @@ class ProjectContextTests(unittest.TestCase):
         self.engine.dispose()
         self.temporary_directory.cleanup()
 
-    def _conversation_service(self, resolver: ProjectContextResolver | None = None) -> ConversationService:
-        return ConversationService(
-            ConversationRepository(self.session, TEST_WORKSPACE_SCOPE),
-            ChatService(self.provider),
+    def _conversation_service(
+        self,
+        resolver: ProjectContextResolver | None = None,
+    ) -> ConversationService:
+        return build_context_aware_conversation_service(
+            session=self.session,
+            workspace_scope=TEST_WORKSPACE_SCOPE,
+            chat_service=ChatService(self.provider),
             context_message_limit=2,
-            citation_repository=MessageCitationRepository(self.session),
-            project_context_resolver=resolver or ProjectContextResolver(ProjectContextReader(self.session, TEST_WORKSPACE_SCOPE)),
+            citation_repository=MessageCitationRepository(
+                self.session
+            ),
+            project_context_resolver=(
+                resolver
+                or ProjectContextResolver(
+                    ProjectContextReader(
+                        self.session,
+                        TEST_WORKSPACE_SCOPE,
+                    )
+                )
+            ),
         )
 
     def _project(self, title: str = "Launch", objective: str = "Deliver the approved launch."):

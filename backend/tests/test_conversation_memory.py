@@ -22,6 +22,7 @@ from app.services.chat import ChatProviderError, ChatService
 from app.services.conversations import ConversationService
 
 from tests.test_api_standardization import invoke_app
+from tests.d97_context_chat_fixture import build_context_aware_conversation_service
 
 
 class RecordingProvider:
@@ -55,8 +56,15 @@ class ConversationMemoryTests(unittest.TestCase):
         app.dependency_overrides[get_db] = test_database_session
         app.dependency_overrides[get_chat_service] = lambda: ChatService(self.provider)
 
-        def test_conversation_service(database_session: Session = Depends(get_db)) -> ConversationService:
-            return ConversationService(ConversationRepository(database_session, TEST_WORKSPACE_SCOPE), ChatService(self.provider), context_message_limit=2)
+        def test_conversation_service(
+            database_session: Session = Depends(get_db),
+        ) -> ConversationService:
+            return build_context_aware_conversation_service(
+                session=database_session,
+                workspace_scope=TEST_WORKSPACE_SCOPE,
+                chat_service=ChatService(self.provider),
+                context_message_limit=2,
+            )
 
         app.dependency_overrides[get_conversation_service] = test_conversation_service
 
@@ -106,10 +114,35 @@ class ConversationMemoryTests(unittest.TestCase):
         self.send_message("second", conversation_id)
         self.send_message("third", conversation_id)
         provider_input = self.provider.inputs[-1]
-        self.assertIn("user: second", provider_input)
-        self.assertIn("assistant: Reply: second", provider_input)
-        self.assertNotIn("user: first", provider_input)
-        self.assertLess(provider_input.index("user: second"), provider_input.index("assistant: Reply: second"))
+
+        encoded = provider_input.split(
+            "<context_json>\n",
+            1,
+        )[1].split(
+            "\n</context_json>",
+            1,
+        )[0]
+        context_payload = json.loads(encoded)
+        conversation_payload = [
+            json.loads(item["text"])
+            for item in context_payload
+            if item["layer"] == "conversation"
+        ]
+
+        self.assertEqual(
+            [
+                (item["role"], item["content"])
+                for item in conversation_payload
+            ],
+            [
+                ("user", "second"),
+                ("assistant", "Reply: second"),
+            ],
+        )
+        self.assertNotIn("first", [
+            item["content"]
+            for item in conversation_payload
+        ])
 
     def test_existing_conversation_continues(self) -> None:
         _, _, first = self.send_message("first")

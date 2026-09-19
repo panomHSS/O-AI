@@ -31,6 +31,7 @@ from app.services.conversations import ConversationAssociationError, Conversatio
 from app.services.chat import ChatService
 from app.services.projects import ProjectConflictError, ProjectService, ProjectValidationError
 from tests.test_api_standardization import invoke_app
+from tests.d97_context_chat_fixture import build_context_aware_conversation_service
 
 
 class ProjectBackboneTests(unittest.TestCase):
@@ -202,7 +203,22 @@ class ProjectBackboneTests(unittest.TestCase):
         project = project_service.create(CreateProjectRequest(title="Chat Project", objective="Use explicitly"))
         session = self.Session()
         self.sessions.append(session)
-        conversation_service = ConversationService(ConversationRepository(session, TEST_WORKSPACE_SCOPE), ChatService(type("Provider", (), {"generate_reply": lambda _, __: "reply"})()), 20)
+        conversation_service = build_context_aware_conversation_service(
+            session=session,
+            workspace_scope=TEST_WORKSPACE_SCOPE,
+            chat_service=ChatService(
+                type(
+                    "Provider",
+                    (),
+                    {
+                        "generate_reply": (
+                            lambda _, __: "reply"
+                        )
+                    },
+                )()
+            ),
+            context_message_limit=20,
+        )
         app.dependency_overrides[get_conversation_service] = lambda: conversation_service
         status, _, created = asyncio.run(invoke_app("/api/v1/chat", method="POST", body={"message": "first", "project_id": str(project.id)}))
         self.assertEqual(status, 200)

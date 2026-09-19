@@ -60,11 +60,12 @@ class RecordingConversationService:
     def __init__(self) -> None:
         self.calls: list[tuple[str, object, object, AIAdapter]] = []
 
-    def send_message(
+    def send_context_message(
         self,
         message,
         conversation_id=None,
         project_id=None,
+        *,
         ai_adapter=None,
     ):
         assert ai_adapter is not None

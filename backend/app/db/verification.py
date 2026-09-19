@@ -10,9 +10,11 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0012_workspace_persistence"
+TARGET_REVISION = "0013_context_snapshot_persistence"
 EXPECTED_TABLES = {
     "alembic_version",
+    "context_snapshots",
+    "context_snapshot_items",
     "conversations",
     "messages",
     "message_citations",
@@ -31,6 +33,8 @@ EXPECTED_TABLES = {
     "automation_runs",
 }
 EXPECTED_COLUMNS = {
+    "context_snapshots": [("id", "VARCHAR(36)", 1), ("message_id", "VARCHAR(36)", 0), ("contract_version", "VARCHAR(16)", 0), ("captured_at", "DATETIME", 0), ("snapshot_digest", "VARCHAR(64)", 0), ("created_at", "DATETIME", 0)],
+    "context_snapshot_items": [("id", "VARCHAR(36)", 1), ("snapshot_id", "VARCHAR(36)", 0), ("item_order", "INTEGER", 0), ("layer", "VARCHAR(16)", 0), ("source_id", "VARCHAR(512)", 0), ("text", "TEXT", 0), ("label", "VARCHAR(256)", 0), ("content_sha256", "VARCHAR(64)", 0), ("parent_source_id", "VARCHAR(512)", 0), ("version_ref", "VARCHAR(512)", 0), ("source_locator", "VARCHAR(1024)", 0), ("source_timestamp", "DATETIME", 0)],
     "conversations": [("id", "VARCHAR(36)", 1), ("title", "VARCHAR(120)", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("project_id", "VARCHAR(36)", 0), ("workspace_id", "VARCHAR(16)", 0)],
     "messages": [("id", "VARCHAR(36)", 1), ("conversation_id", "VARCHAR(36)", 0), ("role", "VARCHAR(16)", 0), ("content", "VARCHAR", 0), ("created_at", "DATETIME", 0)],
     "documents": [("id", "VARCHAR(36)", 1), ("source_path", "VARCHAR(1024)", 0), ("file_name", "VARCHAR(512)", 0), ("file_extension", "VARCHAR(32)", 0), ("mime_type", "VARCHAR(255)", 0), ("file_size", "INTEGER", 0), ("content_hash", "VARCHAR(64)", 0), ("status", "VARCHAR(32)", 0), ("error_message", "TEXT", 0), ("created_at", "DATETIME", 0), ("updated_at", "DATETIME", 0), ("indexed_at", "DATETIME", 0), ("workspace_id", "VARCHAR(16)", 0)],
@@ -124,6 +128,8 @@ EXPECTED_COLUMNS = {
     ],
 }
 EXPECTED_INDEXES = {
+    "context_snapshots": {},
+    "context_snapshot_items": {"ix_context_snapshot_items_snapshot_id": (["snapshot_id"], False)},
     "conversations": {"ix_conversations_updated_at": (["updated_at"], False), "ix_conversations_project_id": (["project_id"], False), "ix_conversations_workspace_id": (["workspace_id"], False)},
     "messages": {"ix_messages_conversation_id": (["conversation_id"], False), "ix_messages_created_at": (["created_at"], False)},
     "documents": {"ix_documents_source_path": (["source_path"], False), "ix_documents_content_hash": (["content_hash"], False), "ix_documents_status": (["status"], False), "ix_documents_updated_at": (["updated_at"], False), "ix_documents_workspace_id": (["workspace_id"], False), "uq_documents_legacy_source_path": (["source_path"], True), "uq_documents_workspace_source_path": (["workspace_id", "source_path"], True)},
@@ -155,6 +161,8 @@ EXPECTED_INDEXES = {
     },
 }
 EXPECTED_FOREIGN_KEYS = {
+    "context_snapshots": {("message_id", "messages", "id", "CASCADE")},
+    "context_snapshot_items": {("snapshot_id", "context_snapshots", "id", "CASCADE")},
     "messages": {("conversation_id", "conversations", "id", "CASCADE")},
     "document_chunks": {("document_id", "documents", "id", "CASCADE")},
     "message_citations": {("message_id", "messages", "id", "CASCADE")},
@@ -173,6 +181,7 @@ EXPECTED_FOREIGN_KEYS = {
     },
 }
 NULLABLE_COLUMNS = {
+    "context_snapshot_items": {"label", "parent_source_id", "version_ref", "source_locator", "source_timestamp"},
     "documents": {"error_message", "indexed_at", "workspace_id"},
     "memories": {"active_version_id", "pending_version_id", "workspace_id"},
     "memory_versions": {
@@ -289,6 +298,21 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
     citation_unique_indexes = [row[1] for row in connection.execute("PRAGMA index_list(message_citations)") if row[2]]
     if not any([row[2] for row in connection.execute(f"PRAGMA index_info({index_name})")] == ["message_id", "citation_order"] for index_name in citation_unique_indexes):
         raise DatabaseVerificationError("Configured database is missing citation ordering uniqueness.")
+    context_snapshot_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'context_snapshots'").fetchone()[0].upper()
+    if "CONTRACT_VERSION = '1'" not in context_snapshot_sql or "LENGTH(SNAPSHOT_DIGEST) = 64" not in context_snapshot_sql:
+        raise DatabaseVerificationError("Configured database is missing Context snapshot constraints.")
+    context_snapshot_item_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'context_snapshot_items'").fetchone()[0].upper()
+    required_context_snapshot_item_constraints = ("ITEM_ORDER >= 1", "LAYER IN ('CONVERSATION','PROJECT','MEMORY','KNOWLEDGE')", "LENGTH(CONTENT_SHA256) = 64")
+    if not all(value in context_snapshot_item_sql.replace(" ", "") if value.startswith("LAYER") else value in context_snapshot_item_sql for value in required_context_snapshot_item_constraints):
+        normalized_snapshot_item_sql = context_snapshot_item_sql.replace(" ", "")
+        if ("ITEM_ORDER>=1" not in normalized_snapshot_item_sql or "LAYERIN('CONVERSATION','PROJECT','MEMORY','KNOWLEDGE')" not in normalized_snapshot_item_sql or "LENGTH(CONTENT_SHA256)=64" not in normalized_snapshot_item_sql):
+            raise DatabaseVerificationError("Configured database is missing Context snapshot item constraints.")
+    snapshot_unique_indexes = [row[1] for row in connection.execute("PRAGMA index_list(context_snapshots)") if row[2]]
+    if not any([row[2] for row in connection.execute(f"PRAGMA index_info({index_name})")] == ["message_id"] for index_name in snapshot_unique_indexes):
+        raise DatabaseVerificationError("Configured database is missing Context snapshot message uniqueness.")
+    snapshot_item_unique_indexes = [row[1] for row in connection.execute("PRAGMA index_list(context_snapshot_items)") if row[2]]
+    if not any([row[2] for row in connection.execute(f"PRAGMA index_info({index_name})")] == ["snapshot_id", "item_order"] for index_name in snapshot_item_unique_indexes):
+        raise DatabaseVerificationError("Configured database is missing Context snapshot item ordering uniqueness.")
     memory_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'memories'").fetchone()[0].upper()
     if "STATE IN ('PENDING', 'CONFIRMED', 'REJECTED', 'ARCHIVED')" not in memory_sql or "VALUE_TYPE IN ('STRING', 'INTEGER', 'BOOLEAN', 'DATE', 'JSON')" not in memory_sql:
         raise DatabaseVerificationError("Configured database is missing memory constraints.")
