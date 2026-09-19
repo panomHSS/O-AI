@@ -783,7 +783,7 @@ D91-D100 phase.
 
 ## O-AI D91-D100 — Workspace & Context Intelligence Phase
 
-Roadmap status: **APPROVED**
+Roadmap status: **COMPLETE**
 
 - D91 — Workspace Identity & Isolation Contract v1
 - D92 — Workspace Persistence & Migration v1
@@ -796,8 +796,9 @@ Roadmap status: **APPROVED**
 - D99 — Workspace & Context UX v1
 - D100 — Integration Security Review v4
 
-The phase direction and sequencing are owner-approved. Each milestone still
-requires its own approved Design/Implementation Spec before implementation.
+The phase direction and sequencing were owner-approved. D91-D100 were
+implemented under separately approved milestone-specific Design/Implementation
+Specs.
 
 ## D91 — Workspace Identity & Isolation Contract v1
 
@@ -879,13 +880,12 @@ owner-controlled operation.
 
 ## D93 — Workspace Scope Enforcement v1
 
-Status: **SPEC OPEN — IMPLEMENTATION NOT STARTED**
+Status: **COMPLETE**
 
-D93 is defined by
-`docs/specs/D93_WORKSPACE_SCOPE_ENFORCEMENT_V1.md`.
+D93 makes the D91/D92 workspace scope mandatory across normal backend data
+access.
 
-The proposed milestone makes D91/D92 workspace scope mandatory across normal
-backend data access:
+Delivered:
 
 - exact `X-OAI-Workspace: personal|company` request context;
 - request-scoped dependency/repository binding with no ambient default;
@@ -897,11 +897,51 @@ backend data access:
 - exact parent-scope enforcement for Project update/action proposals;
 - distinct non-overlapping Personal/Company Knowledge filesystem roots;
 - exact Knowledge search filtering across SQLite/PostgreSQL adapters;
-- no new database migration;
-- no frontend workspace UX;
-- no legacy auto-classification;
-- no added approval, credential, connector, AI-provider, or execution authority.
+- no new database migration or authority expansion.
 
-D93 implementation requires separate owner approval of this milestone-specific
-Design/Implementation Spec. D93 completion will not authorize D94
-automatically.
+D93 is defined by
+`docs/specs/D93_WORKSPACE_SCOPE_ENFORCEMENT_V1.md`.
+
+ADR-087 records the D93 workspace-scope decision.
+
+## D94-D100 — Phase Completion Reconciliation
+
+The remaining Workspace & Context Intelligence milestones are also complete:
+
+- **D94 — Context Layer Contract v1:** COMPLETE.
+  Immutable provider-neutral Context contract with exact workspace isolation.
+  Spec: `docs/specs/D94_CONTEXT_LAYER_CONTRACT_V1.md`. ADR-088.
+
+- **D95 — Context Resolver & Budgeting v1:** COMPLETE.
+  Deterministic bounded read-only Context resolution and budgeting.
+  Spec: `docs/specs/D95_CONTEXT_RESOLVER_BUDGETING_V1.md`. ADR-089.
+
+- **D96 — Context Provenance & Snapshot v1:** COMPLETE.
+  Context provenance and verify-before-freeze snapshot integrity.
+  Spec: `docs/specs/D96_CONTEXT_PROVENANCE_SNAPSHOT_V1.md`. ADR-090.
+
+- **D97 — Context-Aware Chat Integration v1:** COMPLETE.
+  Normal AI Chat integrates the D95/D96 Context pipeline with durable snapshots.
+  Spec: `docs/specs/D97_CONTEXT_AWARE_CHAT_INTEGRATION_V1.md`. ADR-091.
+
+- **D98 — Workspace AI Policy & Local Routing v1:** COMPLETE.
+  Exact workspace Local/Cloud routing policy with fail-closed no-fallback
+  behavior.
+  Spec: `docs/specs/D98_WORKSPACE_AI_POLICY_LOCAL_ROUTING_V1.md`. ADR-092.
+
+- **D99 — Workspace & Context UX v1:** COMPLETE.
+  Explicit Personal/Company frontend workspace boundaries and read-only Context
+  usage transparency.
+  Spec: `docs/specs/D99_WORKSPACE_CONTEXT_UX_V1.md`. ADR-093.
+
+- **D100 — Integration Security Review v4:** COMPLETE — IMPLEMENTED / VERIFIED.
+  The integrated D91-D99 workspace, Context, routing, and special-lane authority
+  boundaries were reviewed and frozen; identified integration findings were
+  repaired without adding new capability.
+  Spec: `docs/specs/D100_INTEGRATION_SECURITY_REVIEW_V4.md`. ADR-094.
+
+D100 closes the D91-D100 Workspace & Context Intelligence phase.
+
+No post-D100 implementation milestone is approved by this roadmap at this
+checkpoint. Future work requires separate owner-approved planning and
+milestone-specific scope.
