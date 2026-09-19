@@ -1,4 +1,5 @@
-import type { ChatMessageRole } from "./chat";
+import type { ChatMessageRole, ContextUsage } from "./chat";
+import type { WorkspaceId } from "./workspace";
 
 export interface StoredCitation {
   id: string;
@@ -20,9 +21,11 @@ export interface StoredMessage {
   content: string;
   created_at: string;
   citations: StoredCitation[];
+  context_usage: ContextUsage | null;
 }
 
 export interface ConversationDetail {
+  workspace_id: WorkspaceId;
   id: string;
   title: string;
   created_at: string;

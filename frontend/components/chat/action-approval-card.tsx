@@ -12,13 +12,16 @@ import type {
   ExecutionApprovalDecision,
   ExecutionChatCompletion,
 } from "../../types/chat";
+import type { WorkspaceId } from "../../types/workspace";
 
 interface ActionApprovalCardProps {
+  workspaceId: WorkspaceId;
   action: ChatAction;
   onChatCompletion?: (completion: ExecutionChatCompletion) => void;
 }
 
 export function ActionApprovalCard({
+  workspaceId,
   action,
   onChatCompletion,
 }: ActionApprovalCardProps) {
@@ -34,9 +37,7 @@ export function ActionApprovalCard({
     return (
       <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900/60 p-3 text-sm">
         <p className="font-medium">Action unavailable</p>
-        <p className="mt-1 text-zinc-400">
-          {action.reason_code}
-        </p>
+        <p className="mt-1 text-zinc-400">{action.reason_code}</p>
       </div>
     );
   }
@@ -52,14 +53,8 @@ export function ActionApprovalCard({
     approvalId !== null &&
     planDigest !== null;
 
-  async function decide(
-    nextDecision: "approved" | "denied",
-  ) {
-    if (
-      !approvalId ||
-      !planDigest ||
-      !canDecide
-    ) {
+  async function decide(nextDecision: "approved" | "denied") {
+    if (!approvalId || !planDigest || !canDecide) {
       return;
     }
 
@@ -70,10 +65,12 @@ export function ActionApprovalCard({
       const result =
         nextDecision === "approved"
           ? await approveExecutionApproval(
+              workspaceId,
               approvalId,
               planDigest,
             )
           : await denyExecutionApproval(
+              workspaceId,
               approvalId,
               planDigest,
             );
@@ -89,9 +86,7 @@ export function ActionApprovalCard({
           caughtError.status === 404 ||
           caughtError.status === 409
         ) {
-          setTerminalMessage(
-            "Already decided or no longer pending.",
-          );
+          setTerminalMessage("Already decided or no longer pending.");
         } else {
           setError(caughtError.message);
         }
@@ -124,9 +119,7 @@ export function ActionApprovalCard({
         </div>
         <div>
           <dt className="text-zinc-500">Adapter / operation</dt>
-          <dd>
-            {approval.adapter_id ?? "—"} / {approval.operation ?? "—"}
-          </dd>
+          <dd>{approval.adapter_id ?? "—"} / {approval.operation ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-zinc-500">Effect / data</dt>
@@ -162,9 +155,7 @@ export function ActionApprovalCard({
       {decision ? (
         <div className="mt-4 rounded-lg border border-zinc-700 p-3">
           <p className="font-medium">
-            {decision.decision === "approved"
-              ? "Approved"
-              : "Denied"}{" "}
+            {decision.decision === "approved" ? "Approved" : "Denied"}{" "}
             · {decision.status}
           </p>
           <p className="mt-1 text-xs text-zinc-400">
@@ -183,15 +174,11 @@ export function ActionApprovalCard({
       ) : null}
 
       {terminalMessage ? (
-        <p className="mt-4 text-amber-300">
-          {terminalMessage}
-        </p>
+        <p className="mt-4 text-amber-300">{terminalMessage}</p>
       ) : null}
 
       {error ? (
-        <p className="mt-4 text-red-400" role="alert">
-          {error}
-        </p>
+        <p className="mt-4 text-red-400" role="alert">{error}</p>
       ) : null}
 
       {!decision && !terminalMessage ? (

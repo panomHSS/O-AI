@@ -5,7 +5,11 @@ import type {
   ExecutionApprovalDecision,
 } from "../types/chat";
 import type { ConversationDetail } from "../types/conversation";
-import type { KnowledgeDocumentList, KnowledgeScanResult, KnowledgeSearchResponse } from "../types/knowledge";
+import type {
+  KnowledgeDocumentList,
+  KnowledgeScanResult,
+  KnowledgeSearchResponse,
+} from "../types/knowledge";
 import type {
   ChangeNextActionRequest,
   ChangeProjectStatusRequest,
@@ -27,14 +31,20 @@ import type {
   AutomationProposalRequest,
   AutomationSettings,
 } from "../types/automations";
+import { parseWorkspaceId, type WorkspaceId } from "../types/workspace";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_CHAT_TIMEOUT_MS = 130_000;
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1").replace(/\/$/, "");
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:8000/api/v1"
+).replace(/\/$/, "");
 
 function configuredChatTimeoutMs(): number {
   const configured = Number(process.env.NEXT_PUBLIC_CHAT_TIMEOUT_MS);
-  return Number.isFinite(configured) && configured > 0 && configured <= 600_000
+  return Number.isFinite(configured) &&
+    configured > 0 &&
+    configured <= 600_000
     ? configured
     : DEFAULT_CHAT_TIMEOUT_MS;
 }
@@ -68,29 +78,47 @@ async function getErrorMessage(response: Response): Promise<string> {
   return `Request failed with status ${response.status}.`;
 }
 
-export async function apiRequest<TResponse>(path: string, options: ApiRequestOptions = {}): Promise<TResponse> {
-  const { body, headers, timeoutMs = DEFAULT_TIMEOUT_MS, ...requestOptions } = options;
+export async function apiRequest<TResponse>(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<TResponse> {
+  const {
+    body,
+    headers,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    ...requestOptions
+  } = options;
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const requestHeaders = new Headers(headers);
+
+  if (body !== undefined && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...requestOptions,
       body: body === undefined ? undefined : JSON.stringify(body),
-      headers: {
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        ...headers,
-      },
+      headers: requestHeaders,
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new ApiError(await getErrorMessage(response), "HTTP", response.status);
+      throw new ApiError(
+        await getErrorMessage(response),
+        "HTTP",
+        response.status,
+      );
     }
 
     const payload = (await response.json()) as ApiResponse<TResponse>;
     if (!payload.success) {
-      throw new ApiError(payload.error.message, "HTTP", response.status);
+      throw new ApiError(
+        payload.error.message,
+        "HTTP",
+        response.status,
+      );
     }
 
     return payload.data;
@@ -100,31 +128,83 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
     }
 
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError("The request timed out. Please try again.", "TIMEOUT");
+      throw new ApiError(
+        "The request timed out. Please try again.",
+        "TIMEOUT",
+      );
     }
 
-    throw new ApiError("Unable to reach O-AI. Please try again.", "NETWORK");
+    throw new ApiError(
+      "Unable to reach O-AI. Please try again.",
+      "NETWORK",
+    );
   } finally {
     window.clearTimeout(timeoutId);
   }
 }
 
-export function sendChatMessage(message: string, conversationId?: string, projectId?: string): Promise<ChatResponse> {
+export function workspaceApiRequest<TResponse>(
+  workspaceId: WorkspaceId,
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<TResponse> {
+  if (parseWorkspaceId(workspaceId) === null) {
+    return Promise.reject(
+      new ApiError("Workspace selection required.", "HTTP", 400),
+    );
+  }
+
+  const headers = new Headers(options.headers);
+  headers.set("X-OAI-Workspace", workspaceId);
+
+  return apiRequest<TResponse>(path, {
+    ...options,
+    headers,
+  });
+}
+
+function assertResponseWorkspace<
+  TResponse extends { workspace_id: WorkspaceId },
+>(
+  workspaceId: WorkspaceId,
+  response: TResponse,
+): TResponse {
+  if (response.workspace_id !== workspaceId) {
+    throw new ApiError(
+      "The workspace changed before this request completed.",
+      "HTTP",
+      409,
+    );
+  }
+  return response;
+}
+
+export function sendChatMessage(
+  workspaceId: WorkspaceId,
+  message: string,
+  conversationId?: string,
+  projectId?: string,
+): Promise<ChatResponse> {
   const payload: ChatRequest = {
     message,
     ...(conversationId ? { conversation_id: conversationId } : {}),
     ...(!conversationId && projectId ? { project_id: projectId } : {}),
   };
-  return apiRequest<ChatResponse>("/chat", {
+  return workspaceApiRequest<ChatResponse>(workspaceId, "/chat", {
     method: "POST",
     body: payload,
     headers: { "X-OAI-Local-Request": "1" },
     timeoutMs: configuredChatTimeoutMs(),
-  });
+  }).then((response) => assertResponseWorkspace(workspaceId, response));
 }
 
-export function approveExecutionApproval(approvalId: string, planDigest: string): Promise<ExecutionApprovalDecision> {
-  return apiRequest<ExecutionApprovalDecision>(
+export function approveExecutionApproval(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  planDigest: string,
+): Promise<ExecutionApprovalDecision> {
+  return workspaceApiRequest<ExecutionApprovalDecision>(
+    workspaceId,
     `/execution-approvals/${encodeURIComponent(approvalId)}/approve`,
     {
       method: "POST",
@@ -134,8 +214,13 @@ export function approveExecutionApproval(approvalId: string, planDigest: string)
   );
 }
 
-export function denyExecutionApproval(approvalId: string, planDigest: string): Promise<ExecutionApprovalDecision> {
-  return apiRequest<ExecutionApprovalDecision>(
+export function denyExecutionApproval(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  planDigest: string,
+): Promise<ExecutionApprovalDecision> {
+  return workspaceApiRequest<ExecutionApprovalDecision>(
+    workspaceId,
     `/execution-approvals/${encodeURIComponent(approvalId)}/deny`,
     {
       method: "POST",
@@ -146,10 +231,12 @@ export function denyExecutionApproval(approvalId: string, planDigest: string): P
 }
 
 export function approveCalendarWriteChat(
+  workspaceId: WorkspaceId,
   approvalId: string,
   writeDigest: string,
 ): Promise<CalendarWriteChatDecision> {
-  return apiRequest<CalendarWriteChatDecision>(
+  return workspaceApiRequest<CalendarWriteChatDecision>(
+    workspaceId,
     `/calendar-write-chat/${encodeURIComponent(approvalId)}/approve`,
     {
       method: "POST",
@@ -160,10 +247,12 @@ export function approveCalendarWriteChat(
 }
 
 export function denyCalendarWriteChat(
+  workspaceId: WorkspaceId,
   approvalId: string,
   writeDigest: string,
 ): Promise<CalendarWriteChatDecision> {
-  return apiRequest<CalendarWriteChatDecision>(
+  return workspaceApiRequest<CalendarWriteChatDecision>(
+    workspaceId,
     `/calendar-write-chat/${encodeURIComponent(approvalId)}/deny`,
     {
       method: "POST",
@@ -194,55 +283,141 @@ export function disconnectGoogleCalendar(): Promise<GoogleCalendarIntegrationSta
   );
 }
 
-export function getConversation(conversationId: string): Promise<ConversationDetail> {
-  return apiRequest<ConversationDetail>(`/conversations/${conversationId}`, { method: "GET" });
+export function getConversation(
+  workspaceId: WorkspaceId,
+  conversationId: string,
+): Promise<ConversationDetail> {
+  return workspaceApiRequest<ConversationDetail>(
+    workspaceId,
+    `/conversations/${encodeURIComponent(conversationId)}`,
+    { method: "GET" },
+  ).then((response) => assertResponseWorkspace(workspaceId, response));
 }
 
-export function scanKnowledge(): Promise<KnowledgeScanResult> {
-  return apiRequest<KnowledgeScanResult>("/knowledge/scan", {
+export function scanKnowledge(
+  workspaceId: WorkspaceId,
+): Promise<KnowledgeScanResult> {
+  return workspaceApiRequest<KnowledgeScanResult>(
+    workspaceId,
+    "/knowledge/scan",
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+    },
+  );
+}
+
+export function listKnowledgeDocuments(
+  workspaceId: WorkspaceId,
+): Promise<KnowledgeDocumentList> {
+  return workspaceApiRequest<KnowledgeDocumentList>(
+    workspaceId,
+    "/knowledge/documents",
+    { method: "GET" },
+  );
+}
+
+export function searchKnowledge(
+  workspaceId: WorkspaceId,
+  query: string,
+): Promise<KnowledgeSearchResponse> {
+  return workspaceApiRequest<KnowledgeSearchResponse>(
+    workspaceId,
+    `/knowledge/search?q=${encodeURIComponent(query)}`,
+    { method: "GET" },
+  );
+}
+
+export function createProject(
+  workspaceId: WorkspaceId,
+  payload: CreateProjectRequest,
+): Promise<Project> {
+  return workspaceApiRequest<Project>(workspaceId, "/projects", {
     method: "POST",
-    headers: { "X-OAI-Local-Request": "1" },
+    body: payload,
   });
 }
 
-export function listKnowledgeDocuments(): Promise<KnowledgeDocumentList> {
-  return apiRequest<KnowledgeDocumentList>("/knowledge/documents", { method: "GET" });
+export function listProjects(
+  workspaceId: WorkspaceId,
+  page = 1,
+  pageSize = 25,
+): Promise<ProjectListResponse> {
+  return workspaceApiRequest<ProjectListResponse>(
+    workspaceId,
+    `/projects?page=${page}&page_size=${pageSize}`,
+    { method: "GET" },
+  );
 }
 
-export function searchKnowledge(query: string): Promise<KnowledgeSearchResponse> {
-  return apiRequest<KnowledgeSearchResponse>(`/knowledge/search?q=${encodeURIComponent(query)}`, { method: "GET" });
+export function getProject(
+  workspaceId: WorkspaceId,
+  projectId: string,
+): Promise<Project> {
+  return workspaceApiRequest<Project>(
+    workspaceId,
+    `/projects/${encodeURIComponent(projectId)}`,
+    { method: "GET" },
+  );
 }
 
-export function createProject(payload: CreateProjectRequest): Promise<Project> {
-  return apiRequest<Project>("/projects", { method: "POST", body: payload });
+export function updateProjectDetails(
+  workspaceId: WorkspaceId,
+  projectId: string,
+  payload: UpdateProjectDetailsRequest,
+): Promise<Project> {
+  return workspaceApiRequest<Project>(
+    workspaceId,
+    `/projects/${encodeURIComponent(projectId)}/details`,
+    { method: "PATCH", body: payload },
+  );
 }
 
-export function listProjects(page = 1, pageSize = 25): Promise<ProjectListResponse> {
-  return apiRequest<ProjectListResponse>(`/projects?page=${page}&page_size=${pageSize}`, { method: "GET" });
+export function updateProjectProgress(
+  workspaceId: WorkspaceId,
+  projectId: string,
+  payload: RecordProjectProgressRequest,
+): Promise<Project> {
+  return workspaceApiRequest<Project>(
+    workspaceId,
+    `/projects/${encodeURIComponent(projectId)}/progress`,
+    { method: "POST", body: payload },
+  );
 }
 
-export function getProject(projectId: string): Promise<Project> {
-  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}`, { method: "GET" });
+export function changeProjectNextAction(
+  workspaceId: WorkspaceId,
+  projectId: string,
+  payload: ChangeNextActionRequest,
+): Promise<Project> {
+  return workspaceApiRequest<Project>(
+    workspaceId,
+    `/projects/${encodeURIComponent(projectId)}/next-action`,
+    { method: "PUT", body: payload },
+  );
 }
 
-export function updateProjectDetails(projectId: string, payload: UpdateProjectDetailsRequest): Promise<Project> {
-  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/details`, { method: "PATCH", body: payload });
+export function changeProjectStatus(
+  workspaceId: WorkspaceId,
+  projectId: string,
+  payload: ChangeProjectStatusRequest,
+): Promise<Project> {
+  return workspaceApiRequest<Project>(
+    workspaceId,
+    `/projects/${encodeURIComponent(projectId)}/status`,
+    { method: "POST", body: payload },
+  );
 }
 
-export function updateProjectProgress(projectId: string, payload: RecordProjectProgressRequest): Promise<Project> {
-  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/progress`, { method: "POST", body: payload });
-}
-
-export function changeProjectNextAction(projectId: string, payload: ChangeNextActionRequest): Promise<Project> {
-  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/next-action`, { method: "PUT", body: payload });
-}
-
-export function changeProjectStatus(projectId: string, payload: ChangeProjectStatusRequest): Promise<Project> {
-  return apiRequest<Project>(`/projects/${encodeURIComponent(projectId)}/status`, { method: "POST", body: payload });
-}
-
-export function getProjectHistory(projectId: string): Promise<ProjectHistoryResponse> {
-  return apiRequest<ProjectHistoryResponse>(`/projects/${encodeURIComponent(projectId)}/history`, { method: "GET" });
+export function getProjectHistory(
+  workspaceId: WorkspaceId,
+  projectId: string,
+): Promise<ProjectHistoryResponse> {
+  return workspaceApiRequest<ProjectHistoryResponse>(
+    workspaceId,
+    `/projects/${encodeURIComponent(projectId)}/history`,
+    { method: "GET" },
+  );
 }
 
 export function getAutomationSettings(): Promise<AutomationSettings> {

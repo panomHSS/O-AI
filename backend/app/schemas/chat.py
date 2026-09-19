@@ -16,6 +16,7 @@ from app.schemas.execution_approvals import (
     ExecutionApprovalProposalResponse,
 )
 from app.schemas.calendar_write_chat import CalendarWriteChatProposalResponse
+from app.schemas.context_usage import ContextUsageResponse
 
 
 class ChatRequest(BaseModel):
@@ -46,6 +47,7 @@ class ChatResponse(BaseModel):
     conversation_id: UUID
     action: ChatActionResponse | None = None
     calendar_write: CalendarWriteChatProposalResponse | None = None
+    context_usage: ContextUsageResponse | None = None
     project_update_proposal: ProjectUpdateProposalResponse | None = None
     project_action_analysis: ProjectActionAnalysis | None = None
     memories_used: list["MemoryUsageResponse"] = Field(default_factory=list)

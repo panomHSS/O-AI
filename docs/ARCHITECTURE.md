@@ -4376,3 +4376,72 @@ regression, backend compileall, and `git diff --check` pass.
 
 D99 may add Workspace & Context UX only under its separately approved
 Design/Implementation Spec.
+
+## D99 Workspace & Context UX v1
+
+D99 makes exact Workspace and Context boundaries visible in the frontend.
+
+```text
+explicit Personal / Company selection
+-> exact WorkspaceId
+-> workspace-scoped frontend request
+-> X-OAI-Workspace
+-> D93 WorkspaceScope enforcement
+-> existing D91-D98 boundaries
+```
+
+There is no implicit first-use workspace. Active Conversation client state is
+isolated per workspace and the legacy global key is discarded.
+
+Workspace switching remounts scoped UI state. Chat and Conversation responses
+verify returned `workspace_id` before application to the active workspace.
+
+```text
+CLIENT WORKSPACE STATE != BACKEND AUTHORITY
+STALE WORKSPACE RESPONSE != ACTIVE WORKSPACE STATE
+WORKSPACE SWITCH != CROSS-WORKSPACE LOOKUP
+```
+
+D99 Context usage is a read-only projection over persisted D97 snapshots:
+
+```text
+captured_at
+total_items
+conversation_items
+project_items
+memory_items
+knowledge_items
+```
+
+The repository summary path counts exact snapshot layers under the assistant
+Message -> Conversation workspace boundary and does not load raw Context text.
+
+```text
+snapshot + items -> Context counts
+snapshot + zero items -> Context none
+no snapshot -> Context not recorded
+```
+
+Special Chat lanes do not fabricate D97 Context usage and retain `null`.
+
+The Context UX is transparency only:
+
+```text
+CONTEXT UX != COMMAND
+CONTEXT UX != OWNER APPROVAL
+CONTEXT UX != EXECUTION AUTHORITY
+CONTEXT UX != PROVIDER AUTHORITY
+```
+
+D99 does not add a provider selector or modify D98 Local/Cloud policy.
+
+D99 adds no database migration. The live database remains at
+`0013_context_snapshot_persistence`.
+
+D99 status: **COMPLETE** after frontend Workspace boundary verification,
+Context usage read-model tests, Context UX integration checks, adversarial
+D93-D98 security regressions, full backend regression, backend compileall,
+frontend lint/build, live read-only database revision verification, and
+`git diff --check` pass.
+
+D100 may proceed only under a separately approved Design/Implementation Spec.

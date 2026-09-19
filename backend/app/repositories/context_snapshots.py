@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.contracts.context import ContextItem, ContextLayer, ContextSourceRef
+from app.contracts.context_usage import ContextUsage
 from app.contracts.context_provenance import (
     ContextSnapshot,
     ContextSnapshotItem,
@@ -208,6 +209,78 @@ class ContextSnapshotRepository:
             UnicodeError,
             ValueError,
         ) as error:
+            raise ContextSnapshotPersistenceError(
+                "context_snapshot_invalid"
+            ) from error
+
+    def get_usage_for_message(
+        self,
+        message_id: str,
+    ) -> ContextUsage | None:
+        """Read exact-workspace snapshot metadata without loading Context text."""
+
+        if type(message_id) is not str or not message_id:
+            raise ContextSnapshotPersistenceError(
+                "context_snapshot_message_invalid"
+            )
+
+        try:
+            metadata = self._session.execute(
+                select(
+                    ContextSnapshotRecord.id.label("snapshot_id"),
+                    ContextSnapshotRecord.captured_at.label("captured_at"),
+                )
+                .join(
+                    Message,
+                    Message.id == ContextSnapshotRecord.message_id,
+                )
+                .join(
+                    Conversation,
+                    Conversation.id == Message.conversation_id,
+                )
+                .where(
+                    ContextSnapshotRecord.message_id == message_id,
+                    Conversation.workspace_id == self._workspace_id,
+                )
+            ).mappings().one_or_none()
+            if metadata is None:
+                return None
+
+            layer_rows = self._session.execute(
+                select(
+                    ContextSnapshotItemRecord.layer.label("layer"),
+                    func.count(ContextSnapshotItemRecord.id).label("item_count"),
+                )
+                .where(
+                    ContextSnapshotItemRecord.snapshot_id
+                    == metadata["snapshot_id"]
+                )
+                .group_by(ContextSnapshotItemRecord.layer)
+            ).mappings().all()
+        except SQLAlchemyError as error:
+            raise ContextSnapshotPersistenceError(
+                "context_snapshot_read_failed"
+            ) from error
+
+        counts = {layer.value: 0 for layer in ContextLayer}
+        for row in layer_rows:
+            layer = row["layer"]
+            if layer not in counts:
+                raise ContextSnapshotPersistenceError(
+                    "context_snapshot_invalid"
+                )
+            counts[layer] = int(row["item_count"])
+
+        try:
+            return ContextUsage(
+                captured_at=_as_utc(metadata["captured_at"]),
+                total_items=sum(counts.values()),
+                conversation_items=counts[ContextLayer.CONVERSATION.value],
+                project_items=counts[ContextLayer.PROJECT.value],
+                memory_items=counts[ContextLayer.MEMORY.value],
+                knowledge_items=counts[ContextLayer.KNOWLEDGE.value],
+            )
+        except (TypeError, ValueError) as error:
             raise ContextSnapshotPersistenceError(
                 "context_snapshot_invalid"
             ) from error

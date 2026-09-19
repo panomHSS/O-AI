@@ -13,6 +13,7 @@ import {
   updateProjectProgress,
 } from "../../../lib/api-client";
 import type { Project, ProjectRevision, ProjectStatus } from "../../../types/projects";
+import { useWorkspace } from "../../../components/workspace/workspace-provider";
 
 const TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
   ACTIVE: ["PAUSED", "COMPLETED", "ARCHIVED"],
@@ -32,6 +33,7 @@ function valid(value: string, label: string, maximum: number): string | null {
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const { workspaceId, isReady: isWorkspaceReady } = useWorkspace();
   const [project, setProject] = useState<Project | null>(null);
   const [history, setHistory] = useState<ProjectRevision[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,8 +50,17 @@ export default function ProjectDetailPage() {
   const [statusNote, setStatusNote] = useState("");
 
   useEffect(() => {
+    if (!isWorkspaceReady) return;
+    if (!workspaceId) {
+      void Promise.resolve().then(() => setIsLoading(false));
+      return;
+    }
+
     void Promise.resolve()
-      .then(() => Promise.all([getProject(projectId), getProjectHistory(projectId)]))
+      .then(() => Promise.all([
+        getProject(workspaceId, projectId),
+        getProjectHistory(workspaceId, projectId),
+      ]))
       .then(([current, revisions]) => {
         setProject(current);
         setHistory(revisions.items);
@@ -60,22 +71,25 @@ export default function ProjectDetailPage() {
       })
       .catch((caughtError) => setError(caughtError instanceof ApiError ? caughtError.message : "Unable to load Project."))
       .finally(() => setIsLoading(false));
-  }, [projectId]);
+  }, [projectId, isWorkspaceReady, workspaceId]);
 
   async function handleMutation(action: () => Promise<Project>) {
-    if (!project || isSaving) return;
+    if (!workspaceId || !project || isSaving) return;
     setError(null);
     setConflict(null);
     setIsSaving(true);
     try {
       const updated = await action();
       setProject(updated);
-      setHistory((await getProjectHistory(projectId)).items);
+      setHistory((await getProjectHistory(workspaceId, projectId)).items);
     } catch (caughtError) {
       if (caughtError instanceof ApiError && caughtError.status === 409 && caughtError.message) {
         setConflict("This Project changed before your update. The latest state has been loaded; review it and submit again explicitly.");
         try {
-          const [current, revisions] = await Promise.all([getProject(projectId), getProjectHistory(projectId)]);
+          const [current, revisions] = await Promise.all([
+            getProject(workspaceId, projectId),
+            getProjectHistory(workspaceId, projectId),
+          ]);
           setProject(current);
           setHistory(revisions.items);
         } catch {
@@ -91,7 +105,7 @@ export default function ProjectDetailPage() {
 
   function submitDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!project) return;
+    if (!workspaceId || !project) return;
     const noteError = valid(detailsNote, "Why this change", 512);
     const normalizedTitle = title.trim();
     const normalizedObjective = objective.trim();
@@ -101,7 +115,7 @@ export default function ProjectDetailPage() {
     const changedTitle = normalizedTitle !== project.title;
     const changedObjective = normalizedObjective !== project.objective;
     if (!changedTitle && !changedObjective) { setError("Change a Project detail before submitting."); return; }
-    void handleMutation(() => updateProjectDetails(project.id, {
+    void handleMutation(() => updateProjectDetails(workspaceId, project.id, {
       expected_revision: project.current_revision, change_note: detailsNote.trim(),
       ...(changedTitle ? { title: normalizedTitle } : {}), ...(changedObjective ? { objective: normalizedObjective } : {}),
     }));
@@ -109,41 +123,55 @@ export default function ProjectDetailPage() {
 
   function submitProgress(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!project) return;
+    if (!workspaceId || !project) return;
     const noteError = valid(progressNote, "Why this change", 512);
     if (summary.length > 4_000 || noteError) { setError(noteError ?? "Current summary must be at most 4000 characters."); return; }
-    void handleMutation(() => updateProjectProgress(project.id, {
+    void handleMutation(() => updateProjectProgress(workspaceId, project.id, {
       expected_revision: project.current_revision, change_note: progressNote.trim(), current_summary: summary.trim() || null,
     }));
   }
 
   function submitNextAction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!project) return;
+    if (!workspaceId || !project) return;
     const noteError = valid(nextActionNote, "Why this change", 512);
     const action = nextAction.trim();
     if (!action || action.length > 512 || noteError) { setError(noteError ?? "Next action must contain 1–512 non-whitespace characters."); return; }
-    void handleMutation(() => changeProjectNextAction(project.id, {
+    void handleMutation(() => changeProjectNextAction(workspaceId, project.id, {
       expected_revision: project.current_revision, change_note: nextActionNote.trim(), next_action: action,
     }));
   }
 
   function clearNextAction() {
-    if (!project) return;
+    if (!workspaceId || !project) return;
     const noteError = valid(nextActionNote, "Why this change", 512);
     if (noteError) { setError(noteError); return; }
-    void handleMutation(() => changeProjectNextAction(project.id, {
+    void handleMutation(() => changeProjectNextAction(workspaceId, project.id, {
       expected_revision: project.current_revision, change_note: nextActionNote.trim(), next_action: null,
     }));
   }
 
   function submitStatus(status: ProjectStatus) {
-    if (!project) return;
+    if (!workspaceId || !project) return;
     const noteError = valid(statusNote, "Why this change", 512);
     if (noteError) { setError(noteError); return; }
-    void handleMutation(() => changeProjectStatus(project.id, {
+    void handleMutation(() => changeProjectStatus(workspaceId, project.id, {
       expected_revision: project.current_revision, change_note: statusNote.trim(), status,
     }));
+  }
+
+  if (!isWorkspaceReady) {
+    return <main className="mx-auto max-w-5xl p-6 text-zinc-400">Loading workspace…</main>;
+  }
+  if (!workspaceId) {
+    return (
+      <main className="mx-auto max-w-5xl p-6">
+        <h1 className="text-3xl font-semibold">Project</h1>
+        <p className="mt-3 text-zinc-400">
+          Select Personal or Company workspace above before opening a Project.
+        </p>
+      </main>
+    );
   }
 
   if (isLoading) return <main className="mx-auto max-w-5xl p-6 text-zinc-400">Loading Project…</main>;

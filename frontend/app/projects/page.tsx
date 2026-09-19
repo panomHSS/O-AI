@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { useWorkspace } from "../../components/workspace/workspace-provider";
 import { ApiError, createProject, listProjects } from "../../lib/api-client";
 import type { Project } from "../../types/projects";
 
@@ -20,6 +21,7 @@ function validated(value: string, label: string, maximum: number): string | null
 }
 
 export default function ProjectsPage() {
+  const { workspaceId, isReady: isWorkspaceReady } = useWorkspace();
   const [projects, setProjects] = useState<Project[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -31,34 +33,57 @@ export default function ProjectsPage() {
   const [changeNote, setChangeNote] = useState("");
 
   async function load(nextPage = page) {
+    if (!workspaceId) return;
     setIsLoading(true);
     setError(null);
     try {
-      const response = await listProjects(nextPage, PAGE_SIZE);
+      const response = await listProjects(
+        workspaceId,
+        nextPage,
+        PAGE_SIZE,
+      );
       setProjects(response.items);
       setTotal(response.total);
       setPage(response.page);
     } catch (caughtError) {
-      setError(caughtError instanceof ApiError ? caughtError.message : "Unable to load Projects.");
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to load Projects.",
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
   useEffect(() => {
+    if (!isWorkspaceReady) return;
+    if (!workspaceId) {
+      void Promise.resolve().then(() => setIsLoading(false));
+      return;
+    }
+
     void Promise.resolve()
-      .then(() => listProjects(1, PAGE_SIZE))
+      .then(() => listProjects(workspaceId, 1, PAGE_SIZE))
       .then((response) => {
         setProjects(response.items);
         setTotal(response.total);
         setPage(response.page);
       })
-      .catch((caughtError) => setError(caughtError instanceof ApiError ? caughtError.message : "Unable to load Projects."))
+      .catch((caughtError) =>
+        setError(
+          caughtError instanceof ApiError
+            ? caughtError.message
+            : "Unable to load Projects.",
+        ),
+      )
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [isWorkspaceReady, workspaceId]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!workspaceId) return;
+
     const titleError = validated(title, "Title", 160);
     const objectiveError = validated(objective, "Objective", 4_000);
     const noteError = validated(changeNote, "Why this change", 512);
@@ -70,12 +95,35 @@ export default function ProjectsPage() {
     setIsCreating(true);
     setError(null);
     try {
-      const project = await createProject({ title: title.trim(), objective: objective.trim(), change_note: changeNote.trim() });
+      const project = await createProject(workspaceId, {
+        title: title.trim(),
+        objective: objective.trim(),
+        change_note: changeNote.trim(),
+      });
       window.location.assign(`/projects/${project.id}`);
     } catch (caughtError) {
-      setError(caughtError instanceof ApiError ? caughtError.message : "Unable to create Project.");
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to create Project.",
+      );
       setIsCreating(false);
     }
+  }
+
+  if (!isWorkspaceReady) {
+    return <main className="mx-auto max-w-5xl p-6 text-zinc-400">Loading workspace…</main>;
+  }
+
+  if (!workspaceId) {
+    return (
+      <main className="mx-auto max-w-5xl p-6">
+        <h1 className="text-3xl font-semibold">Projects</h1>
+        <p className="mt-3 text-zinc-400">
+          Select Personal or Company workspace above before opening Projects.
+        </p>
+      </main>
+    );
   }
 
   return (

@@ -7,10 +7,12 @@ from app.repositories.context_snapshots import ContextSnapshotRepository
 from app.repositories.conversations import ConversationRepository
 from app.repositories.message_citations import CitationSnapshot, MessageCitationRepository
 from app.schemas.conversations import ConversationDetailResponse, ConversationSummaryResponse, StoredCitationResponse, StoredMessageResponse
+from app.schemas.context_usage import ContextUsageResponse
 from app.services.chat import ChatContextMessage, ChatService
 from app.contracts.ai import AIAdapter
 from app.contracts.context_provenance import ContextSnapshot
 from app.contracts.context_resolution import ContextResolveRequest
+from app.contracts.context_usage import ContextUsage
 from app.contracts.workspace import WorkspaceScope, parse_workspace_id
 from app.services.context_chat import (
     ContextMemoryUsage,
@@ -19,6 +21,10 @@ from app.services.context_chat import (
     reasoning_evidence_from_snapshot,
 )
 from app.services.context_resolver import ContextResolutionError, ContextResolver
+from app.services.context_usage import (
+    context_usage_for_message,
+    context_usage_from_snapshot,
+)
 from app.services.context_snapshot import ContextSnapshotService
 from app.services.memory_resolver import MemoryResolver, ResolvedMemory
 from app.schemas.reasoning import ReasoningPlan
@@ -73,6 +79,7 @@ class ChatTurnResult:
     project_action_analysis: ProjectActionAnalysis | None = None
     project_action_plan: ProjectActionPlan | None = None
     project_action_execution_proposal: ProjectActionExecutionProposal | None = None
+    context_usage: ContextUsage | None = None
 
 
 class ConversationService:
@@ -177,6 +184,7 @@ class ConversationService:
                     ) from None
                 raise
             snapshot = self._context_snapshot_service.capture(bundle)
+            context_usage = context_usage_from_snapshot(snapshot)
 
             project_context = project_context_from_snapshot(snapshot)
             memories = memory_usage_from_snapshot(snapshot)
@@ -255,6 +263,7 @@ class ConversationService:
             project_action_analysis=project_action_analysis,
             project_action_plan=project_action_plan,
             project_action_execution_proposal=project_action_execution_proposal,
+            context_usage=context_usage,
         )
 
     def send_message(
@@ -498,13 +507,28 @@ class ConversationService:
             project_id=UUID(conversation.project_id) if conversation.project_id else None,
         )
 
-    @staticmethod
-    def _to_message(message: Message) -> StoredMessageResponse:
+    def _to_message(self, message: Message) -> StoredMessageResponse:
+        usage = (
+            context_usage_for_message(
+                self._context_snapshot_repository,
+                message.id,
+            )
+            if (
+                message.role == "assistant"
+                and self._context_snapshot_repository is not None
+            )
+            else None
+        )
         return StoredMessageResponse(
             id=UUID(message.id),
             role=message.role,
             content=message.content,
             created_at=message.created_at,
+            context_usage=(
+                ContextUsageResponse.from_usage(usage)
+                if usage is not None
+                else None
+            ),
             citations=[
                 StoredCitationResponse(
                     id=UUID(citation.id),

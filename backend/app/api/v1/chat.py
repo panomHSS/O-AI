@@ -29,6 +29,7 @@ from app.schemas.execution_approvals import (
     ExecutionApprovalProposalResponse,
 )
 from app.schemas.calendar_write_chat import CalendarWriteChatProposalResponse
+from app.schemas.context_usage import ContextUsageResponse
 from app.services.chat_action_bridge import ChatActionBridge
 from app.services.chat_calendar_write import CalendarWriteChatService
 from app.services.calendar_write_chat_ux import CalendarWriteChatUXService
@@ -574,5 +575,10 @@ def send_chat_message(
             planning_plan=result.planning_plan,
             decision_analysis=result.decision_analysis,
             goal_analysis=result.goal_analysis,
+            context_usage=(
+                ContextUsageResponse.from_usage(result.context_usage)
+                if result.context_usage is not None
+                else None
+            ),
         )
     )

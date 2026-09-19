@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.context_usage import ContextUsageResponse
+
 
 class StoredCitationResponse(BaseModel):
     id: UUID
@@ -25,6 +27,7 @@ class StoredMessageResponse(BaseModel):
     content: str
     created_at: datetime
     citations: list[StoredCitationResponse] = Field(default_factory=list)
+    context_usage: ContextUsageResponse | None = None
 
 
 class ConversationSummaryResponse(BaseModel):

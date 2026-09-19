@@ -1,4 +1,15 @@
+import type { WorkspaceId } from "./workspace";
+
 export type ChatMessageRole = "user" | "assistant";
+
+export interface ContextUsage {
+  captured_at: string;
+  total_items: number;
+  conversation_items: number;
+  project_items: number;
+  memory_items: number;
+  knowledge_items: number;
+}
 
 export interface ChatCitation {
   citation_id: string;
@@ -114,6 +125,7 @@ export interface ChatMessage {
   action?: ChatAction | null;
   calendarWrite?: CalendarWriteChatProposal | null;
   gmailRead?: GmailReadDisplay | null;
+  contextUsage?: ContextUsage | null;
 }
 
 export interface ChatRequest {
@@ -123,8 +135,10 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
+  workspace_id: WorkspaceId;
   reply: string;
   conversation_id: string;
   action: ChatAction | null;
   calendar_write: CalendarWriteChatProposal | null;
+  context_usage: ContextUsage | null;
 }

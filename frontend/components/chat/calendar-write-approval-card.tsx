@@ -11,26 +11,23 @@ import type {
   CalendarWriteChatDecision,
   CalendarWriteChatProposal,
 } from "../../types/chat";
+import type { WorkspaceId } from "../../types/workspace";
 
 interface CalendarWriteApprovalCardProps {
+  workspaceId: WorkspaceId;
   proposal: CalendarWriteChatProposal;
   onDecisionCompletion?: (decision: CalendarWriteChatDecision) => void;
 }
 
 function terminalLabel(decision: CalendarWriteChatDecision): string {
-  if (decision.status === "denied") {
-    return "Denied";
-  }
-  if (decision.status === "succeeded") {
-    return "Created";
-  }
-  if (decision.status === "failed") {
-    return "Failed";
-  }
+  if (decision.status === "denied") return "Denied";
+  if (decision.status === "succeeded") return "Created";
+  if (decision.status === "failed") return "Failed";
   return "Indeterminate";
 }
 
 export function CalendarWriteApprovalCard({
+  workspaceId,
   proposal,
   onDecisionCompletion,
 }: CalendarWriteApprovalCardProps) {
@@ -50,9 +47,7 @@ export function CalendarWriteApprovalCard({
     !isSubmitting;
 
   async function decide(nextDecision: "approved" | "denied") {
-    if (!canDecide) {
-      return;
-    }
+    if (!canDecide) return;
 
     setIsSubmitting(true);
     setError(null);
@@ -61,10 +56,12 @@ export function CalendarWriteApprovalCard({
       const result =
         nextDecision === "approved"
           ? await approveCalendarWriteChat(
+              workspaceId,
               proposal.approval_id,
               proposal.write_digest,
             )
           : await denyCalendarWriteChat(
+              workspaceId,
               proposal.approval_id,
               proposal.write_digest,
             );
@@ -110,42 +107,18 @@ export function CalendarWriteApprovalCard({
       </div>
 
       <dl className="mt-4 grid gap-2 text-xs">
-        <div>
-          <dt className="text-zinc-500">Operation</dt>
-          <dd>{preview.operation}</dd>
-        </div>
-        <div>
-          <dt className="text-zinc-500">Calendar</dt>
-          <dd>{preview.calendar_id}</dd>
-        </div>
-        <div>
-          <dt className="text-zinc-500">Summary</dt>
-          <dd>{preview.summary ?? "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-zinc-500">Start</dt>
-          <dd className="break-all">{preview.start ?? "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-zinc-500">End</dt>
-          <dd className="break-all">{preview.end ?? "—"}</dd>
-        </div>
+        <div><dt className="text-zinc-500">Operation</dt><dd>{preview.operation}</dd></div>
+        <div><dt className="text-zinc-500">Calendar</dt><dd>{preview.calendar_id}</dd></div>
+        <div><dt className="text-zinc-500">Summary</dt><dd>{preview.summary ?? "—"}</dd></div>
+        <div><dt className="text-zinc-500">Start</dt><dd className="break-all">{preview.start ?? "—"}</dd></div>
+        <div><dt className="text-zinc-500">End</dt><dd className="break-all">{preview.end ?? "—"}</dd></div>
         {preview.description ? (
-          <div>
-            <dt className="text-zinc-500">Description</dt>
-            <dd>{preview.description}</dd>
-          </div>
+          <div><dt className="text-zinc-500">Description</dt><dd>{preview.description}</dd></div>
         ) : null}
         {preview.location ? (
-          <div>
-            <dt className="text-zinc-500">Location</dt>
-            <dd>{preview.location}</dd>
-          </div>
+          <div><dt className="text-zinc-500">Location</dt><dd>{preview.location}</dd></div>
         ) : null}
-        <div>
-          <dt className="text-zinc-500">Expires</dt>
-          <dd className="break-all">{proposal.expires_at}</dd>
-        </div>
+        <div><dt className="text-zinc-500">Expires</dt><dd className="break-all">{proposal.expires_at}</dd></div>
         <div>
           <dt className="text-zinc-500">Write digest</dt>
           <dd className="break-all font-mono text-[11px] text-zinc-300">
@@ -187,12 +160,7 @@ export function CalendarWriteApprovalCard({
       {terminalMessage ? (
         <p className="mt-4 text-amber-300">{terminalMessage}</p>
       ) : null}
-
-      {error ? (
-        <p className="mt-4 text-red-400" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p className="mt-4 text-red-400" role="alert">{error}</p> : null}
 
       {!decision && !terminalMessage && !error ? (
         <div className="mt-4 flex gap-2">

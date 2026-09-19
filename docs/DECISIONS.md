@@ -4589,3 +4589,82 @@ PROVENANCE != PROVIDER AUTHORITY
 
 D99 owns Workspace & Context UX v1 under a separately approved
 Design/Implementation Spec.
+
+## ADR-093: Workspace & Context UX v1
+
+**Status:** Accepted
+
+**Decision**
+
+D99 exposes the D91-D98 Workspace and Context boundaries in the frontend without
+creating a new authority surface.
+
+Exact client workspace ids remain:
+
+```text
+personal
+company
+```
+
+There is no implicit workspace fallback. Invalid persisted workspace state is
+discarded and requires explicit selection.
+
+Client state is isolated as:
+
+```text
+oai.activeWorkspaceId
+oai.activeConversationId.personal
+oai.activeConversationId.company
+```
+
+The legacy global `oai.activeConversationId` key is discarded and never
+reclassified.
+
+Workspace-owned frontend requests use an explicit workspace-scoped request
+helper that attaches exact `X-OAI-Workspace`. Generic infrastructure and OAuth
+calls do not receive the header globally.
+
+Workspace switching remounts the scoped UI subtree. Chat and Conversation
+responses verify returned `workspace_id` before rendering.
+
+D99 also adds read-only Context usage transparency over D97 snapshots. The
+additive projection exposes only:
+
+```text
+captured_at
+total_items
+conversation_items
+project_items
+memory_items
+knowledge_items
+```
+
+D97 populated, empty, and missing snapshot states remain distinct. The summary
+path is exact-workspace scoped and does not materialize raw Context text.
+
+Only normal D97 Chat projects `context_usage`; special deterministic or
+structured Chat lanes retain `null`.
+
+Frozen boundaries include:
+
+```text
+WORKSPACE SELECTOR != AUTHENTICATION
+WORKSPACE SELECTOR != AUTHORIZATION
+WORKSPACE SELECTOR != EXECUTION AUTHORITY
+WORKSPACE SELECTOR != AI PROVIDER AUTHORITY
+CLIENT WORKSPACE STATE != BACKEND AUTHORITY
+STALE WORKSPACE RESPONSE != ACTIVE WORKSPACE STATE
+
+CONTEXT UX != COMMAND
+CONTEXT UX != OWNER APPROVAL
+CONTEXT UX != EXECUTION AUTHORITY
+CONTEXT UX != PROVIDER AUTHORITY
+CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
+```
+
+D93 backend workspace enforcement and D98 provider policy remain authoritative.
+
+D99 adds no database table or Alembic revision. The live database remains at
+`0013_context_snapshot_persistence`.
+
+D100 owns Integration Security Review v4 under a separately approved spec.

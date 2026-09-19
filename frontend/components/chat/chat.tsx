@@ -2,7 +2,13 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { ApiError, getConversation, getProject, sendChatMessage } from "../../lib/api-client";
+import {
+  ApiError,
+  getConversation,
+  getProject,
+  sendChatMessage,
+} from "../../lib/api-client";
+import { activeConversationStorageKey } from "../../lib/workspace";
 import type {
   CalendarWriteChatDecision,
   CalendarWriteChatProposal,
@@ -12,10 +18,10 @@ import type {
   GmailReadDisplay,
 } from "../../types/chat";
 import type { Project } from "../../types/projects";
+import { useWorkspace } from "../workspace/workspace-provider";
 import { ActionApprovalCard } from "./action-approval-card";
 import { CalendarWriteApprovalCard } from "./calendar-write-approval-card";
-
-const ACTIVE_CONVERSATION_STORAGE_KEY = "oai.activeConversationId";
+import { ContextUsageIndicator } from "./context-usage";
 
 function createMessage(
   role: ChatMessage["role"],
@@ -23,6 +29,7 @@ function createMessage(
   action?: ChatAction | null,
   calendarWrite?: CalendarWriteChatProposal | null,
   gmailRead?: GmailReadDisplay | null,
+  contextUsage?: ChatMessage["contextUsage"],
 ): ChatMessage {
   return {
     id: crypto.randomUUID(),
@@ -31,6 +38,7 @@ function createMessage(
     ...(action ? { action } : {}),
     ...(calendarWrite ? { calendarWrite } : {}),
     ...(gmailRead ? { gmailRead } : {}),
+    ...(contextUsage !== undefined ? { contextUsage } : {}),
   };
 }
 
@@ -95,6 +103,7 @@ function GmailReadResultCard({ result }: { result: GmailReadDisplay }) {
 }
 
 export function Chat() {
+  const { workspaceId, isReady: isWorkspaceReady } = useWorkspace();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -105,60 +114,99 @@ export function Chat() {
   const [associatedProject, setAssociatedProject] = useState<Project | null>(null);
 
   useEffect(() => {
+    if (!isWorkspaceReady) return;
+    if (!workspaceId) {
+      void Promise.resolve().then(() => setIsRestoring(false));
+      return;
+    }
+
+    const storageKey = activeConversationStorageKey(workspaceId);
     const pendingProjectId = new URLSearchParams(window.location.search).get("projectId");
+
     if (pendingProjectId) {
-      window.localStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY);
-      getProject(pendingProjectId)
+      window.localStorage.removeItem(storageKey);
+      getProject(workspaceId, pendingProjectId)
         .then(setPendingProject)
-        .catch((caughtError) => setError(caughtError instanceof ApiError ? caughtError.message : "Unable to select Project."))
+        .catch((caughtError) =>
+          setError(
+            caughtError instanceof ApiError
+              ? caughtError.message
+              : "Unable to select Project.",
+          ),
+        )
         .finally(() => setIsRestoring(false));
       return;
     }
 
-    const storedConversationId = window.localStorage.getItem(ACTIVE_CONVERSATION_STORAGE_KEY);
+    const storedConversationId = window.localStorage.getItem(storageKey);
     if (!storedConversationId) {
       void Promise.resolve().then(() => setIsRestoring(false));
       return;
     }
 
-    getConversation(storedConversationId)
+    getConversation(workspaceId, storedConversationId)
       .then((conversation) => {
         setConversationId(conversation.id);
-        setMessages(conversation.messages.map((message) => ({ id: message.id, role: message.role, content: message.content, citations: message.citations })));
+        setMessages(
+          conversation.messages.map((message) => ({
+            id: message.id,
+            role: message.role,
+            content: message.content,
+            citations: message.citations,
+            contextUsage: message.context_usage,
+          })),
+        );
         if (conversation.project_id) {
-          return getProject(conversation.project_id).then(setAssociatedProject);
+          return getProject(workspaceId, conversation.project_id).then(
+            setAssociatedProject,
+          );
         }
         return undefined;
       })
       .catch((caughtError) => {
         if (caughtError instanceof ApiError && caughtError.status === 404) {
-          window.localStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY);
+          window.localStorage.removeItem(storageKey);
           setConversationId(null);
           return;
         }
 
-        setError(caughtError instanceof ApiError ? caughtError.message : "Unable to restore the conversation.");
+        setError(
+          caughtError instanceof ApiError
+            ? caughtError.message
+            : "Unable to restore the conversation.",
+        );
       })
       .finally(() => setIsRestoring(false));
-  }, []);
+  }, [isWorkspaceReady, workspaceId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = draft.trim();
 
-    if (!message || isLoading || isRestoring) {
+    if (!workspaceId || !message || isLoading || isRestoring) {
       return;
     }
 
     setDraft("");
     setError(null);
-    setMessages((currentMessages) => [...currentMessages, createMessage("user", message)]);
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      createMessage("user", message),
+    ]);
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage(message, conversationId ?? undefined, conversationId ? undefined : pendingProject?.id);
+      const response = await sendChatMessage(
+        workspaceId,
+        message,
+        conversationId ?? undefined,
+        conversationId ? undefined : pendingProject?.id,
+      );
       setConversationId(response.conversation_id);
-      window.localStorage.setItem(ACTIVE_CONVERSATION_STORAGE_KEY, response.conversation_id);
+      window.localStorage.setItem(
+        activeConversationStorageKey(workspaceId),
+        response.conversation_id,
+      );
       if (!conversationId && pendingProject) {
         setAssociatedProject(pendingProject);
         setPendingProject(null);
@@ -171,18 +219,24 @@ export function Chat() {
           response.reply,
           response.action,
           response.calendar_write,
+          undefined,
+          response.context_usage,
         ),
       ]);
     } catch (caughtError) {
-      setError(caughtError instanceof ApiError ? caughtError.message : "Something went wrong. Please try again.");
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Something went wrong. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
-  function handleActionChatCompletion(
-    completion: ExecutionChatCompletion,
-  ) {
+  function handleActionChatCompletion(completion: ExecutionChatCompletion) {
+    if (!workspaceId) return;
+
     if (
       conversationId &&
       conversationId !== completion.conversation_id
@@ -193,7 +247,7 @@ export function Chat() {
 
     setConversationId(completion.conversation_id);
     window.localStorage.setItem(
-      ACTIVE_CONVERSATION_STORAGE_KEY,
+      activeConversationStorageKey(workspaceId),
       completion.conversation_id,
     );
     setMessages((currentMessages) => [
@@ -208,9 +262,9 @@ export function Chat() {
     ]);
   }
 
-  function handleCalendarWriteDecision(
-    decision: CalendarWriteChatDecision,
-  ) {
+  function handleCalendarWriteDecision(decision: CalendarWriteChatDecision) {
+    if (!workspaceId) return;
+
     if (
       conversationId &&
       conversationId !== decision.conversation_id
@@ -221,7 +275,7 @@ export function Chat() {
 
     setConversationId(decision.conversation_id);
     window.localStorage.setItem(
-      ACTIVE_CONVERSATION_STORAGE_KEY,
+      activeConversationStorageKey(workspaceId),
       decision.conversation_id,
     );
     setMessages((currentMessages) => [
@@ -231,13 +285,36 @@ export function Chat() {
   }
 
   function handleNewConversation() {
-    window.localStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY);
+    if (workspaceId) {
+      window.localStorage.removeItem(
+        activeConversationStorageKey(workspaceId),
+      );
+    }
     setConversationId(null);
     setMessages([]);
     setPendingProject(null);
     setAssociatedProject(null);
     window.history.replaceState({}, "", "/chat");
     setError(null);
+  }
+
+  if (!isWorkspaceReady) {
+    return (
+      <section className="mx-auto w-full max-w-3xl p-6 text-zinc-400">
+        Loading workspace…
+      </section>
+    );
+  }
+
+  if (!workspaceId) {
+    return (
+      <section className="mx-auto w-full max-w-3xl p-6">
+        <h1 className="text-3xl font-semibold">Chat</h1>
+        <p className="mt-3 text-zinc-400">
+          Select Personal or Company workspace above before opening Chat.
+        </p>
+      </section>
+    );
   }
 
   return (
@@ -261,9 +338,7 @@ export function Chat() {
           >
             <p className="mb-1 text-xs font-medium uppercase tracking-wide opacity-60">{chatMessage.role}</p>
             {chatMessage.gmailRead ? null : <p>{chatMessage.content}</p>}
-            {chatMessage.gmailRead ? (
-              <GmailReadResultCard result={chatMessage.gmailRead} />
-            ) : null}
+            {chatMessage.gmailRead ? <GmailReadResultCard result={chatMessage.gmailRead} /> : null}
             {chatMessage.citations?.length ? (
               <ol className="mt-3 space-y-2 border-t border-zinc-600 pt-3 text-sm">
                 {chatMessage.citations.map((citation) => (
@@ -278,12 +353,19 @@ export function Chat() {
               <ActionApprovalCard
                 action={chatMessage.action}
                 onChatCompletion={handleActionChatCompletion}
+                workspaceId={workspaceId}
               />
             ) : null}
             {chatMessage.calendarWrite ? (
               <CalendarWriteApprovalCard
-                proposal={chatMessage.calendarWrite}
                 onDecisionCompletion={handleCalendarWriteDecision}
+                proposal={chatMessage.calendarWrite}
+                workspaceId={workspaceId}
+              />
+            ) : null}
+            {chatMessage.role === "assistant" ? (
+              <ContextUsageIndicator
+                usage={chatMessage.contextUsage ?? null}
               />
             ) : null}
           </article>

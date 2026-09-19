@@ -2,10 +2,20 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { ApiError, listKnowledgeDocuments, scanKnowledge, searchKnowledge } from "../../lib/api-client";
-import type { KnowledgeDocument, KnowledgeSearchResult } from "../../types/knowledge";
+import {
+  ApiError,
+  listKnowledgeDocuments,
+  scanKnowledge,
+  searchKnowledge,
+} from "../../lib/api-client";
+import type {
+  KnowledgeDocument,
+  KnowledgeSearchResult,
+} from "../../types/knowledge";
+import { useWorkspace } from "../workspace/workspace-provider";
 
 export function Knowledge() {
+  const { workspaceId, isReady: isWorkspaceReady } = useWorkspace();
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
@@ -16,27 +26,48 @@ export function Knowledge() {
   const [error, setError] = useState<string | null>(null);
 
   async function loadDocuments() {
-    const response = await listKnowledgeDocuments();
+    if (!workspaceId) return;
+    const response = await listKnowledgeDocuments(workspaceId);
     setDocuments(response.items);
     setTotal(response.total);
   }
 
   useEffect(() => {
+    if (!isWorkspaceReady) return;
+    if (!workspaceId) {
+      void Promise.resolve().then(() => setIsLoading(false));
+      return;
+    }
+
     void Promise.resolve()
-      .then(loadDocuments)
-      .catch((caughtError) => setError(caughtError instanceof ApiError ? caughtError.message : "Unable to load indexed documents."))
+      .then(() => listKnowledgeDocuments(workspaceId))
+      .then((response) => {
+        setDocuments(response.items);
+        setTotal(response.total);
+      })
+      .catch((caughtError) =>
+        setError(
+          caughtError instanceof ApiError
+            ? caughtError.message
+            : "Unable to load indexed documents.",
+        ),
+      )
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [isWorkspaceReady, workspaceId]);
 
   async function handleScan() {
-    if (isScanning) return;
+    if (!workspaceId || isScanning) return;
     setError(null);
     setIsScanning(true);
     try {
-      await scanKnowledge();
+      await scanKnowledge(workspaceId);
       await loadDocuments();
     } catch (caughtError) {
-      setError(caughtError instanceof ApiError ? caughtError.message : "Unable to scan documents.");
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to scan documents.",
+      );
     } finally {
       setIsScanning(false);
     }
@@ -44,16 +75,41 @@ export function Knowledge() {
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!query.trim() || isSearching) return;
+    if (!workspaceId || !query.trim() || isSearching) return;
     setError(null);
     setIsSearching(true);
     try {
-      setResults((await searchKnowledge(query.trim())).items);
+      setResults(
+        (await searchKnowledge(workspaceId, query.trim())).items,
+      );
     } catch (caughtError) {
-      setError(caughtError instanceof ApiError ? caughtError.message : "Unable to search documents.");
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to search documents.",
+      );
     } finally {
       setIsSearching(false);
     }
+  }
+
+  if (!isWorkspaceReady) {
+    return (
+      <section className="mx-auto w-full max-w-3xl p-6 text-zinc-400">
+        Loading workspace…
+      </section>
+    );
+  }
+
+  if (!workspaceId) {
+    return (
+      <section className="mx-auto w-full max-w-3xl p-6">
+        <h1 className="text-3xl font-semibold">Knowledge</h1>
+        <p className="mt-3 text-zinc-400">
+          Select Personal or Company workspace above before opening Knowledge.
+        </p>
+      </section>
+    );
   }
 
   return (
