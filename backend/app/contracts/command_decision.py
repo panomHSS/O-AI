@@ -15,6 +15,7 @@ ProviderPreferenceHint: TypeAlias = Literal[
     "unspecified",
     "automatic",
     "local_ai_explicit",
+    "cloud_ai_explicit",
 ]
 
 

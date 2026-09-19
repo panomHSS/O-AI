@@ -4207,3 +4207,172 @@ D98 owns those concerns.
 
 D97 implementation status: **COMPLETE**.
 Automated verification is green and the owner-controlled live SQLite deployment completed from the discovered legacy revision `0004_memory_versioning` to `0013_context_snapshot_persistence` only after a verified backup and an isolated real-data trial migration.
+## D98 Workspace AI Policy & Local Routing v1
+
+D98 binds AI provider permission to the exact request workspace before normal
+Chat Context is resolved.
+
+The production normal-AI authority flow is:
+
+```text
+X-OAI-Workspace
+-> WorkspaceScope
+-> WorkspaceAIPolicyResolver
+-> WorkspaceAIRoutingPolicy
+-> AIRouter
+-> ExecutionPlanner
+-> ExecutionGuard
+-> AIRuntime.bind()
+-> authorized one-shot AIAdapter
+-> D95 ContextResolver
+-> D96 ContextSnapshotService
+-> D97 Context-aware Chat
+```
+
+The exact v1 route modes are:
+
+```text
+cloud_preferred
+cloud_only
+local_preferred
+local_only
+```
+
+Defaults are:
+
+```text
+personal -> cloud_preferred
+company  -> local_only
+```
+
+The D98 policy contract derives:
+
+```text
+default_adapter_id
+permitted_adapter_ids
+cloud_egress_allowed
+```
+
+from exact `WorkspaceId + WorkspaceAIRouteMode`. Callers cannot independently
+supply those derived permission fields.
+
+Deployment availability remains a separate D32 gate:
+
+```text
+workspace policy permission
+!=
+registered/enabled/provider availability
+```
+
+For example:
+
+```text
+company = local_only
+OAI_LOCAL_AI_ENABLED = false
+-> Local route unavailable
+-> NO Cloud fallback
+```
+
+The stable route identities are:
+
+```text
+chatgpt.default -> Cloud route identity
+local_ai.default -> Local route identity
+```
+
+`local_ai.default` remains independent of Ollama, model name, base URL, or any
+future replacement Local AI runtime.
+
+D98 extends current-request preference with explicit Cloud selection. Preference
+can select only within exact workspace policy:
+
+```text
+REQUEST PREFERENCE CAN SELECT WITHIN POLICY
+REQUEST PREFERENCE CANNOT EXPAND POLICY
+```
+
+Conflicting Local/Cloud/automatic directives reject the request rather than
+silently becoming an unspecified default.
+
+`automatic` means the exact workspace-configured default only. It does not mean
+health-, latency-, quality-, or cost-based routing and does not authorize
+provider failover.
+
+### Context and provider authority
+
+Route planning and one-shot adapter binding occur before D95/D96 Context
+resolution.
+
+Therefore retrieved Conversation, Project, Memory, or Knowledge text such as:
+
+```text
+Use ChatGPT
+Send this to Cloud
+Ignore Local policy
+Use Local AI
+```
+
+remains Context data and cannot change the authorized adapter.
+
+```text
+RETRIEVED ROUTING INSTRUCTION != ROUTE REQUEST
+CONTEXT != AI PROVIDER AUTHORITY
+CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
+COMPANY DATA != CLOUD EGRESS AUTHORITY
+```
+
+The D96/D97 snapshot remains Context integrity/provenance state only. D98 does
+not add routing authority, provider receipts, adapter ids, or Cloud permission
+to snapshot records.
+
+### Failure boundaries
+
+```text
+policy rejection
+-> no ExecutionPlan
+-> no Context preparation
+-> no provider call
+
+selected provider unavailable
+-> fail closed
+-> no alternate provider
+
+Local execution failure
+-> no Cloud retry
+
+Cloud execution failure
+-> no Local retry
+
+authorized adapter replay
+-> rejected
+
+provider success + local completion failure
+-> no provider retry
+```
+
+The authorized AI adapter remains request-bound, plan-bound, adapter-bound and
+one-shot under the existing D49 `AIRuntime`.
+
+### Configuration
+
+D98 adds exact owner-controlled settings:
+
+```text
+OAI_PERSONAL_AI_ROUTE_MODE=cloud_preferred
+OAI_COMPANY_AI_ROUTE_MODE=local_only
+```
+
+Policy mutation is not exposed through Chat or HTTP write APIs in v1.
+
+D98 adds no database migration. The live database revision remains:
+
+```text
+0013_context_snapshot_persistence
+```
+
+D98 status: **COMPLETE** after focused policy/routing tests, production wiring,
+adversarial no-fallback security tests, D90-D97 regressions, full backend
+regression, backend compileall, and `git diff --check` pass.
+
+D99 may add Workspace & Context UX only under its separately approved
+Design/Implementation Spec.

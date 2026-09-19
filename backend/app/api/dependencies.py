@@ -5,6 +5,10 @@ from fastapi import Depends
 
 from app.api.workspace_scope import get_workspace_scope
 from app.contracts.workspace import WorkspaceScope
+from app.contracts.workspace_ai_policy import (
+    WorkspaceAIRoutingPolicy,
+    parse_workspace_ai_route_mode,
+)
 from app.contracts.execution_audit import AuditSink
 from app.contracts.capability_permission import ExecutableCapabilityPermission
 from app.contracts.google_calendar_create_execution import (
@@ -158,6 +162,7 @@ from app.services.google_oauth_subjects import (
 )
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
+from app.services.workspace_ai_policy import WorkspaceAIPolicyResolver
 from app.services.ai_router import AIRouter
 from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
 from app.telemetry.system_metrics import SystemMetricsProvider
@@ -484,6 +489,27 @@ def get_conversation_service(
 def get_command_decision_engine() -> CommandDecisionEngine:
     """Compose the pure D23 command decision engine."""
     return CommandDecisionEngine()
+
+
+def get_workspace_ai_policy_resolver() -> WorkspaceAIPolicyResolver:
+    settings = get_settings()
+    return WorkspaceAIPolicyResolver(
+        personal_mode=parse_workspace_ai_route_mode(
+            settings.oai_personal_ai_route_mode
+        ),
+        company_mode=parse_workspace_ai_route_mode(
+            settings.oai_company_ai_route_mode
+        ),
+    )
+
+
+def get_workspace_ai_policy(
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    resolver: WorkspaceAIPolicyResolver = Depends(
+        get_workspace_ai_policy_resolver
+    ),
+) -> WorkspaceAIRoutingPolicy:
+    return resolver.resolve(workspace_scope)
 
 
 def get_ai_provider_routing_policy() -> AIProviderRoutingPolicy:
@@ -1079,11 +1105,15 @@ def get_adapter_registry(
 def get_ai_router(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
     policy: AIProviderRoutingPolicy = Depends(get_ai_provider_routing_policy),
+    workspace_policy: WorkspaceAIRoutingPolicy = Depends(
+        get_workspace_ai_policy
+    ),
 ) -> AIRouter:
-    """Compose D32 routing from the shared registry and immutable policy."""
+    """Compose D98 exact-workspace routing over D32 availability."""
     return AIRouter(
         registry=adapter_registry,
         policy=policy,
+        workspace_policy=workspace_policy,
     )
 
 

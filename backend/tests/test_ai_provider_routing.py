@@ -13,6 +13,11 @@ from app.contracts.ai_route import (
     LOCAL_AI_ADAPTER_ID,
 )
 from app.contracts.command_decision import CommandDecision
+from app.contracts.workspace import WorkspaceId
+from app.contracts.workspace_ai_policy import (
+    WorkspaceAIRouteMode,
+    WorkspaceAIRoutingPolicy,
+)
 from app.contracts.tool_module import TOOL_MODULE_ADAPTER_CONTRACT_VERSION
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
@@ -219,6 +224,10 @@ class AIProviderRoutingTests(unittest.TestCase):
         router = get_ai_router(
             adapter_registry=registry,
             policy=policy,
+            workspace_policy=WorkspaceAIRoutingPolicy(
+                workspace_id=WorkspaceId.PERSONAL,
+                mode=WorkspaceAIRouteMode.CLOUD_PREFERRED,
+            ),
         )
         route = router.route(decision())
 

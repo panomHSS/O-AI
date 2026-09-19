@@ -99,7 +99,11 @@ class ExecutionPlanner:
             safe_reason = (
                 route.reason_code
                 if route.reason_code
-                in {"local_ai_unavailable", "default_adapter_unavailable"}
+                in {
+                    "local_ai_unavailable",
+                    "cloud_ai_unavailable",
+                    "default_adapter_unavailable",
+                }
                 else "ai_route_unavailable"
             )
             return self._unavailable(safe_reason, request.request_id)

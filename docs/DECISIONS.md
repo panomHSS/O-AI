@@ -4430,3 +4430,162 @@ PROVIDER SUCCESS + LOCAL PERSISTENCE FAILURE != RETRY AUTHORITY
 
 D98 owns Workspace AI Policy & Local Routing v1 under a separately approved
 Design/Implementation Spec.
+## ADR-092: Workspace AI Policy & Local Routing v1
+
+**Status:** Accepted
+
+**Decision**
+
+Introduce one immutable exact-workspace AI routing policy above the existing
+D32/D35/D36/D49 provider availability, planning, authorization, and execution
+boundaries.
+
+The production normal-AI flow is:
+
+```text
+X-OAI-Workspace
+-> exact WorkspaceScope
+-> WorkspaceAIPolicyResolver
+-> WorkspaceAIRoutingPolicy
+-> AIRouter
+-> ExecutionPlanner
+-> ExecutionGuard
+-> AIRuntime.bind()
+-> authorized one-shot AIAdapter
+-> D95/D96 Context
+-> D97 Context-aware Chat
+```
+
+D98 defines four exact route modes:
+
+```text
+cloud_preferred
+cloud_only
+local_preferred
+local_only
+```
+
+"Preferred" means deterministic default plus an explicitly permitted alternate.
+It never means automatic failover.
+
+The default policy is:
+
+```text
+personal -> cloud_preferred
+company  -> local_only
+```
+
+Workspace policy permission and provider/runtime availability remain independent
+gates. `OAI_LOCAL_AI_ENABLED` controls Local AI deployment availability; it does
+not grant workspace permission.
+
+Current-user provider preference may select only within the routes already
+permitted by the exact workspace policy. D98 adds explicit Cloud preference and
+fails closed on conflicting Local/Cloud/automatic directives.
+
+Retrieved Context never participates in provider selection. Route planning,
+authorization, and one-shot adapter binding occur before D95/D96 Context
+resolution. A selected provider failure does not authorize another provider.
+
+**Failure semantics**
+
+```text
+workspace policy rejects route
+-> no AI plan
+-> no authorization
+-> no Context resolution
+-> no current-user Message
+-> no provider call
+
+selected provider unavailable before execution
+-> unavailable
+-> no alternate-provider fallback
+
+selected provider fails after authorization
+-> no alternate-provider retry
+
+provider success + local persistence failure
+-> no provider retry
+```
+
+**Rationale**
+
+D97 intentionally left provider routing upstream. D98 makes the missing
+workspace policy explicit without creating a second execution authority.
+
+Binding exact workspace policy before Context prevents Company data, retrieved
+instructions, snapshots, provider health, or runtime/model metadata from
+silently becoming Cloud-egress authority.
+
+Keeping the stable `local_ai.default` adapter identity separate from the Local
+AI runtime backend preserves replacement of Ollama or future Local AI modules
+without changing workspace policy identity.
+
+**Consequences**
+
+D98 adds:
+
+```text
+WorkspaceAIRouteMode
+WorkspaceAIRoutingPolicy
+WorkspaceAIPolicyResolver
+OAI_PERSONAL_AI_ROUTE_MODE
+OAI_COMPANY_AI_ROUTE_MODE
+cloud_ai_explicit
+exact-workspace AIRouter binding
+conflicting-provider-directive rejection
+D98 adversarial routing security tests
+```
+
+D98 adds no:
+
+```text
+database table
+Alembic migration
+runtime policy mutation API
+frontend provider selector
+automatic health failover
+automatic Local -> Cloud fallback
+automatic Cloud -> Local fallback
+Context-driven provider routing
+LLM-selected provider routing
+provider-specific tokenizer
+silent Context truncation
+```
+
+Frozen invariants include:
+
+```text
+WORKSPACE SELECTION != AI PROVIDER AUTHORITY
+REQUEST WORKSPACE != AI PROVIDER AUTHORITY
+REQUEST PREFERENCE != AI PROVIDER AUTHORITY
+REQUEST PREFERENCE != CLOUD EGRESS AUTHORITY
+
+WORKSPACE POLICY != EXECUTION AUTHORIZATION
+ROUTE SELECTION != EXECUTION AUTHORIZATION
+
+CONTEXT != AI PROVIDER AUTHORITY
+CONTEXT PRESENCE != CLOUD EGRESS AUTHORITY
+RETRIEVED DATA != ROUTING AUTHORITY
+COMPANY DATA != CLOUD EGRESS AUTHORITY
+
+POLICY PERMISSION != PROVIDER AVAILABILITY
+PROVIDER AVAILABILITY != POLICY PERMISSION
+
+AI ROUTE AUTHORIZATION PRECEDES CONTEXT RESOLUTION
+AUTHORIZED ADAPTER ID IS FROZEN FOR ONE TURN
+
+LOCAL AI FAILURE != CLOUD FALLBACK AUTHORITY
+CLOUD AI FAILURE != LOCAL FALLBACK AUTHORITY
+PROVIDER FAILURE != RE-ROUTE AUTHORITY
+PROVIDER INPUT TOO LARGE != FALLBACK AUTHORITY
+
+LOCAL AI BACKEND != WORKSPACE ROUTE IDENTITY
+MODEL ID != ROUTING AUTHORITY
+
+SNAPSHOT != ROUTING AUTHORITY
+PROVENANCE != PROVIDER AUTHORITY
+```
+
+D99 owns Workspace & Context UX v1 under a separately approved
+Design/Implementation Spec.

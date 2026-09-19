@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -49,6 +50,12 @@ class Settings(BaseSettings):
         le=1.0,
     )
     oai_knowledge_answer_context_char_budget: int = Field(default=8000, ge=500, le=20000)
+    oai_personal_ai_route_mode: Literal[
+        "cloud_preferred", "cloud_only", "local_preferred", "local_only"
+    ] = "cloud_preferred"
+    oai_company_ai_route_mode: Literal[
+        "cloud_preferred", "cloud_only", "local_preferred", "local_only"
+    ] = "local_only"
     oai_local_ai_enabled: bool = False
     oai_local_ai_backend: str = "ollama"
     oai_local_ai_base_url: str = "http://127.0.0.1:11434"
