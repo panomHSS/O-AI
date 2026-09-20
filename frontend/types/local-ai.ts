@@ -32,3 +32,43 @@ export interface LocalAIRuntimeVisibility {
   installed_models: string[];
   reason_code: LocalAIVisibilityReasonCode;
 }
+
+export type LocalAIControlOperation =
+  | "load_configured_model"
+  | "unload_configured_model";
+
+export type LocalAIControlDecision = "approved" | "denied";
+
+export type LocalAIControlTerminalStatus =
+  | "not_executed"
+  | "succeeded"
+  | "failed"
+  | "indeterminate";
+
+export interface LocalAIControlPreview {
+  contract_version: "1";
+  operation: LocalAIControlOperation;
+  backend_id: string;
+  configured_model_id: string;
+  expected_loaded_state: boolean;
+  desired_loaded_state: boolean;
+}
+
+export interface LocalAIControlProposal {
+  status: "pending";
+  reason_code: string;
+  proposal_id: string;
+  control_digest: string;
+  preview: LocalAIControlPreview;
+  expires_at: string;
+}
+
+export interface LocalAIControlDecisionResult {
+  decision: LocalAIControlDecision;
+  status: LocalAIControlTerminalStatus;
+  reason_code: string;
+  proposal_id: string;
+  control_digest: string;
+  preview: LocalAIControlPreview;
+  expires_at: string;
+}

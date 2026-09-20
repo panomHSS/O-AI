@@ -9,9 +9,9 @@ export default function LocalAISettingsPage() {
         </p>
         <h1 className="mt-2 text-3xl font-semibold">Local AI</h1>
         <p className="mt-2 max-w-2xl text-zinc-400">
-          Read-only deployment visibility for the configured Local AI runtime
-          and models. Runtime visibility does not grant execution authority or
-          change Workspace AI routing policy.
+          Deployment visibility and explicit owner control for the configured Local AI
+          model. These controls do not change Personal/Company AI routing policy or
+          provide arbitrary model, backend, or runtime process administration.
         </p>
       </header>
 

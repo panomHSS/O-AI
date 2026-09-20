@@ -27,7 +27,13 @@ import type {
 } from "../types/projects";
 import type { ApiResponse } from "../types/api";
 import type { GoogleCalendarIntegrationStatus } from "../types/integrations";
-import type { LocalAIRuntimeVisibility } from "../types/local-ai";
+import type {
+  LocalAIControlDecision,
+  LocalAIControlDecisionResult,
+  LocalAIControlOperation,
+  LocalAIControlProposal,
+  LocalAIRuntimeVisibility,
+} from "../types/local-ai";
 import type {
   AutomationCancel,
   AutomationDecision,
@@ -388,6 +394,32 @@ export function getLocalAIRuntimeVisibility(): Promise<LocalAIRuntimeVisibility>
   return apiRequest<LocalAIRuntimeVisibility>("/local-ai/runtime", {
     method: "GET",
   });
+}
+
+export function createLocalAIControlProposal(
+  operation: LocalAIControlOperation,
+): Promise<LocalAIControlProposal> {
+  return apiRequest<LocalAIControlProposal>("/local-ai/control/proposals", {
+    method: "POST",
+    headers: { "X-OAI-Local-Request": "1" },
+    body: { operation },
+  });
+}
+
+export function decideLocalAIControlProposal(
+  proposalId: string,
+  decision: LocalAIControlDecision,
+  controlDigest: string,
+): Promise<LocalAIControlDecisionResult> {
+  return apiRequest<LocalAIControlDecisionResult>(
+    `/local-ai/control/proposals/${encodeURIComponent(proposalId)}/decision`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: { decision, control_digest: controlDigest },
+      timeoutMs: 75_000,
+    },
+  );
 }
 
 export function getGoogleCalendarOAuthStartUrl(): string {
