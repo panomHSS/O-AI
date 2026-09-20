@@ -27,6 +27,7 @@ import type {
 } from "../types/projects";
 import type { ApiResponse } from "../types/api";
 import type { GoogleCalendarIntegrationStatus } from "../types/integrations";
+import type { LocalAIRuntimeVisibility } from "../types/local-ai";
 import type {
   AutomationCancel,
   AutomationDecision,
@@ -381,6 +382,12 @@ export function denyCalendarWriteChat(
       body: { write_digest: writeDigest },
     },
   );
+}
+
+export function getLocalAIRuntimeVisibility(): Promise<LocalAIRuntimeVisibility> {
+  return apiRequest<LocalAIRuntimeVisibility>("/local-ai/runtime", {
+    method: "GET",
+  });
 }
 
 export function getGoogleCalendarOAuthStartUrl(): string {

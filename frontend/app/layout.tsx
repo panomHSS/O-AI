@@ -24,6 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Link className="hover:text-white" href="/projects">Projects</Link>
             <Link className="hover:text-white" href="/automations">Automations</Link>
             <Link className="hover:text-white" href="/settings/integrations">Integrations</Link>
+            <Link className="hover:text-white" href="/settings/local-ai">Local AI</Link>
             <WorkspaceSwitcher />
           </nav>
           <WorkspaceResetBoundary>{children}</WorkspaceResetBoundary>
