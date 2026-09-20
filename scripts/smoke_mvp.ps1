@@ -4,6 +4,10 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repositoryRoot
 $apiBase = "http://127.0.0.1:8000/api/v1"
 $requestId = "mvp-smoke-$([guid]::NewGuid().ToString('N'))"
+$workspaceHeaders = @{
+    "X-Request-ID" = $requestId
+    "X-OAI-Workspace" = "personal"
+}
 
 function Invoke-OaiRequest([string]$Method, [string]$Uri, [object]$Body = $null, [hashtable]$Headers = @{}) {
     $parameters = @{ Method = $Method; Uri = $Uri; Headers = $Headers; UseBasicParsing = $true }
@@ -36,7 +40,7 @@ foreach ($frontendUrl in @("http://localhost:3000/chat", "http://127.0.0.1:3000/
 }
 Write-Host "Frontend localhost and 127.0.0.1 reachability: OK"
 
-$negative = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "" } @{ "X-Request-ID" = $requestId }
+$negative = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "" } $workspaceHeaders
 if ($negative.StatusCode -ne 422 -or $negative.Content -match "Traceback|Exception") { throw "Safe negative chat check failed." }
 Write-Host "Safe chat error envelope: OK"
 
@@ -51,19 +55,19 @@ if ($localEnabled) {
     if ($tags.StatusCode -ne 200 -or -not (($tags.Content | ConvertFrom-Json).models.name -contains $model)) {
         throw "Local AI is enabled but Ollama or configured model '$model' is unavailable."
     }
-    $chat = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "Use local AI for this command." } @{ "X-Request-ID" = $requestId }
+    $chat = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "Use local AI for this command." } $workspaceHeaders
     if ($chat.StatusCode -ne 200) { throw "Explicit Local AI chat failed with HTTP $($chat.StatusCode): $($chat.Content)" }
     $chatBody = $chat.Content | ConvertFrom-Json
     if (-not $chatBody.success -or -not $chatBody.data.conversation_id) { throw "Local AI chat did not return a successful conversation." }
-    $conversation = Invoke-OaiRequest "GET" "$apiBase/conversations/$($chatBody.data.conversation_id)"
+    $conversation = Invoke-OaiRequest "GET" "$apiBase/conversations/$($chatBody.data.conversation_id)" $null $workspaceHeaders
     if ($conversation.StatusCode -ne 200) { throw "Conversation persistence check failed." }
     Write-Host "Local AI O-AI E2E and conversation persistence: OK"
 } elseif ($openAiConfigured) {
-    $chat = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "MVP smoke test." } @{ "X-Request-ID" = $requestId }
+    $chat = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "MVP smoke test." } $workspaceHeaders
     if ($chat.StatusCode -ne 200) { throw "Configured ChatGPT smoke failed with HTTP $($chat.StatusCode)." }
     $chatBody = $chat.Content | ConvertFrom-Json
     if (-not $chatBody.data.conversation_id) { throw "ChatGPT smoke did not return a conversation ID." }
-    $conversation = Invoke-OaiRequest "GET" "$apiBase/conversations/$($chatBody.data.conversation_id)"
+    $conversation = Invoke-OaiRequest "GET" "$apiBase/conversations/$($chatBody.data.conversation_id)" $null $workspaceHeaders
     if ($conversation.StatusCode -ne 200) { throw "Conversation persistence check failed." }
     Write-Host "ChatGPT O-AI E2E and conversation persistence: OK"
 } else {
