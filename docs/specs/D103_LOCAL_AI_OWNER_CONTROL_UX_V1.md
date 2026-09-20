@@ -1,6 +1,6 @@
 # D103 Local AI Owner Control UX v1
 
-Status: **SPEC APPROVED - IMPLEMENTATION NOT STARTED.**
+Status: **COMPLETE.**
 
 Baseline:
 
@@ -1124,6 +1124,81 @@ manual owner acceptance A-M = PASS
 documentation reconciliation = COMPLETE
 final checkpoint pushed and remote verified = PASS
 ```
+
+## Completion evidence
+
+D103 implementation and owner acceptance completed on **2026-09-21**.
+
+Implementation checkpoints:
+
+```text
+Design/Implementation Spec:
+77c097fcd3176da08b509b5898db15238d978dd3
+
+Batch 01 - Control and Proposal Contracts:
+e752254e15ae1d9ecd9ff328a348555ae0fcd790
+
+Batch 02 - Provider-Neutral Control Service + Ollama Control:
+97e0761062d26f262138713eca1ba1f037b3e487
+
+Batch 03 - Proposal / Approval / One-Time Execution API:
+21bcf6b8aa3b07d8d845c5f52e0792460ff1d935
+
+Batch 04 - Owner Control UX:
+ac3686ec718439a6074bbbd589fae08624de32c3
+```
+
+Final acceptance evidence:
+
+```text
+D103 focused control/security/integration:
+62 passed, 1 warning, 79 subtests passed
+
+D33/D34/D49/D98 architecture regression bundle:
+81 passed, 31 subtests passed
+
+Normal Chat regression:
+19 passed
+
+Full backend regression:
+2410 passed, 4 skipped, 13 warnings, 1023 subtests passed
+
+Backend compileall:
+PASS
+
+Frontend TypeScript:
+PASS
+
+Frontend lint:
+PASS
+
+Frontend production build:
+PASS
+
+MVP smoke:
+PASS
+
+git diff --check:
+PASS
+
+Manual owner acceptance A-M:
+PASS
+```
+
+Manual acceptance verified both configured-model operations through the
+structured preview and explicit Approve/Deny ceremony, deny with zero mutation,
+single-use replay rejection, state-drift fail-closed behavior, browser payload
+authority limits, D98 Company `local_only` no-Cloud-fallback behavior, and the
+absence of model-selection, model-install/delete, runtime-process, backend,
+base-URL, Workspace-routing, retry, or fallback controls.
+
+The live database revision remained
+`0013_context_snapshot_persistence`; D103 added no migration. Ollama remained an
+external runtime rather than becoming an O-AI-managed process. The Local AI
+runtime was restored after acceptance.
+
+D103 repository finalization is this documentation reconciliation checkpoint;
+the checkpoint is pushed and remote-verified immediately after commit.
 
 ## Approval
 

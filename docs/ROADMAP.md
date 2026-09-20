@@ -948,7 +948,7 @@ Roadmap status: **APPROVED**
 
 - D101 — Calendar Exact Update/Delete Owner UX v1 — COMPLETE
 - D102 — Local AI Runtime & Model Visibility v1 — COMPLETE
-- D103 — Local AI Owner Control UX v1
+- D103 — Local AI Owner Control UX v1 — COMPLETE
 - D104 — Task-Aware AI Routing Contract v1
 - D105 — Task-Aware AI Routing Integration v1
 - D106 — Engineering Assistant Read-Only Foundation v1
@@ -964,4 +964,13 @@ D101 is COMPLETE.
 
 D102 Local AI Runtime & Model Visibility v1 is COMPLETE. Owner acceptance A-K, full backend regression, frontend validation, and MVP smoke acceptance passed.
 
-Next boundary: D103 — Local AI Owner Control UX v1. Implementation has not started and requires its own approved Design/Implementation Spec before runtime or model mutation authority is added.
+D103 Local AI Owner Control UX v1 is COMPLETE. Owner acceptance A-M, full
+backend regression, frontend validation, MVP smoke, replay protection,
+state-drift fail-closed behavior, and D98 Company `local_only` no-fallback
+acceptance passed. D103 added no database migration and did not add arbitrary
+model selection, model install/delete, runtime process control, routing-policy
+editing, retry, or fallback authority.
+
+Next boundary: D104 — Task-Aware AI Routing Contract v1. Implementation has not
+started and requires its own approved Design/Implementation Spec before
+task-aware routing authority is added.
