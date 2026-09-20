@@ -58,3 +58,16 @@ class LocalAIModelDiscoveryProvider(Protocol):
     def list_models(self) -> tuple[str, ...]:
         """Return deterministic installed model identifiers without mutation."""
         ...
+
+
+@runtime_checkable
+class LocalAIModelControlProvider(Protocol):
+    """Optional mutation boundary for exact configured-model load/unload only."""
+
+    def load_model(self, model_id: str) -> None:
+        """Load exactly one model without assistant generation."""
+        ...
+
+    def unload_model(self, model_id: str) -> None:
+        """Unload exactly one model without assistant generation."""
+        ...

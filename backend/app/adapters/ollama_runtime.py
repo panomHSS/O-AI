@@ -9,13 +9,14 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from app.contracts.local_ai_runtime import (
+    LocalAIModelControlProvider,
     LocalAIRuntimeResponseError,
     LocalAIRuntimeTimeoutError,
     LocalAIRuntimeUnavailableError,
 )
 
 
-class OllamaRuntimeClient:
+class OllamaRuntimeClient(LocalAIModelControlProvider):
     """Small HTTP client for a configured Ollama deployment."""
 
     def __init__(self, *, base_url: str) -> None:
@@ -75,6 +76,68 @@ class OllamaRuntimeClient:
             isinstance(item, dict) and item.get("name") == model
             for item in models
         )
+
+    def load_model(self, model_id: str) -> None:
+        """Preload exactly one model and keep it resident; never generate text."""
+        self._validate_control_model_id(model_id)
+        payload = self._request_json(
+            "/api/generate",
+            timeout_seconds=60.0,
+            body={
+                "model": model_id,
+                "prompt": "",
+                "stream": False,
+                "keep_alive": -1,
+            },
+        )
+        self._validate_control_response(
+            payload,
+            expected_done_reason="load",
+        )
+
+    def unload_model(self, model_id: str) -> None:
+        """Unload exactly one model immediately; never generate text."""
+        self._validate_control_model_id(model_id)
+        payload = self._request_json(
+            "/api/generate",
+            timeout_seconds=60.0,
+            body={
+                "model": model_id,
+                "prompt": "",
+                "stream": False,
+                "keep_alive": 0,
+            },
+        )
+        self._validate_control_response(
+            payload,
+            expected_done_reason="unload",
+        )
+
+    @staticmethod
+    def _validate_control_model_id(model_id: object) -> str:
+        if (
+            not isinstance(model_id, str)
+            or not model_id
+            or model_id != model_id.strip()
+        ):
+            raise ValueError("model_id must be a non-empty trimmed string.")
+        return model_id
+
+    @staticmethod
+    def _validate_control_response(
+        payload: dict[str, Any],
+        *,
+        expected_done_reason: str,
+    ) -> None:
+        if payload.get("done") is not True or payload.get("response") != "":
+            raise LocalAIRuntimeResponseError(
+                "Local AI runtime returned an invalid model control response."
+            )
+        done_reason = payload.get("done_reason")
+        if done_reason is not None and done_reason != expected_done_reason:
+            raise LocalAIRuntimeResponseError(
+                "Local AI runtime returned an invalid model control response."
+            )
 
     def generate(
         self,
