@@ -23,7 +23,7 @@ GOOGLE_CALENDAR_TIMEOUT_SECONDS = 5.0
 GOOGLE_CALENDAR_MAX_RESPONSE_BYTES = 64 * 1024
 GOOGLE_CALENDAR_MAX_RESULTS = 10
 GOOGLE_CALENDAR_WINDOW_DAYS = 7  # D63 compatibility constant; not used for D67 execution.
-GOOGLE_CALENDAR_FIELDS = "nextPageToken,items(summary,status,start,end)"
+GOOGLE_CALENDAR_FIELDS = "nextPageToken,items(id,summary,status,start,end)"
 
 GOOGLE_CALENDAR_ERROR_INVALID_CREDENTIAL = "calendar_invalid_credential"
 GOOGLE_CALENDAR_ERROR_INVALID_CLOCK = "calendar_invalid_clock"
@@ -52,6 +52,7 @@ class GoogleCalendarConnectorError(ValueError):
 class GoogleCalendarEvent:
     """Bounded normalized event data returned by the connector."""
 
+    event_id: str
     summary: str
     status: str
     start: str
@@ -62,6 +63,7 @@ class GoogleCalendarEvent:
         return {
             "all_day": self.all_day,
             "end": self.end,
+            "event_id": self.event_id,
             "start": self.start,
             "status": self.status,
             "summary": self.summary,
@@ -266,6 +268,7 @@ class GoogleCalendarClient:
     def _normalize_event(cls, payload: object) -> GoogleCalendarEvent:
         if not isinstance(payload, dict):
             raise GoogleCalendarConnectorError(GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE)
+        event_id = cls._bounded_string(payload.get("id"), max_bytes=1024)
         summary = cls._bounded_string(payload.get("summary"), max_bytes=1024)
         status = payload.get("status")
         if status not in _ALLOWED_EVENT_STATUSES:
@@ -277,6 +280,7 @@ class GoogleCalendarClient:
             raise GoogleCalendarConnectorError(GOOGLE_CALENDAR_ERROR_INVALID_RESPONSE)
 
         return GoogleCalendarEvent(
+            event_id=event_id,
             summary=summary,
             status=status,
             start=start,

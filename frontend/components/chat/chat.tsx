@@ -10,6 +10,7 @@ import {
 } from "../../lib/api-client";
 import { activeConversationStorageKey } from "../../lib/workspace";
 import type {
+  CalendarSelectionDisplayEvent,
   CalendarWriteChatDecision,
   CalendarWriteChatProposal,
   ChatAction,
@@ -21,6 +22,7 @@ import type { Project } from "../../types/projects";
 import { useWorkspace } from "../workspace/workspace-provider";
 import { ActionApprovalCard } from "./action-approval-card";
 import { CalendarWriteApprovalCard } from "./calendar-write-approval-card";
+import { CalendarDeleteSelectionCard } from "./calendar-delete-selection-card";
 import { ContextUsageIndicator } from "./context-usage";
 
 function createMessage(
@@ -30,6 +32,7 @@ function createMessage(
   calendarWrite?: CalendarWriteChatProposal | null,
   gmailRead?: GmailReadDisplay | null,
   contextUsage?: ChatMessage["contextUsage"],
+  calendarSelections?: CalendarSelectionDisplayEvent[] | null,
 ): ChatMessage {
   return {
     id: crypto.randomUUID(),
@@ -38,6 +41,7 @@ function createMessage(
     ...(action ? { action } : {}),
     ...(calendarWrite ? { calendarWrite } : {}),
     ...(gmailRead ? { gmailRead } : {}),
+    ...(calendarSelections?.length ? { calendarSelections } : {}),
     ...(contextUsage !== undefined ? { contextUsage } : {}),
   };
 }
@@ -260,6 +264,8 @@ export function Chat() {
         undefined,
         undefined,
         completion.gmail_read,
+        undefined,
+        completion.calendar_selections?.events ?? null,
       ),
     ]);
   }
@@ -341,6 +347,24 @@ export function Chat() {
             <p className="mb-1 text-xs font-medium uppercase tracking-wide opacity-60">{chatMessage.role}</p>
             {chatMessage.gmailRead ? null : <p>{chatMessage.content}</p>}
             {chatMessage.gmailRead ? <GmailReadResultCard result={chatMessage.gmailRead} /> : null}
+            {chatMessage.calendarSelections?.length && conversationId ? (
+              <div className="mt-2">
+                <p className="text-xs font-medium text-zinc-300">
+                  Exact Calendar events
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Choose an event below to prepare an exact Delete.
+                </p>
+                {chatMessage.calendarSelections.map((selection) => (
+                  <CalendarDeleteSelectionCard
+                    conversationId={conversationId}
+                    key={selection.selection_id}
+                    selection={selection}
+                    workspaceId={workspaceId}
+                  />
+                ))}
+              </div>
+            ) : null}
             {chatMessage.citations?.length ? (
               <ol className="mt-3 space-y-2 border-t border-zinc-600 pt-3 text-sm">
                 {chatMessage.citations.map((citation) => (

@@ -32,7 +32,7 @@ GOOGLE_CALENDAR_CHAT_TIME_MIN_PARAMETER = GOOGLE_CALENDAR_TIME_MIN_PARAMETER
 GOOGLE_CALENDAR_CHAT_TIME_MAX_PARAMETER = GOOGLE_CALENDAR_TIME_MAX_PARAMETER
 
 _ALLOWED_EVENT_STATUSES = frozenset({"confirmed", "tentative", "cancelled"})
-_EVENT_KEYS = frozenset({"all_day", "end", "start", "status", "summary"})
+_EVENT_KEYS = frozenset({"all_day", "end", "event_id", "start", "status", "summary"})
 _MAX_EVENTS = 10
 _MAX_SUMMARY_BYTES = 1024
 _MAX_DISPLAY_SUMMARY_CHARS = 240
@@ -629,6 +629,7 @@ class CalendarChatWindowResolver:
 
 @dataclass(frozen=True, slots=True)
 class _DisplayEvent:
+    event_id: str
     summary: str
     status: str
     all_day: bool
@@ -725,6 +726,40 @@ class CalendarChatCompletionComposer:
                 f"{self._status_suffix(event.status)}"
             )
         return self._with_truncation_note("\n".join(lines), truncated)
+
+    def display_events_for_approved(
+        self,
+        binding: ChatPluginActionBinding,
+        outcome: object,
+    ) -> tuple[_DisplayEvent, ...] | None:
+        """Return validated owner-visible Calendar events with server-only identity."""
+        if binding.calendar_window is None:
+            return None
+        execution = getattr(outcome, "execution", None)
+        result = getattr(execution, "result", None)
+        if (
+            getattr(execution, "status", None) != "completed"
+            or result is None
+            or getattr(result, "status", None) != "succeeded"
+        ):
+            return None
+
+        validated = self._validated_payload(
+            getattr(result, "output", None),
+            binding,
+        )
+        if validated is None:
+            return None
+        events, _ = validated
+        filtered = tuple(
+            event
+            for event in events
+            if event.start < binding.calendar_window_end
+            and event.end > binding.calendar_window_start
+        )
+        return tuple(
+            sorted(filtered, key=lambda item: (item.start, item.end))
+        )
 
     def context_events_for_approved(
         self,
@@ -824,13 +859,17 @@ class CalendarChatCompletionComposer:
         if not isinstance(raw, dict) or set(raw) != _EVENT_KEYS:
             return None
 
+        event_id = raw.get("event_id")
         summary = raw.get("summary")
         status = raw.get("status")
         all_day = raw.get("all_day")
         start_raw = raw.get("start")
         end_raw = raw.get("end")
         if (
-            not isinstance(summary, str)
+            not isinstance(event_id, str)
+            or not event_id
+            or len(event_id.encode("utf-8")) > 1024
+            or not isinstance(summary, str)
             or not summary
             or len(summary.encode("utf-8")) > _MAX_SUMMARY_BYTES
             or status not in _ALLOWED_EVENT_STATUSES
@@ -868,6 +907,7 @@ class CalendarChatCompletionComposer:
         if end <= start:
             return None
         return _DisplayEvent(
+            event_id=event_id,
             summary=summary,
             status=status,
             all_day=all_day,

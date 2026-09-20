@@ -248,6 +248,53 @@ class ChatPluginActionBinding:
             )
 
 
+D101_CALENDAR_SELECTION_DISPLAY_MAX_ITEMS = 128
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarSelectionDisplayEvent:
+    """Transient owner-display projection with opaque D101 read-selection identity."""
+
+    selection_id: str
+    summary: str
+    status: str
+    start: str
+    end: str
+    all_day: bool
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.selection_id, str)
+            or not self.selection_id
+            or self.selection_id != self.selection_id.strip()
+            or len(self.selection_id.encode("utf-8")) > 256
+        ):
+            raise ValueError("calendar_selection_id_invalid")
+        if (
+            not isinstance(self.summary, str)
+            or not self.summary
+            or len(self.summary.encode("utf-8")) > 1024
+        ):
+            raise ValueError("calendar_followup_summary_invalid")
+        if (
+            not isinstance(self.status, str)
+            or not self.status
+            or len(self.status.encode("utf-8")) > 64
+        ):
+            raise ValueError("calendar_followup_status_invalid")
+        if (
+            not isinstance(self.start, str)
+            or not self.start
+            or len(self.start.encode("utf-8")) > 128
+            or not isinstance(self.end, str)
+            or not self.end
+            or len(self.end.encode("utf-8")) > 128
+        ):
+            raise ValueError("calendar_followup_time_invalid")
+        if type(self.all_day) is not bool:
+            raise ValueError("calendar_followup_all_day_invalid")
+
+
 @dataclass(frozen=True, slots=True)
 class ChatPluginActionCompletion:
     """Safe final Chat message plus optional transient display-only data."""
@@ -255,6 +302,7 @@ class ChatPluginActionCompletion:
     conversation_id: UUID
     reply: str
     gmail_read: tuple[GmailReadDisplayMessage, ...] | None = None
+    calendar_selections: tuple[CalendarSelectionDisplayEvent, ...] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.conversation_id, UUID):
@@ -274,3 +322,15 @@ class ChatPluginActionCompletion:
             )
         ):
             raise ValueError("gmail_read must be one bounded display tuple.")
+        if self.calendar_selections is not None and (
+            not isinstance(self.calendar_selections, tuple)
+            or len(self.calendar_selections)
+            > D101_CALENDAR_SELECTION_DISPLAY_MAX_ITEMS
+            or any(
+                not isinstance(item, CalendarSelectionDisplayEvent)
+                for item in self.calendar_selections
+            )
+        ):
+            raise ValueError(
+                "calendar_selections must be one bounded display tuple."
+            )

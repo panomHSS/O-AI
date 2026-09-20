@@ -40,6 +40,7 @@ from app.services.credential_profile_catalog import CredentialProfileCatalog
 class FakeReader:
     def __init__(self, result=None, *, error=None) -> None:
         event = GoogleCalendarEvent(
+            event_id="event-planning-1",
             summary="Planning",
             status="confirmed",
             start="2026-09-16T09:00:00+07:00",

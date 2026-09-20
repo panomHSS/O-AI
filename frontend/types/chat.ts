@@ -81,6 +81,35 @@ export interface ExecutionResult {
   error_code: string | null;
 }
 
+export interface CalendarSelectionDisplayEvent {
+  selection_id: string;
+  summary: string;
+  status: string;
+  start: string;
+  end: string;
+  all_day: boolean;
+}
+
+export interface CalendarSelectionDisplay {
+  events: CalendarSelectionDisplayEvent[];
+}
+
+export interface CalendarDeletePrepareResponse {
+  selection_id: string;
+  approval_id: string;
+  write_digest: string;
+  operation: "delete_event";
+  status: "pending";
+  expires_at: string;
+}
+
+export interface CalendarDeleteDecisionResponse {
+  approval_id: string;
+  decision: "approved" | "denied";
+  status: "denied" | "succeeded" | "failed" | "indeterminate";
+  reason_code: string;
+}
+
 export interface GmailReadDisplayMessage {
   sender: string;
   subject: string;
@@ -98,6 +127,7 @@ export interface ExecutionChatCompletion {
   conversation_id: string;
   reply: string;
   gmail_read: GmailReadDisplay | null;
+  calendar_selections: CalendarSelectionDisplay | null;
 }
 
 export interface ExecutionApprovalDecision {
@@ -125,6 +155,7 @@ export interface ChatMessage {
   action?: ChatAction | null;
   calendarWrite?: CalendarWriteChatProposal | null;
   gmailRead?: GmailReadDisplay | null;
+  calendarSelections?: CalendarSelectionDisplayEvent[] | null;
   contextUsage?: ContextUsage | null;
 }
 

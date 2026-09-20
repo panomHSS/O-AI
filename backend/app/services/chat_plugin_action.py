@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from app.services.calendar_read_selection import (
+    CalendarReadSelectionError,
+    CalendarReadSelectionService,
+)
+
+from app.contracts.workspace import WorkspaceId
+
+from app.contracts.google_calendar_write import GoogleCalendarEventTarget
+
 import json
 import re
 import threading
@@ -21,6 +30,7 @@ from app.contracts.google_calendar import (
     GOOGLE_CALENDAR_PLUGIN_VERSION,
 )
 from app.contracts.chat_plugin_action import (
+    CalendarSelectionDisplayEvent,
     ChatPluginActionBinding,
     ChatPluginActionCompletion,
     ChatPluginIntentOutcome,
@@ -415,6 +425,8 @@ class ChatPluginActionCompletionService:
         calendar_composer: CalendarChatCompletionComposer | None = None,
         gmail_composer: GmailChatCompletionComposer | None = None,
         cross_connector_context_store: CrossConnectorContextStore | None = None,
+        calendar_read_selection_service: CalendarReadSelectionService | None = None,
+        workspace_id: WorkspaceId | None = None,
     ) -> None:
         self._conversation_service = conversation_service
         self._binding_store = binding_store
@@ -423,6 +435,8 @@ class ChatPluginActionCompletionService:
         )
         self._gmail_composer = gmail_composer or GmailChatCompletionComposer()
         self._cross_connector_context_store = cross_connector_context_store
+        self._calendar_read_selection_service = calendar_read_selection_service
+        self._workspace_id = workspace_id
 
     def complete(
         self,
@@ -441,6 +455,7 @@ class ChatPluginActionCompletionService:
             return None
 
         gmail_read = None
+        calendar_selections = None
         if outcome.decision == "denied":
             if binding.gmail_query is not None:
                 reply = self._gmail_composer.DENIED_REPLY
@@ -455,6 +470,11 @@ class ChatPluginActionCompletionService:
             reply = self._reply_for_approved(binding, outcome)
             if binding.gmail_query is not None:
                 gmail_read = self._gmail_composer.display_messages_for_approved(
+                    binding,
+                    outcome,
+                )
+            elif binding.calendar_window is not None:
+                calendar_selections = self._calendar_selections_for_approved(
                     binding,
                     outcome,
                 )
@@ -475,7 +495,67 @@ class ChatPluginActionCompletionService:
             conversation_id=binding.conversation_id,
             reply=reply,
             gmail_read=gmail_read,
+            calendar_selections=calendar_selections,
         )
+
+    def _calendar_selections_for_approved(
+        self,
+        binding: ChatPluginActionBinding,
+        outcome: ExecutionApprovalDecisionOutcome,
+    ) -> tuple[CalendarSelectionDisplayEvent, ...] | None:
+        """Mint transient opaque selections without exposing exact provider IDs."""
+        service = self._calendar_read_selection_service
+        workspace_id = self._workspace_id
+        if (
+            service is None
+            or not isinstance(workspace_id, WorkspaceId)
+            or binding.calendar_window is None
+        ):
+            return None
+
+        events = self._calendar_composer.display_events_for_approved(
+            binding,
+            outcome,
+        )
+        if events is None:
+            return None
+        if not events:
+            return ()
+
+        try:
+            targets = tuple(
+                GoogleCalendarEventTarget(event_id=event.event_id)
+                for event in events
+            )
+            selections = service.bind_exact_targets(
+                targets=targets,
+                workspace_id=workspace_id,
+                conversation_id=binding.conversation_id,
+            )
+            if len(selections) != len(events):
+                return None
+
+            projected: list[CalendarSelectionDisplayEvent] = []
+            for selection, event in zip(selections, events, strict=True):
+                if event.all_day:
+                    start_value = event.start.date().isoformat()
+                    end_value = event.end.date().isoformat()
+                else:
+                    start_value = event.start.isoformat()
+                    end_value = event.end.isoformat()
+                projected.append(
+                    CalendarSelectionDisplayEvent(
+                        selection_id=selection.selection_id,
+                        summary=event.summary,
+                        status=event.status,
+                        start=start_value,
+                        end=end_value,
+                        all_day=event.all_day,
+                    )
+                )
+            return tuple(projected)
+        except (CalendarReadSelectionError, TypeError, ValueError):
+            return None
 
     def _capture_cross_connector_context(
         self,

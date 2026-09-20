@@ -1,4 +1,6 @@
 import type {
+  CalendarDeletePrepareResponse,
+  CalendarDeleteDecisionResponse,
   CalendarWriteChatDecision,
   ChatRequest,
   ChatResponse,
@@ -226,6 +228,62 @@ export function denyExecutionApproval(
       method: "POST",
       headers: { "X-OAI-Local-Request": "1" },
       body: { plan_digest: planDigest },
+    },
+  );
+}
+
+export function prepareCalendarDelete(
+  workspaceId: WorkspaceId,
+  selectionId: string,
+  conversationId: string,
+): Promise<CalendarDeletePrepareResponse> {
+  return workspaceApiRequest<CalendarDeletePrepareResponse>(
+    workspaceId,
+    `/calendar-write-chat/selection/${encodeURIComponent(selectionId)}/delete/prepare`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: { conversation_id: conversationId },
+    },
+  );
+}
+
+export function approveCalendarDelete(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  conversationId: string,
+  writeDigest: string,
+): Promise<CalendarDeleteDecisionResponse> {
+  return workspaceApiRequest<CalendarDeleteDecisionResponse>(
+    workspaceId,
+    `/calendar-write-chat/delete/${encodeURIComponent(approvalId)}/approve`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: {
+        conversation_id: conversationId,
+        write_digest: writeDigest,
+      },
+    },
+  );
+}
+
+export function denyCalendarDelete(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  conversationId: string,
+  writeDigest: string,
+): Promise<CalendarDeleteDecisionResponse> {
+  return workspaceApiRequest<CalendarDeleteDecisionResponse>(
+    workspaceId,
+    `/calendar-write-chat/delete/${encodeURIComponent(approvalId)}/deny`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: {
+        conversation_id: conversationId,
+        write_digest: writeDigest,
+      },
     },
   );
 }

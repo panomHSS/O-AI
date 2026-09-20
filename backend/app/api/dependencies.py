@@ -183,6 +183,23 @@ from app.services.calendar_write_followup import (
     CalendarWriteFollowupService,
     CalendarWriteFollowupStore,
 )
+from app.services.calendar_read_selection import (
+    CalendarReadSelectionService,
+    CalendarReadSelectionStore,
+)
+from app.services.calendar_delete_followup import (
+    CalendarDeleteFollowupProposalService,
+)
+from app.services.calendar_delete_owner_decision import (
+    CalendarDeleteOwnerDecisionService,
+)
+from app.services.calendar_delete_decision import (
+    CalendarDeleteDecisionBindingService,
+    CalendarDeleteDecisionStore,
+)
+from app.services.calendar_delete_selection_proposal import (
+    CalendarDeleteSelectionProposalService,
+)
 from app.services.chat_cross_connector import CrossConnectorChatService
 from app.services.chat_runtime_capability import RuntimeCapabilityChatService
 from app.services.cross_connector_context import (
@@ -1533,6 +1550,18 @@ def get_calendar_write_followup_service() -> CalendarWriteFollowupService:
     )
 
 
+def get_calendar_delete_followup_proposal_service(
+    approval_service: CalendarWriteApprovalService = Depends(
+        get_calendar_write_approval_service
+    ),
+) -> CalendarDeleteFollowupProposalService:
+    'Compose D101 exact Delete proposal only; D75 execution remains separate.'
+    return CalendarDeleteFollowupProposalService(
+        approval_service=approval_service,
+        followup_store=get_calendar_write_followup_store(),
+    )
+
+
 def get_calendar_write_chat_ux_service(
     approval_service: CalendarWriteApprovalService = Depends(
         get_calendar_write_approval_service
@@ -1711,6 +1740,69 @@ def get_chat_action_bridge(
     )
 
 
+@lru_cache
+def get_calendar_read_selection_store() -> CalendarReadSelectionStore:
+    """Process-local bounded D101 Calendar read-selection correlation."""
+    return CalendarReadSelectionStore()
+
+
+def get_calendar_read_selection_service() -> CalendarReadSelectionService:
+    return CalendarReadSelectionService(
+        store=get_calendar_read_selection_store(),
+    )
+
+
+@lru_cache
+def get_calendar_delete_decision_store() -> CalendarDeleteDecisionStore:
+    return CalendarDeleteDecisionStore()
+
+
+def get_calendar_delete_decision_binding_service(
+) -> CalendarDeleteDecisionBindingService:
+    return CalendarDeleteDecisionBindingService(
+        store=get_calendar_delete_decision_store(),
+    )
+
+
+def get_calendar_delete_owner_decision_service(
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    approval_service: CalendarWriteApprovalService = Depends(
+        get_calendar_write_approval_service
+    ),
+    execution_service: CalendarUpdateDeleteExecutionService = Depends(
+        get_calendar_update_delete_execution_service
+    ),
+) -> CalendarDeleteOwnerDecisionService:
+    return CalendarDeleteOwnerDecisionService(
+        decision_store=get_calendar_delete_decision_store(),
+        approval_service=approval_service,
+        execution_service=execution_service,
+        conversation_service=conversation_service,
+    )
+
+
+def get_calendar_delete_selection_proposal_service(
+    approval_service: CalendarWriteApprovalService = Depends(
+        get_calendar_write_approval_service
+    ),
+    delete_proposal_service: CalendarDeleteFollowupProposalService = Depends(
+        get_calendar_delete_followup_proposal_service
+    ),
+) -> CalendarDeleteSelectionProposalService:
+    return CalendarDeleteSelectionProposalService(
+        selection_store=get_calendar_read_selection_store(),
+        write_followup_service=get_calendar_write_followup_service(),
+        write_followup_store=get_calendar_write_followup_store(),
+        delete_proposal_service=delete_proposal_service,
+        approval_service=approval_service,
+        decision_binding_service=(
+            get_calendar_delete_decision_binding_service()
+        ),
+    )
+
+
 def get_chat_plugin_action_completion_service(
     conversation_service: ConversationService = Depends(
         get_conversation_service
@@ -1721,12 +1813,18 @@ def get_chat_plugin_action_completion_service(
     cross_connector_context_store: CrossConnectorContextStore = Depends(
         get_cross_connector_context_store
     ),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    calendar_read_selection_service: CalendarReadSelectionService = Depends(
+        get_calendar_read_selection_service
+    ),
 ) -> ChatPluginActionCompletionService:
     """Compose non-authoritative D61 Plugin-result Chat finalization."""
     return ChatPluginActionCompletionService(
         conversation_service=conversation_service,
         binding_store=binding_store,
         cross_connector_context_store=cross_connector_context_store,
+        calendar_read_selection_service=calendar_read_selection_service,
+        workspace_id=workspace_scope.workspace_id,
     )
 
 

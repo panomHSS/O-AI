@@ -33,12 +33,14 @@ def valid_payload():
     return {
         "items": [
             {
+                "id": "event-planning-1",
                 "summary": "Planning",
                 "status": "confirmed",
                 "start": {"dateTime": "2026-09-16T09:00:00+07:00"},
                 "end": {"dateTime": "2026-09-16T10:00:00+07:00"},
             },
             {
+                "id": "event-holiday-1",
                 "summary": "Holiday",
                 "status": "confirmed",
                 "start": {"date": "2026-09-17"},

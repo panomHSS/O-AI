@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from datetime import datetime
 from uuid import UUID
 from typing import Any, Literal
@@ -13,6 +15,7 @@ from app.contracts.execution_approval import (
     ExecutionApprovalProposalOutcome,
 )
 from app.contracts.chat_plugin_action import ChatPluginActionCompletion
+from app.contracts.google_calendar import GOOGLE_CALENDAR_ADAPTER_ID
 
 
 class CreateExecutionApprovalRequest(BaseModel):
@@ -111,10 +114,24 @@ class GmailReadDisplayResponse(BaseModel):
     messages: list[GmailReadDisplayMessageResponse]
 
 
+class CalendarSelectionDisplayEventResponse(BaseModel):
+    selection_id: str
+    summary: str
+    status: str
+    start: str
+    end: str
+    all_day: bool
+
+
+class CalendarSelectionDisplayResponse(BaseModel):
+    events: list[CalendarSelectionDisplayEventResponse]
+
+
 class ExecutionChatCompletionResponse(BaseModel):
     conversation_id: UUID
     reply: str
     gmail_read: GmailReadDisplayResponse | None = None
+    calendar_selections: CalendarSelectionDisplayResponse | None = None
 
     @classmethod
     def from_completion(
@@ -136,11 +153,94 @@ class ExecutionChatCompletionResponse(BaseModel):
                     for message in completion.gmail_read
                 ]
             )
+        calendar_selections = None
+        if completion.calendar_selections is not None:
+            calendar_selections = CalendarSelectionDisplayResponse(
+                events=[
+                    CalendarSelectionDisplayEventResponse(
+                        selection_id=item.selection_id,
+                        summary=item.summary,
+                        status=item.status,
+                        start=item.start,
+                        end=item.end,
+                        all_day=item.all_day,
+                    )
+                    for item in completion.calendar_selections
+                ]
+            )
         return cls(
             conversation_id=completion.conversation_id,
             reply=completion.reply,
             gmail_read=gmail_read,
+            calendar_selections=calendar_selections,
         )
+
+
+def _public_result_output(
+    outcome: ExecutionApprovalDecisionOutcome,
+) -> dict[str, object]:
+    """Project execution output for the browser without Calendar target identity."""
+    execution = outcome.execution
+    result = execution.result
+    if result is None:
+        return {}
+
+    output = dict(result.output)
+    plan = execution.planning.plan
+    if plan is None or plan.adapter_id != GOOGLE_CALENDAR_ADAPTER_ID:
+        return output
+
+    # Calendar provider event IDs are retained server-side for D101 exact-target
+    # follow-up binding, but are not public browser authority.
+    if set(output) != {"content"}:
+        return {}
+    content = output.get("content")
+    if not isinstance(content, str):
+        return {}
+
+    try:
+        payload = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    if not isinstance(payload, dict) or set(payload) != {"events", "truncated"}:
+        return {}
+
+    events = payload.get("events")
+    truncated = payload.get("truncated")
+    if not isinstance(events, list) or type(truncated) is not bool:
+        return {}
+
+    public_events: list[dict[str, object]] = []
+    expected_keys = {
+        "all_day",
+        "end",
+        "event_id",
+        "start",
+        "status",
+        "summary",
+    }
+    for event in events:
+        if not isinstance(event, dict) or set(event) != expected_keys:
+            return {}
+        public_events.append(
+            {
+                key: value
+                for key, value in event.items()
+                if key != "event_id"
+            }
+        )
+
+    return {
+        "content": json.dumps(
+            {
+                "events": public_events,
+                "truncated": truncated,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    }
 
 
 class ExecutionApprovalDecisionResponse(BaseModel):
@@ -171,7 +271,7 @@ class ExecutionApprovalDecisionResponse(BaseModel):
         if result is not None:
             public_result = ExecutionResultResponse(
                 status=result.status,
-                output=dict(result.output),
+                output=_public_result_output(outcome),
                 error_code=(
                     "execution_failed"
                     if result.error is not None
