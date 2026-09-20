@@ -946,8 +946,8 @@ D100 closes the D91-D100 Workspace & Context Intelligence phase.
 
 Roadmap status: **APPROVED**
 
-- D101 — Calendar Exact Update/Delete Owner UX v1
-- D102 — Local AI Runtime & Model Visibility v1
+- D101 — Calendar Exact Update/Delete Owner UX v1 — COMPLETE
+- D102 — Local AI Runtime & Model Visibility v1 — COMPLETE
 - D103 — Local AI Owner Control UX v1
 - D104 — Task-Aware AI Routing Contract v1
 - D105 — Task-Aware AI Routing Integration v1
@@ -960,5 +960,8 @@ Roadmap status: **APPROVED**
 The phase direction and sequencing are owner-approved. Each milestone requires
 its own approved Design/Implementation Spec before implementation.
 
-D101 has an owner-approved Design/Implementation Scope v1. Implementation has
-not started.
+D101 is COMPLETE.
+
+D102 Local AI Runtime & Model Visibility v1 is COMPLETE. Owner acceptance A-K, full backend regression, frontend validation, and MVP smoke acceptance passed.
+
+Next boundary: D103 — Local AI Owner Control UX v1. Implementation has not started and requires its own approved Design/Implementation Spec before runtime or model mutation authority is added.
