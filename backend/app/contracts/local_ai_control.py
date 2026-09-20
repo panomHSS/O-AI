@@ -11,7 +11,16 @@ LocalAIControlOperation: TypeAlias = Literal[
     "load_configured_model", "unload_configured_model"
 ]
 LocalAIControlDecision: TypeAlias = Literal["approved", "denied"]
+LocalAIControlTerminalStatus: TypeAlias = Literal[
+    "not_executed",
+    "succeeded",
+    "failed",
+    "indeterminate",
+]
 _OPERATIONS = frozenset({"load_configured_model", "unload_configured_model"})
+_TERMINAL_STATUSES = frozenset(
+    {"not_executed", "succeeded", "failed", "indeterminate"}
+)
 _DECISIONS = frozenset({"approved", "denied"})
 
 
@@ -159,3 +168,31 @@ class LocalAIControlDecisionOutcome:
             raise ValueError("approved decision requires approved snapshot.")
         if self.decision == "denied" and self.approved is not None:
             raise ValueError("denied decision must not carry approved snapshot.")
+
+@dataclass(frozen=True, slots=True)
+class LocalAIControlExecutionOutcome:
+    """Bounded D103 decision/execution result with no raw provider data."""
+
+    approval_id: str
+    decision: LocalAIControlDecision
+    status: LocalAIControlTerminalStatus
+    reason_code: str
+    control_digest: str
+    preview: LocalAIControlPreview
+    expires_at: datetime
+
+    def __post_init__(self) -> None:
+        _text(self.approval_id, label="approval_id")
+        if self.decision not in _DECISIONS:
+            raise ValueError("decision must be approved or denied.")
+        if self.status not in _TERMINAL_STATUSES:
+            raise ValueError("Unsupported Local AI control terminal status.")
+        _text(self.reason_code, label="reason_code")
+        _digest(self.control_digest)
+        if not isinstance(self.preview, LocalAIControlPreview):
+            raise TypeError("preview must be LocalAIControlPreview.")
+        _aware(self.expires_at, label="expires_at")
+        if self.decision == "denied" and self.status != "not_executed":
+            raise ValueError("Denied control decisions must be not_executed.")
+        if self.decision == "approved" and self.status == "not_executed":
+            raise ValueError("Approved control decisions require a terminal control status.")

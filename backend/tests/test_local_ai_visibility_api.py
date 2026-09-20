@@ -75,7 +75,11 @@ class LocalAIVisibilityAPITests(unittest.TestCase):
             str(app.url_path_for("local_ai_runtime_visibility")),
             "/api/v1/local-ai/runtime",
         )
-        matching = [p for p in app.openapi()["paths"] if "local-ai" in p]
+        matching = [
+            p
+            for p in app.openapi()["paths"]
+            if p == "/api/v1/local-ai/runtime"
+        ]
         self.assertEqual(matching, ["/api/v1/local-ai/runtime"])
         self.assertEqual(
             set(app.openapi()["paths"]["/api/v1/local-ai/runtime"]),

@@ -268,6 +268,11 @@ from app.services.ai_discovery_sources import (
 from app.services.local_ai_config import LocalAIAdapterConfig
 from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
 from app.services.local_ai_visibility import LocalAIRuntimeVisibilityService
+from app.services.local_ai_control_approval import (
+    LocalAIControlApprovalService,
+    LocalAIControlApprovalStore,
+)
+from app.services.local_ai_control_execution import LocalAIControlExecutionService
 from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
 from app.contracts.local_ai_runtime import LocalAIRuntimeClient
 from app.services.conversations import ConversationService
@@ -606,6 +611,54 @@ def get_local_ai_visibility_service(
         config=config,
         runtime_client=runtime_client,
     )
+
+@lru_cache
+def get_local_ai_control_approval_store() -> LocalAIControlApprovalStore:
+    """Compose the bounded process-local D103 control proposal store."""
+    return LocalAIControlApprovalStore()
+
+
+@lru_cache
+def get_local_ai_control_approval_service() -> LocalAIControlApprovalService:
+    """Compose D103 proposal/decision state without provider mutation."""
+    return LocalAIControlApprovalService(
+        store=get_local_ai_control_approval_store()
+    )
+
+
+def get_local_ai_control_execution_service(
+    config: LocalAIAdapterConfig = Depends(get_local_ai_config),
+    factory: LocalAIRuntimeFactory = Depends(get_local_ai_runtime_factory),
+    approval_service: LocalAIControlApprovalService = Depends(
+        get_local_ai_control_approval_service
+    ),
+    approval_store: LocalAIControlApprovalStore = Depends(
+        get_local_ai_control_approval_store
+    ),
+) -> LocalAIControlExecutionService:
+    """Compose D103 exact configured-model control with no fallback."""
+    runtime_client = None
+    if config.enabled:
+        try:
+            runtime_client = factory.create(
+                backend_id=config.backend_id,
+                base_url=config.base_url,
+            )
+        except Exception:
+            runtime_client = None
+
+    visibility_service = LocalAIRuntimeVisibilityService(
+        config=config,
+        runtime_client=runtime_client,
+    )
+    return LocalAIControlExecutionService(
+        config=config,
+        runtime_client=runtime_client,
+        visibility_service=visibility_service,
+        approval_service=approval_service,
+        approval_store=approval_store,
+    )
+
 
 def get_local_ai_telemetry_provider(
     config: LocalAIAdapterConfig = Depends(get_local_ai_config),
