@@ -110,6 +110,47 @@ export interface CalendarDeleteDecisionResponse {
   reason_code: string;
 }
 
+export type CalendarUpdateChangeField =
+  | "summary"
+  | "start"
+  | "end"
+  | "description"
+  | "location";
+
+export interface CalendarUpdateRequestChanges {
+  summary?: string;
+  start?: string;
+  end?: string;
+  description?: string;
+  location?: string;
+}
+
+export interface CalendarUpdatePreparedChanges {
+  summary: string | null;
+  start: string | null;
+  end: string | null;
+  description: string | null;
+  location: string | null;
+}
+
+export interface CalendarUpdatePrepareResponse {
+  selection_id: string;
+  approval_id: string;
+  write_digest: string;
+  operation: "update_event";
+  status: "pending";
+  expires_at: string;
+  changed_fields: CalendarUpdateChangeField[];
+  changes: CalendarUpdatePreparedChanges;
+}
+
+export interface CalendarUpdateDecisionResponse {
+  approval_id: string;
+  decision: "approved" | "denied";
+  status: "denied" | "succeeded" | "failed" | "indeterminate";
+  reason_code: string;
+}
+
 export interface GmailReadDisplayMessage {
   sender: string;
   subject: string;

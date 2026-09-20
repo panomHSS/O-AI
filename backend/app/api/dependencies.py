@@ -190,12 +190,25 @@ from app.services.calendar_read_selection import (
 from app.services.calendar_delete_followup import (
     CalendarDeleteFollowupProposalService,
 )
+from app.services.calendar_update_followup import (
+    CalendarUpdateFollowupProposalService,
+)
 from app.services.calendar_delete_owner_decision import (
     CalendarDeleteOwnerDecisionService,
+)
+from app.services.calendar_update_owner_decision import (
+    CalendarUpdateOwnerDecisionService,
 )
 from app.services.calendar_delete_decision import (
     CalendarDeleteDecisionBindingService,
     CalendarDeleteDecisionStore,
+)
+from app.services.calendar_update_decision import (
+    CalendarUpdateDecisionBindingService,
+    CalendarUpdateDecisionStore,
+)
+from app.services.calendar_update_selection_proposal import (
+    CalendarUpdateSelectionProposalService,
 )
 from app.services.calendar_delete_selection_proposal import (
     CalendarDeleteSelectionProposalService,
@@ -1562,6 +1575,18 @@ def get_calendar_delete_followup_proposal_service(
     )
 
 
+def get_calendar_update_followup_proposal_service(
+    approval_service: CalendarWriteApprovalService = Depends(
+        get_calendar_write_approval_service
+    ),
+) -> CalendarUpdateFollowupProposalService:
+    'Compose D101 exact Update proposal only; D75 execution remains separate.'
+    return CalendarUpdateFollowupProposalService(
+        approval_service=approval_service,
+        followup_store=get_calendar_write_followup_store(),
+    )
+
+
 def get_calendar_write_chat_ux_service(
     approval_service: CalendarWriteApprovalService = Depends(
         get_calendar_write_approval_service
@@ -1764,6 +1789,18 @@ def get_calendar_delete_decision_binding_service(
     )
 
 
+@lru_cache
+def get_calendar_update_decision_store() -> CalendarUpdateDecisionStore:
+    return CalendarUpdateDecisionStore()
+
+
+def get_calendar_update_decision_binding_service(
+) -> CalendarUpdateDecisionBindingService:
+    return CalendarUpdateDecisionBindingService(
+        store=get_calendar_update_decision_store(),
+    )
+
+
 def get_calendar_delete_owner_decision_service(
     conversation_service: ConversationService = Depends(
         get_conversation_service
@@ -1777,6 +1814,25 @@ def get_calendar_delete_owner_decision_service(
 ) -> CalendarDeleteOwnerDecisionService:
     return CalendarDeleteOwnerDecisionService(
         decision_store=get_calendar_delete_decision_store(),
+        approval_service=approval_service,
+        execution_service=execution_service,
+        conversation_service=conversation_service,
+    )
+
+
+def get_calendar_update_owner_decision_service(
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    ),
+    approval_service: CalendarWriteApprovalService = Depends(
+        get_calendar_write_approval_service
+    ),
+    execution_service: CalendarUpdateDeleteExecutionService = Depends(
+        get_calendar_update_delete_execution_service
+    ),
+) -> CalendarUpdateOwnerDecisionService:
+    return CalendarUpdateOwnerDecisionService(
+        decision_store=get_calendar_update_decision_store(),
         approval_service=approval_service,
         execution_service=execution_service,
         conversation_service=conversation_service,
@@ -1799,6 +1855,26 @@ def get_calendar_delete_selection_proposal_service(
         approval_service=approval_service,
         decision_binding_service=(
             get_calendar_delete_decision_binding_service()
+        ),
+    )
+
+
+def get_calendar_update_selection_proposal_service(
+    approval_service: CalendarWriteApprovalService = Depends(
+        get_calendar_write_approval_service
+    ),
+    update_proposal_service: CalendarUpdateFollowupProposalService = Depends(
+        get_calendar_update_followup_proposal_service
+    ),
+) -> CalendarUpdateSelectionProposalService:
+    return CalendarUpdateSelectionProposalService(
+        selection_store=get_calendar_read_selection_store(),
+        write_followup_service=get_calendar_write_followup_service(),
+        write_followup_store=get_calendar_write_followup_store(),
+        update_proposal_service=update_proposal_service,
+        approval_service=approval_service,
+        decision_binding_service=(
+            get_calendar_update_decision_binding_service()
         ),
     )
 

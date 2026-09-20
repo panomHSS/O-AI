@@ -1,6 +1,9 @@
 import type {
   CalendarDeletePrepareResponse,
   CalendarDeleteDecisionResponse,
+  CalendarUpdateDecisionResponse,
+  CalendarUpdatePrepareResponse,
+  CalendarUpdateRequestChanges,
   CalendarWriteChatDecision,
   ChatRequest,
   ChatResponse,
@@ -277,6 +280,66 @@ export function denyCalendarDelete(
   return workspaceApiRequest<CalendarDeleteDecisionResponse>(
     workspaceId,
     `/calendar-write-chat/delete/${encodeURIComponent(approvalId)}/deny`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: {
+        conversation_id: conversationId,
+        write_digest: writeDigest,
+      },
+    },
+  );
+}
+
+export function prepareCalendarUpdate(
+  workspaceId: WorkspaceId,
+  selectionId: string,
+  conversationId: string,
+  changes: CalendarUpdateRequestChanges,
+): Promise<CalendarUpdatePrepareResponse> {
+  return workspaceApiRequest<CalendarUpdatePrepareResponse>(
+    workspaceId,
+    `/calendar-write-chat/selection/${encodeURIComponent(selectionId)}/update/prepare`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: {
+        conversation_id: conversationId,
+        changes,
+      },
+    },
+  );
+}
+
+export function approveCalendarUpdate(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  conversationId: string,
+  writeDigest: string,
+): Promise<CalendarUpdateDecisionResponse> {
+  return workspaceApiRequest<CalendarUpdateDecisionResponse>(
+    workspaceId,
+    `/calendar-write-chat/update/${encodeURIComponent(approvalId)}/approve`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: {
+        conversation_id: conversationId,
+        write_digest: writeDigest,
+      },
+    },
+  );
+}
+
+export function denyCalendarUpdate(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  conversationId: string,
+  writeDigest: string,
+): Promise<CalendarUpdateDecisionResponse> {
+  return workspaceApiRequest<CalendarUpdateDecisionResponse>(
+    workspaceId,
+    `/calendar-write-chat/update/${encodeURIComponent(approvalId)}/deny`,
     {
       method: "POST",
       headers: { "X-OAI-Local-Request": "1" },

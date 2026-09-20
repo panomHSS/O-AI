@@ -353,7 +353,7 @@ export function Chat() {
                   Exact Calendar events
                 </p>
                 <p className="mt-1 text-xs text-zinc-500">
-                  Choose an event below to prepare an exact Delete.
+                  Choose an event below to prepare an exact Update or Delete.
                 </p>
                 {chatMessage.calendarSelections.map((selection) => (
                   <CalendarDeleteSelectionCard
