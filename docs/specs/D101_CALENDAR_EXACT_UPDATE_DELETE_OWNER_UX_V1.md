@@ -1,6 +1,6 @@
 # D101 Calendar Exact Update/Delete Owner UX v1
 
-Status: **SPEC APPROVED - IMPLEMENTATION NOT STARTED.**
+Status: **COMPLETE - IMPLEMENTED AND ACCEPTED.**
 
 Baseline: `0545a7c`
 
@@ -639,3 +639,8 @@ D101 completion does not authorize D102 implementation automatically.
 
 D102 Local AI Runtime & Model Visibility v1 requires its own approved
 Design/Implementation Spec before implementation.
+
+
+## Implementation completion
+
+Batch 01-04 PASS. Manual Delete/Update owner acceptance PASS. D84 Create, Calendar read, Gmail isolation, D98 workspace AI routing, and D100 special-lane regression PASS. Full backend regression: 2343 passed, 4 skipped. Backend compileall, frontend TypeScript/lint/build, and git diff --check PASS. No new migration, OAuth scope, fuzzy target authority, AI target authority, or automatic mutation retry introduced.

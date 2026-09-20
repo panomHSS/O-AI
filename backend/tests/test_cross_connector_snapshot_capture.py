@@ -170,6 +170,7 @@ class CrossConnectorSnapshotCaptureTests(unittest.TestCase):
             [
                 {
                     "all_day": False,
+                    "event_id": "event-inside",
                     "end": "2026-09-16T10:00:00+07:00",
                     "start": "2026-09-16T09:00:00+07:00",
                     "status": "confirmed",
@@ -177,6 +178,7 @@ class CrossConnectorSnapshotCaptureTests(unittest.TestCase):
                 },
                 {
                     "all_day": False,
+                    "event_id": "event-outside",
                     "end": "2026-09-18T10:00:00+07:00",
                     "start": "2026-09-18T09:00:00+07:00",
                     "status": "confirmed",
@@ -251,6 +253,7 @@ class CrossConnectorSnapshotCaptureTests(unittest.TestCase):
             [
                 {
                     "all_day": False,
+                    "event_id": "event-control-char",
                     "end": "2026-09-16T10:00:00+07:00",
                     "start": "2026-09-16T09:00:00+07:00",
                     "status": "confirmed",

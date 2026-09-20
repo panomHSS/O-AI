@@ -260,6 +260,7 @@ class CalendarReadUXV2Tests(unittest.TestCase):
         events = [
             {
                 "all_day": False,
+                "event_id": "event-afternoon",
                 "end": "2026-09-15T14:00:00+07:00",
                 "start": "2026-09-15T13:00:00+07:00",
                 "status": "confirmed",
@@ -267,6 +268,7 @@ class CalendarReadUXV2Tests(unittest.TestCase):
             },
             {
                 "all_day": False,
+                "event_id": "event-evening",
                 "end": "2026-09-15T19:00:00+07:00",
                 "start": "2026-09-15T18:00:00+07:00",
                 "status": "confirmed",

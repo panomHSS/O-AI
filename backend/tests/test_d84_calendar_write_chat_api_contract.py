@@ -50,11 +50,13 @@ def test_d84_chat_route_does_not_reimplement_d74() -> None:
 
 def test_d84_decision_api_uses_server_bound_conversation() -> None:
     source = Path("app/api/v1/calendar_write_chat.py").read_text(encoding="utf-8")
-    assert "payload.conversation_id" not in source
+    d84_source = source[source.index("def deny_calendar_write_chat(") :]
+    assert "payload.conversation_id" not in d84_source
+    assert "_complete_original_conversation(" in d84_source
     assert "conversation_service.complete_turn" in source
-    assert "service.approve(" in source
-    assert "service.deny(" in source
-    assert "execute_create(" not in source
+    assert "service.approve(" in d84_source
+    assert "service.deny(" in d84_source
+    assert "execute_create(" not in d84_source
 
 
 def test_d81_labels_calendar_create_via_chat_only() -> None:
