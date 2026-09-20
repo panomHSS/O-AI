@@ -267,6 +267,7 @@ from app.services.ai_discovery_sources import (
 )
 from app.services.local_ai_config import LocalAIAdapterConfig
 from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
+from app.services.local_ai_visibility import LocalAIRuntimeVisibilityService
 from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
 from app.contracts.local_ai_runtime import LocalAIRuntimeClient
 from app.services.conversations import ConversationService
@@ -586,6 +587,25 @@ def get_local_ai_runtime_client(
         base_url=config.base_url,
     )
 
+
+def get_local_ai_visibility_service(
+    config: LocalAIAdapterConfig = Depends(get_local_ai_config),
+    factory: LocalAIRuntimeFactory = Depends(get_local_ai_runtime_factory),
+) -> LocalAIRuntimeVisibilityService:
+    """Compose read-only D102 visibility without disabled runtime construction."""
+    runtime_client = None
+    if config.enabled:
+        try:
+            runtime_client = get_local_ai_runtime_client(
+                config=config,
+                factory=factory,
+            )
+        except Exception:
+            runtime_client = None
+    return LocalAIRuntimeVisibilityService(
+        config=config,
+        runtime_client=runtime_client,
+    )
 
 def get_local_ai_telemetry_provider(
     config: LocalAIAdapterConfig = Depends(get_local_ai_config),
