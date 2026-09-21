@@ -2,6 +2,27 @@ import type { WorkspaceId } from "./workspace";
 
 export type ChatMessageRole = "user" | "assistant";
 
+export type AIMode = "auto" | "local_ai" | "cloud_ai";
+
+export interface AIBrainModeCapability {
+  mode: AIMode;
+  status: "ready" | "unavailable" | "blocked";
+  provider_class: "local_ai" | "cloud_ai" | null;
+  reason_code: string;
+  fallback_allowed: boolean;
+}
+
+export interface AIBrainTaskCapability {
+  task_kind: "general_chat" | "software_engineering";
+  modes: AIBrainModeCapability[];
+}
+
+export interface AIBrainCapabilitiesResponse {
+  contract_version: string;
+  workspace_id: WorkspaceId;
+  tasks: AIBrainTaskCapability[];
+}
+
 export interface ContextUsage {
   captured_at: string;
   total_items: number;
@@ -204,6 +225,7 @@ export interface ChatRequest {
   message: string;
   conversation_id?: string;
   project_id?: string;
+  ai_mode?: AIMode;
 }
 
 export interface ChatResponse {

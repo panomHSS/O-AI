@@ -1,4 +1,6 @@
 import type {
+  AIBrainCapabilitiesResponse,
+  AIMode,
   CalendarDeletePrepareResponse,
   CalendarDeleteDecisionResponse,
   CalendarUpdateDecisionResponse,
@@ -198,16 +200,28 @@ function assertResponseWorkspace<
   return response;
 }
 
+export function getAIBrainCapabilities(
+  workspaceId: WorkspaceId,
+): Promise<AIBrainCapabilitiesResponse> {
+  return workspaceApiRequest<AIBrainCapabilitiesResponse>(
+    workspaceId,
+    "/chat/ai-capabilities",
+    { method: "GET" },
+  ).then((response) => assertResponseWorkspace(workspaceId, response));
+}
+
 export function sendChatMessage(
   workspaceId: WorkspaceId,
   message: string,
   conversationId?: string,
   projectId?: string,
+  aiMode?: AIMode,
 ): Promise<ChatResponse> {
   const payload: ChatRequest = {
     message,
     ...(conversationId ? { conversation_id: conversationId } : {}),
     ...(!conversationId && projectId ? { project_id: projectId } : {}),
+    ...(aiMode ? { ai_mode: aiMode } : {}),
   };
   return workspaceApiRequest<ChatResponse>(workspaceId, "/chat", {
     method: "POST",

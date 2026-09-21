@@ -4,12 +4,15 @@ import { FormEvent, useEffect, useState } from "react";
 
 import {
   ApiError,
+  getAIBrainCapabilities,
   getConversation,
   getProject,
   sendChatMessage,
 } from "../../lib/api-client";
 import { activeConversationStorageKey } from "../../lib/workspace";
 import type {
+  AIBrainCapabilitiesResponse,
+  AIMode,
   CalendarSelectionDisplayEvent,
   CalendarWriteChatDecision,
   CalendarWriteChatProposal,
@@ -25,6 +28,15 @@ import { CalendarWriteApprovalCard } from "./calendar-write-approval-card";
 import { CalendarDeleteSelectionCard } from "./calendar-delete-selection-card";
 import { ContextUsageIndicator } from "./context-usage";
 import { EngineeringOwnerPanel } from "./engineering-owner-panel";
+
+const AI_MODE_OPTIONS: ReadonlyArray<{
+  value: AIMode;
+  label: string;
+}> = [
+  { value: "auto", label: "Auto" },
+  { value: "local_ai", label: "Local AI" },
+  { value: "cloud_ai", label: "Cloud AI" },
+];
 
 function createMessage(
   role: ChatMessage["role"],
@@ -117,6 +129,39 @@ export function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [pendingProject, setPendingProject] = useState<Project | null>(null);
   const [associatedProject, setAssociatedProject] = useState<Project | null>(null);
+  const [aiMode, setAIMode] = useState<AIMode>("auto");
+  const [aiCapabilities, setAICapabilities] =
+    useState<AIBrainCapabilitiesResponse | null>(null);
+
+  const generalChatCapabilities = aiCapabilities?.tasks.find(
+    (item) => item.task_kind === "general_chat",
+  );
+  const selectedAIModeCapability = generalChatCapabilities?.modes.find(
+    (item) => item.mode === aiMode,
+  );
+
+  useEffect(() => {
+    if (!isWorkspaceReady || !workspaceId) return;
+
+    let cancelled = false;
+    getAIBrainCapabilities(workspaceId)
+      .then((result) => {
+        if (!cancelled) setAICapabilities(result);
+      })
+      .catch((caughtError) => {
+        if (!cancelled) {
+          setError(
+            caughtError instanceof ApiError
+              ? caughtError.message
+              : "Unable to load AI mode capabilities.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isWorkspaceReady, workspaceId]);
 
   useEffect(() => {
     if (!isWorkspaceReady) return;
@@ -208,6 +253,7 @@ export function Chat() {
         message,
         conversationId ?? undefined,
         conversationId ? undefined : pendingProject?.id,
+        aiMode,
       );
       setConversationId(response.conversation_id);
       window.localStorage.setItem(
@@ -301,6 +347,7 @@ export function Chat() {
     }
     setConversationId(null);
     setMessages([]);
+    setAIMode("auto");
     setPendingProject(null);
     setAssociatedProject(null);
     window.history.replaceState({}, "", "/chat");
@@ -336,6 +383,45 @@ export function Chat() {
         <button className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium hover:border-zinc-400" onClick={handleNewConversation} type="button">
           New Conversation
         </button>
+
+        <div className="mt-4 rounded-xl border border-zinc-700 bg-zinc-900/60 p-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-sm font-medium" htmlFor="chat-ai-mode">
+              Chat AI mode
+            </label>
+            <select
+              className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm disabled:opacity-50"
+              disabled={isLoading || isRestoring}
+              id="chat-ai-mode"
+              onChange={(event) => setAIMode(event.target.value as AIMode)}
+              value={aiMode}
+            >
+              {AI_MODE_OPTIONS.map((option) => {
+                const capability = generalChatCapabilities?.modes.find(
+                  (item) => item.mode === option.value,
+                );
+                const unavailable =
+                  capability !== undefined && capability.status !== "ready";
+                return (
+                  <option
+                    disabled={unavailable}
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                    {unavailable ? ` — ${capability.status}` : ""}
+                  </option>
+                );
+              })}
+            </select>
+            <span className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-300">
+              {selectedAIModeCapability?.status ?? "checking"}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-zinc-500">
+            Auto follows O-AI server policy. Provider, model, endpoint, and credentials remain server-controlled. Engineering drafting remains Local AI only in D111.
+          </p>
+        </div>
       </header>
 
       <EngineeringOwnerPanel

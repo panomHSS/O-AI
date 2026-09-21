@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.params import Depends as DependsParam
 
 from app.api.dependencies import (
+    get_ai_provider_routing_policy,
+    get_workspace_ai_policy,
     get_chat_action_bridge,
     get_calendar_write_chat_service,
     get_calendar_write_chat_ux_service,
@@ -16,9 +18,17 @@ from app.api.dependencies import (
     get_project_update_turn_orchestrator,
 )
 from app.api.workspace_scope import get_workspace_scope
+from app.contracts.ai_brain_routing import AIMode
+from app.contracts.task_aware_ai_routing import AITaskKind
 from app.contracts.workspace import WorkspaceScope
+from app.contracts.workspace_ai_policy import WorkspaceAIRoutingPolicy
 from app.db.verification import TARGET_REVISION
 from app.schemas.api import ApiSuccess
+from app.schemas.ai_brain_capabilities import (
+    AIBrainCapabilitiesResponse,
+    AIBrainModeCapabilityResponse,
+    AIBrainTaskCapabilityResponse,
+)
 from app.schemas.chat import (
     ChatActionResponse,
     ChatRequest,
@@ -30,6 +40,11 @@ from app.schemas.execution_approvals import (
 )
 from app.schemas.calendar_write_chat import CalendarWriteChatProposalResponse
 from app.schemas.context_usage import ContextUsageResponse
+from app.services.ai_brain_routing import (
+    AIBrainRoutingPolicy,
+    AIProviderCapabilityRegistry,
+)
+from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.chat_action_bridge import ChatActionBridge
 from app.services.chat_calendar_write import CalendarWriteChatService
 from app.services.calendar_write_chat_ux import CalendarWriteChatUXService
@@ -49,6 +64,58 @@ from app.services.project_update_orchestrator import (
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 LOCAL_REQUEST_HEADER_VALUE = "1"
+
+
+@router.get(
+    "/ai-capabilities",
+    response_model=ApiSuccess[AIBrainCapabilitiesResponse],
+    status_code=status.HTTP_200_OK,
+)
+def get_ai_brain_capabilities(
+    workspace_policy: Annotated[
+        WorkspaceAIRoutingPolicy,
+        Depends(get_workspace_ai_policy),
+    ],
+    provider_policy: Annotated[
+        AIProviderRoutingPolicy,
+        Depends(get_ai_provider_routing_policy),
+    ],
+) -> ApiSuccess[AIBrainCapabilitiesResponse]:
+    """Return bounded workspace AI-mode presentation; never execution authority."""
+    capabilities = AIProviderCapabilityRegistry(
+        provider_policy.enabled_adapter_ids
+    )
+    routing = AIBrainRoutingPolicy()
+    tasks: list[AIBrainTaskCapabilityResponse] = []
+
+    for task_kind in (
+        AITaskKind.GENERAL_CHAT,
+        AITaskKind.SOFTWARE_ENGINEERING,
+    ):
+        mode_capabilities = [
+            AIBrainModeCapabilityResponse.from_decision(
+                routing.resolve(
+                    task_kind=task_kind,
+                    requested_mode=requested_mode,
+                    workspace_policy=workspace_policy,
+                    capabilities=capabilities,
+                )
+            )
+            for requested_mode in AIMode
+        ]
+        tasks.append(
+            AIBrainTaskCapabilityResponse(
+                task_kind=task_kind.value,
+                modes=mode_capabilities,
+            )
+        )
+
+    return ApiSuccess(
+        data=AIBrainCapabilitiesResponse(
+            workspace_id=workspace_policy.workspace_id.value,
+            tasks=tasks,
+        )
+    )
 
 
 @router.post(
@@ -531,7 +598,14 @@ def send_chat_message(
         conversation_id=payload.conversation_id,
         project_id=payload.project_id,
     )
-    outcome = command_orchestrator.process_chat(command)
+    outcome = (
+        command_orchestrator.process_chat(command)
+        if payload.ai_mode is None
+        else command_orchestrator.process_chat(
+            command,
+            ai_mode=payload.ai_mode,
+        )
+    )
     if outcome.chat_turn is None:
         raise CommandOrchestrationFailure(outcome.response)
     result = outcome.chat_turn

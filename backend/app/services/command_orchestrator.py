@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.contracts.ai import AIResult
+from app.contracts.ai_brain_routing import AIMode
 from app.contracts.command import CommandRequest, Response
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
@@ -52,7 +53,12 @@ class CommandOrchestrator:
         self._response_composer = response_composer
         self._tool_runtime = tool_runtime
 
-    def process_chat(self, command: CommandRequest) -> CommandOrchestrationOutcome:
+    def process_chat(
+        self,
+        command: CommandRequest,
+        *,
+        ai_mode: AIMode | None = None,
+    ) -> CommandOrchestrationOutcome:
         try:
             message, conversation_id, project_id = (
                 CommandInputPipeline.validated_chat_arguments(command)
@@ -60,7 +66,11 @@ class CommandOrchestrator:
             if command.command != "chat.message":
                 return self._error("AI_ROUTE_REJECTED", command.request_id)
 
-            planning = self._planner.plan(command)
+            planning = (
+                self._planner.plan(command)
+                if ai_mode is None
+                else self._planner.plan(command, ai_mode=ai_mode)
+            )
             planning_error = self._error_normalizer.normalize_execution_planning(
                 planning
             )

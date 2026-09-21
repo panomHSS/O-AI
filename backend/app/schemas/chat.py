@@ -1,7 +1,8 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from app.contracts.ai_brain_routing import AIMode
 from app.schemas.reasoning import ReasoningPlan
 from app.schemas.planning import PlanningPlan
 from app.schemas.decision import DecisionAnalysis
@@ -22,9 +23,12 @@ from app.schemas.context_usage import ContextUsageResponse
 class ChatRequest(BaseModel):
     """Validated input for a chat turn."""
 
+    model_config = ConfigDict(extra="forbid")
+
     message: str = Field(min_length=1, max_length=4_000)
     conversation_id: UUID | None = None
     project_id: UUID | None = None
+    ai_mode: AIMode | None = None
 
 
 class ChatActionResponse(BaseModel):
