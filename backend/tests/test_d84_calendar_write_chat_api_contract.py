@@ -7,6 +7,8 @@ from app.api.router import api_router
 from app.schemas.calendar_write_chat import CalendarWriteChatDecisionRequest
 from app.schemas.chat import ChatResponse
 
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
 
 _DIGEST = "a" * 64
 
@@ -42,14 +44,14 @@ def test_d84_structured_decision_routes_are_registered() -> None:
 
 
 def test_d84_chat_route_does_not_reimplement_d74() -> None:
-    source = Path("app/api/v1/chat.py").read_text(encoding="utf-8")
+    source = (BACKEND_ROOT / "app/api/v1/chat.py").read_text(encoding="utf-8")
     assert "execute_create(" not in source
     assert "CalendarWriteChatProposalResponse.from_outcome" in source
     assert "calendar_write_chat_ux_service.propose_candidate" in source
 
 
 def test_d84_decision_api_uses_server_bound_conversation() -> None:
-    source = Path("app/api/v1/calendar_write_chat.py").read_text(encoding="utf-8")
+    source = (BACKEND_ROOT / "app/api/v1/calendar_write_chat.py").read_text(encoding="utf-8")
     d84_source = source[source.index("def deny_calendar_write_chat(") :]
     assert "payload.conversation_id" not in d84_source
     assert "_complete_original_conversation(" in d84_source
@@ -60,7 +62,7 @@ def test_d84_decision_api_uses_server_bound_conversation() -> None:
 
 
 def test_d81_labels_calendar_create_via_chat_only() -> None:
-    source = Path("app/services/chat_runtime_capability.py").read_text(encoding="utf-8")
+    source = (BACKEND_ROOT / "app/services/chat_runtime_capability.py").read_text(encoding="utf-8")
     assert "Write via Chat" in source
     assert "รองรับการสร้างนัด" in source
     assert "create event supported" in source
