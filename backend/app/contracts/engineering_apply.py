@@ -39,23 +39,30 @@ _HEX = frozenset("0123456789abcdef")
 
 
 def _validate_text(value: object, *, code: str) -> str:
-    if (
-        type(value) is not str
-        or not value
-        or value != value.strip()
-    ):
+    if type(value) is not str or not value or value != value.strip():
+        raise ValueError(code)
+    return value
+
+
+def _validate_sha256(value: object, *, code: str) -> str:
+    value = _validate_text(value, code=code)
+    if len(value) != 64 or any(character not in _HEX for character in value):
         raise ValueError(code)
     return value
 
 
 def validate_engineering_apply_digest(value: object) -> str:
-    value = _validate_text(
+    return _validate_sha256(
         value,
         code="engineering_apply_digest_mismatch",
     )
-    if len(value) != 64 or any(character not in _HEX for character in value):
-        raise ValueError("engineering_apply_digest_mismatch")
-    return value
+
+
+def validate_engineering_apply_plan_digest(value: object) -> str:
+    return _validate_sha256(
+        value,
+        code="engineering_apply_plan_integrity_failed",
+    )
 
 
 def _validate_workspace(value: object) -> WorkspaceScope:
@@ -248,8 +255,30 @@ class EngineeringApplyApprovalDecisionOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class EngineeringApplyExecutionClaim:
+    """One atomic one-shot D108 apply claim bound to one exact plan."""
+
+    approval_id: str
+    proposal_digest: str
+    plan_digest: str
+    contract_version: str = ENGINEERING_APPLY_CONTRACT_VERSION
+
+    def __post_init__(self) -> None:
+        _validate_text(
+            self.approval_id,
+            code="engineering_apply_request_invalid",
+        )
+        validate_engineering_apply_digest(self.proposal_digest)
+        validate_engineering_apply_plan_digest(self.plan_digest)
+        if self.proposal_digest == self.plan_digest:
+            raise ValueError("engineering_apply_plan_integrity_failed")
+        if self.contract_version != ENGINEERING_APPLY_CONTRACT_VERSION:
+            raise ValueError("engineering_apply_request_invalid")
+
+
+@dataclass(frozen=True, slots=True)
 class EngineeringApplyTerminalOutcome:
-    """Provider-neutral terminal D108 apply result contract for Batch 02."""
+    """Provider-neutral terminal D108 apply result."""
 
     approval_id: str
     proposal_digest: str
@@ -282,9 +311,11 @@ __all__ = [
     "EngineeringApplyApprovalProposal",
     "EngineeringApplyApprovalProposalOutcome",
     "EngineeringApplyDecision",
+    "EngineeringApplyExecutionClaim",
     "EngineeringApplyLifecycleState",
     "EngineeringApplyTerminalOutcome",
     "EngineeringApplyTerminalStatus",
     "PendingEngineeringApplyApproval",
     "validate_engineering_apply_digest",
+    "validate_engineering_apply_plan_digest",
 ]

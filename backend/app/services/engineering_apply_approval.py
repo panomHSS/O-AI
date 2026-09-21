@@ -1,11 +1,4 @@
-"""D108 dedicated Engineering Apply owner-approval lifecycle.
-
-Batch 01 owns proposal integrity, workspace binding, bounded process-local
-pending/approved/denied lifecycle state, and explicit structured owner decisions.
-
-It deliberately performs no D36 authorization, no D38 ToolRuntime dispatch,
-and no D48 filesystem mutation. Batch 02 adds controlled execution.
-"""
+"""D108 dedicated Engineering Apply owner-approval and lifecycle store."""
 
 from __future__ import annotations
 
@@ -22,8 +15,11 @@ from app.contracts.engineering_apply import (
     EngineeringApplyApprovalDecisionOutcome,
     EngineeringApplyApprovalProposal,
     EngineeringApplyApprovalProposalOutcome,
+    EngineeringApplyExecutionClaim,
+    EngineeringApplyTerminalOutcome,
     PendingEngineeringApplyApproval,
     validate_engineering_apply_digest,
+    validate_engineering_apply_plan_digest,
 )
 from app.contracts.engineering_change_proposal import (
     ENGINEERING_CHANGE_CONTRACT_VERSION,
@@ -49,6 +45,10 @@ class EngineeringApplyNotApprovedError(EngineeringApplyApprovalError):
     reason_code = "engineering_apply_not_approved"
 
 
+class EngineeringApplyAlreadyClaimedError(EngineeringApplyApprovalError):
+    reason_code = "engineering_apply_already_claimed"
+
+
 class EngineeringApplyExpiredError(EngineeringApplyApprovalError):
     reason_code = "engineering_apply_expired"
 
@@ -69,6 +69,14 @@ class EngineeringApplyWorkspaceMismatchError(EngineeringApplyApprovalError):
     reason_code = "engineering_apply_workspace_mismatch"
 
 
+class EngineeringApplyTerminalError(EngineeringApplyApprovalError):
+    reason_code = "engineering_apply_terminal"
+
+
+class EngineeringApplyClaimIntegrityError(EngineeringApplyApprovalError):
+    reason_code = "engineering_apply_plan_integrity_failed"
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -84,7 +92,7 @@ def _same_workspace(
     return left == right
 
 
-def _snapshot_proposal(
+def engineering_apply_proposal_snapshot(
     proposal: EngineeringChangeProposal,
     *,
     workspace_scope: WorkspaceScope,
@@ -138,14 +146,7 @@ def _snapshot_proposal(
             "Engineering change proposal cannot be reconstructed."
         ) from None
 
-    try:
-        snapshot_projection = snapshot.canonical_projection()
-    except (TypeError, ValueError):
-        raise EngineeringApplyProposalInvalidError(
-            "Engineering change proposal snapshot is invalid."
-        ) from None
-
-    if snapshot_projection != projection:
+    if snapshot.canonical_projection() != projection:
         raise EngineeringApplyProposalInvalidError(
             "Engineering change proposal snapshot changed."
         )
@@ -163,12 +164,23 @@ def _snapshot_proposal(
 @dataclass(slots=True)
 class _EngineeringApplyApprovalRecord:
     pending: PendingEngineeringApplyApproval
-    state: Literal["pending", "approved", "denied"] = "pending"
+    state: Literal[
+        "pending",
+        "approved",
+        "denied",
+        "claimed",
+        "applied",
+        "stale",
+        "failed",
+        "indeterminate",
+    ] = "pending"
     approved: ApprovedEngineeringApplyApproval | None = None
+    claim: EngineeringApplyExecutionClaim | None = None
+    outcome: EngineeringApplyTerminalOutcome | None = None
 
 
 class EngineeringApplyApprovalStore:
-    """Thread-safe bounded process-local D108 approval store."""
+    """Thread-safe bounded process-local D108 approval/apply store."""
 
     def __init__(
         self,
@@ -206,12 +218,11 @@ class EngineeringApplyApprovalStore:
         workspace_scope: WorkspaceScope,
         proposal: EngineeringChangeProposal,
     ) -> PendingEngineeringApplyApproval:
-        snapshot = _snapshot_proposal(
+        snapshot = engineering_apply_proposal_snapshot(
             proposal,
             workspace_scope=workspace_scope,
         )
         now = self._clock()
-
         if now.tzinfo is None or now.utcoffset() is None:
             raise ValueError("clock must return a timezone-aware datetime.")
 
@@ -266,19 +277,10 @@ class EngineeringApplyApprovalStore:
                 workspace_scope=workspace_scope,
                 now=now,
             )
-            snapshot = _snapshot_proposal(
+            snapshot = engineering_apply_proposal_snapshot(
                 record.pending.proposal,
                 workspace_scope=workspace_scope,
             )
-            if not hmac.compare_digest(
-                snapshot.proposal_digest,
-                record.pending.proposal_digest,
-            ):
-                self._items.pop(approval_id, None)
-                raise EngineeringApplyProposalInvalidError(
-                    "Stored engineering proposal integrity changed."
-                )
-
             approved = ApprovedEngineeringApplyApproval(
                 approval_id=record.pending.approval_id,
                 workspace_scope=record.pending.workspace_scope,
@@ -336,7 +338,7 @@ class EngineeringApplyApprovalStore:
                     "Engineering apply approval is not approved."
                 )
 
-            snapshot = _snapshot_proposal(
+            snapshot = engineering_apply_proposal_snapshot(
                 record.approved.proposal,
                 workspace_scope=workspace_scope,
             )
@@ -348,6 +350,173 @@ class EngineeringApplyApprovalStore:
                     "Approved engineering proposal integrity changed."
                 )
             return record.approved
+
+    def finish_approved(
+        self,
+        outcome: EngineeringApplyTerminalOutcome,
+        *,
+        workspace_scope: WorkspaceScope,
+    ) -> EngineeringApplyTerminalOutcome:
+        """Make one approved record terminal before any execution claim."""
+
+        if not isinstance(outcome, EngineeringApplyTerminalOutcome):
+            raise EngineeringApplyTerminalError(
+                "Engineering apply terminal outcome is invalid."
+            )
+        if outcome.status not in {"stale", "failed"}:
+            raise EngineeringApplyTerminalError(
+                "Only stale/failed may finish before claim."
+            )
+
+        now = self._clock()
+        with self._lock:
+            record = self._items.get(outcome.approval_id)
+            if record is None:
+                raise EngineeringApplyNotApprovedError(
+                    "Engineering apply approval is not approved."
+                )
+            self._validate_live(
+                record,
+                outcome.approval_id,
+                outcome.proposal_digest,
+                workspace_scope=workspace_scope,
+                now=now,
+            )
+            if record.state != "approved" or record.approved is None:
+                raise EngineeringApplyNotApprovedError(
+                    "Engineering apply approval is not approved."
+                )
+            record.state = outcome.status
+            record.outcome = outcome
+            return outcome
+
+    def claim_approved(
+        self,
+        approval_id: str,
+        proposal_digest: str,
+        plan_digest: str,
+        *,
+        workspace_scope: WorkspaceScope,
+    ) -> EngineeringApplyExecutionClaim:
+        """Atomically transition exactly one approved proposal to claimed."""
+
+        try:
+            validate_engineering_apply_plan_digest(plan_digest)
+        except ValueError:
+            raise EngineeringApplyClaimIntegrityError(
+                "Engineering apply plan digest is invalid."
+            ) from None
+
+        now = self._clock()
+        with self._lock:
+            record = self._items.get(approval_id)
+            if record is None:
+                raise EngineeringApplyNotApprovedError(
+                    "Engineering apply approval is not approved."
+                )
+            self._validate_live(
+                record,
+                approval_id,
+                proposal_digest,
+                workspace_scope=workspace_scope,
+                now=now,
+            )
+            if record.state == "claimed":
+                raise EngineeringApplyAlreadyClaimedError(
+                    "Engineering apply approval is already claimed."
+                )
+            if record.state in {
+                "denied",
+                "applied",
+                "stale",
+                "failed",
+                "indeterminate",
+            }:
+                raise EngineeringApplyTerminalError(
+                    "Engineering apply approval is terminal."
+                )
+            if record.state != "approved" or record.approved is None:
+                raise EngineeringApplyNotApprovedError(
+                    "Engineering apply approval is not approved."
+                )
+
+            snapshot = engineering_apply_proposal_snapshot(
+                record.approved.proposal,
+                workspace_scope=workspace_scope,
+            )
+            if not hmac.compare_digest(
+                snapshot.proposal_digest,
+                record.approved.proposal_digest,
+            ):
+                raise EngineeringApplyProposalInvalidError(
+                    "Approved engineering proposal integrity changed."
+                )
+
+            claim = EngineeringApplyExecutionClaim(
+                approval_id=approval_id,
+                proposal_digest=proposal_digest,
+                plan_digest=plan_digest,
+            )
+            record.state = "claimed"
+            record.claim = claim
+            return claim
+
+    def complete(
+        self,
+        claim: EngineeringApplyExecutionClaim,
+        outcome: EngineeringApplyTerminalOutcome,
+    ) -> EngineeringApplyTerminalOutcome:
+        """Record one post-claim terminal result; never releases authority."""
+
+        if not isinstance(claim, EngineeringApplyExecutionClaim):
+            raise EngineeringApplyClaimIntegrityError(
+                "Engineering apply claim is invalid."
+            )
+        if not isinstance(outcome, EngineeringApplyTerminalOutcome):
+            raise EngineeringApplyTerminalError(
+                "Engineering apply outcome is invalid."
+            )
+        if outcome.status not in {"applied", "stale", "indeterminate"}:
+            raise EngineeringApplyTerminalError(
+                "Post-claim outcome must be applied/stale/indeterminate."
+            )
+        if (
+            outcome.approval_id != claim.approval_id
+            or not hmac.compare_digest(
+                outcome.proposal_digest,
+                claim.proposal_digest,
+            )
+        ):
+            raise EngineeringApplyClaimIntegrityError(
+                "Engineering apply outcome does not match claim."
+            )
+
+        with self._lock:
+            record = self._items.get(claim.approval_id)
+            if record is None:
+                raise EngineeringApplyAlreadyClaimedError(
+                    "Engineering apply claim is unavailable."
+                )
+            if record.claim != claim:
+                raise EngineeringApplyClaimIntegrityError(
+                    "Engineering apply claim changed."
+                )
+            if record.state != "claimed" or record.outcome is not None:
+                raise EngineeringApplyTerminalError(
+                    "Engineering apply lifecycle is already terminal."
+                )
+            record.state = outcome.status
+            record.outcome = outcome
+            return outcome
+
+    def state(self, approval_id: str) -> str:
+        with self._lock:
+            record = self._items.get(approval_id)
+            if record is None:
+                raise EngineeringApplyNotApprovedError(
+                    "Engineering apply approval is unavailable."
+                )
+            return record.state
 
     def clear(self) -> None:
         with self._lock:
@@ -393,7 +562,6 @@ class EngineeringApplyApprovalStore:
             record.pending.proposal_digest,
             proposal_digest,
         ):
-            # Fail closed: a mismatched digest consumes the pending ticket.
             self._items.pop(approval_id, None)
             raise EngineeringApplyDigestMismatchError(
                 "Engineering apply proposal digest does not match."
@@ -521,14 +689,18 @@ class EngineeringApplyApprovalService:
 __all__ = [
     "DEFAULT_ENGINEERING_APPLY_APPROVAL_TTL",
     "DEFAULT_MAX_ENGINEERING_APPLY_APPROVAL_RECORDS",
+    "EngineeringApplyAlreadyClaimedError",
     "EngineeringApplyApprovalError",
     "EngineeringApplyApprovalService",
     "EngineeringApplyApprovalStore",
+    "EngineeringApplyClaimIntegrityError",
     "EngineeringApplyDigestMismatchError",
     "EngineeringApplyExpiredError",
     "EngineeringApplyNotApprovedError",
     "EngineeringApplyNotPendingError",
     "EngineeringApplyProposalInvalidError",
     "EngineeringApplyStoreFullError",
+    "EngineeringApplyTerminalError",
     "EngineeringApplyWorkspaceMismatchError",
+    "engineering_apply_proposal_snapshot",
 ]
