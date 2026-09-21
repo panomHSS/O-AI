@@ -1,7 +1,6 @@
 # D106 - Engineering Assistant Read-Only Foundation v1
 
-Status: **APPROVED FOR IMPLEMENTATION**
-
+Status: **COMPLETE**
 Date: 2026-09-21
 
 ## Purpose
@@ -588,3 +587,31 @@ After approval, implementation must remain within this exact read-only boundary.
 ## Owner approval
 
 Owner approved **D106 - Engineering Assistant Read-Only Foundation v1** on 2026-09-21.
+## Completion record
+
+D106 completed on 2026-09-21.
+
+Acceptance evidence:
+
+- Batch 01 Contracts: PASS.
+- Batch 02 Repository Read Boundary: PASS.
+- Batch 03 Security Acceptance: PASS.
+- Windows path hardening for ADS, reserved device names, and trailing dot/space aliases: PASS.
+- D42/D48 filesystem regressions: PASS.
+- D98/D100/D104/D105 authority/security regressions: PASS.
+- Full backend regression: PASS.
+- Backend compileall: PASS.
+- `git diff --check`: PASS.
+
+Delivered boundary:
+
+- exact read-only operations: `repository_overview`, `list_directory`, `stat_path`, `read_text`;
+- server-owned repository root;
+- bounded deterministic directory and metadata observations;
+- bounded UTF-8 text reads with SHA-256 integrity metadata;
+- canonical repository-root containment;
+- sensitive-path denial including `.git`;
+- no filesystem write, patch, shell/process, Git, Tool/Module execution, network, connector, or credential authority;
+- no public API, Chat integration, frontend UX, database migration, engineering change proposal, or controlled apply authority.
+
+D107 owns the next boundary: **Engineering Change Proposal Contract v1**.
