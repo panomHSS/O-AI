@@ -7,8 +7,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 
-from app.api.dependencies import get_engineering_owner_workflow_service
+from app.api.dependencies import (
+    get_engineering_ai_draft_workflow_service,
+    get_engineering_owner_workflow_service,
+)
 from app.schemas.api import ApiSuccess
+from app.schemas.engineering_ai_draft import (
+    EngineeringAIDraftCreateRequest,
+    EngineeringAIDraftResponse,
+)
 from app.schemas.engineering_owner import (
     EngineeringOwnerActiveWorkflowResponse,
     EngineeringOwnerDecisionRequest,
@@ -16,6 +23,12 @@ from app.schemas.engineering_owner import (
     EngineeringOwnerReadRequest,
     EngineeringOwnerReadResponse,
     EngineeringOwnerWorkflowResponse,
+)
+from app.contracts.engineering_ai_draft import EngineeringAIDraftRequest
+from app.services.engineering_ai_draft import (
+    EngineeringAIDraftConversationNotFoundError,
+    EngineeringAIDraftError,
+    EngineeringAIDraftWorkflowService,
 )
 from app.services.engineering_owner_binding import (
     EngineeringOwnerActiveWorkflowError,
@@ -80,6 +93,17 @@ def _service_error(error: Exception) -> HTTPException:
     return HTTPException(status_code=http_status, detail=detail)
 
 
+def _ai_draft_error(error: EngineeringAIDraftError) -> HTTPException:
+    detail = error.code
+    if isinstance(error, EngineeringAIDraftConversationNotFoundError):
+        http_status = status.HTTP_404_NOT_FOUND
+    elif detail == "engineering_ai_draft_unavailable":
+        http_status = status.HTTP_503_SERVICE_UNAVAILABLE
+    else:
+        http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
+    return HTTPException(status_code=http_status, detail=detail)
+
+
 def _workflow_response(
     service: EngineeringOwnerWorkflowService,
     binding,
@@ -130,6 +154,45 @@ def read_engineering_repository(
             raise _service_error(error) from error
         raise
     return ApiSuccess(data=data)
+
+
+@router.post(
+    "/ai-drafts",
+    response_model=ApiSuccess[EngineeringAIDraftResponse],
+    status_code=status.HTTP_200_OK,
+)
+def create_engineering_ai_draft(
+    payload: EngineeringAIDraftCreateRequest,
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    service: Annotated[
+        EngineeringAIDraftWorkflowService,
+        Depends(get_engineering_ai_draft_workflow_service),
+    ],
+) -> ApiSuccess[EngineeringAIDraftResponse]:
+    try:
+        request = EngineeringAIDraftRequest(
+            conversation_id=payload.conversation_id,
+            relative_path=payload.relative_path,
+            instruction=payload.instruction,
+        )
+        result = service.draft(request)
+    except ValueError as error:
+        detail = str(error)
+        if not detail.startswith("engineering_ai_draft_"):
+            detail = "engineering_ai_draft_request_invalid"
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=detail,
+        ) from error
+    except EngineeringAIDraftError as error:
+        raise _ai_draft_error(error) from error
+
+    return ApiSuccess(
+        data=EngineeringAIDraftResponse.from_result(result)
+    )
 
 
 @router.post(
@@ -327,6 +390,7 @@ __all__ = [
     "LOCAL_REQUEST_HEADER_VALUE",
     "apply_engineering_proposal",
     "approve_engineering_proposal",
+    "create_engineering_ai_draft",
     "create_engineering_proposal",
     "deny_engineering_proposal",
     "get_active_engineering_workflow",

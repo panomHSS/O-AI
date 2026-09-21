@@ -40,6 +40,52 @@ class EngineeringAIDraftError(Exception):
         super().__init__(code)
 
 
+class EngineeringAIDraftConversationNotFoundError(EngineeringAIDraftError):
+    def __init__(self) -> None:
+        super().__init__("engineering_ai_draft_conversation_not_found")
+
+
+class EngineeringAIDraftWorkflowService:
+    def __init__(
+        self,
+        *,
+        workspace_scope: WorkspaceScope,
+        conversation_repository,
+        draft_service,
+    ) -> None:
+        if not isinstance(workspace_scope, WorkspaceScope):
+            raise ValueError("engineering_ai_draft_request_invalid")
+        if not callable(getattr(conversation_repository, "get", None)):
+            raise TypeError("conversation_repository must support get().")
+        if not callable(getattr(draft_service, "draft", None)):
+            raise TypeError("draft_service must support draft().")
+        self._workspace_scope = workspace_scope
+        self._conversations = conversation_repository
+        self._draft_service = draft_service
+
+    @property
+    def workspace_scope(self) -> WorkspaceScope:
+        return self._workspace_scope
+
+    def draft(
+        self,
+        request: EngineeringAIDraftRequest,
+    ) -> EngineeringAIDraftResult:
+        if not isinstance(request, EngineeringAIDraftRequest):
+            raise EngineeringAIDraftError(
+                "engineering_ai_draft_request_invalid"
+            )
+        conversation = self._conversations.get(
+            str(request.conversation_id)
+        )
+        if conversation is None:
+            raise EngineeringAIDraftConversationNotFoundError()
+        return self._draft_service.draft(
+            workspace_scope=self._workspace_scope,
+            request=request,
+        )
+
+
 class EngineeringAIDraftService:
     """Produce candidate content without creating a D107 proposal."""
 
@@ -236,4 +282,9 @@ class EngineeringAIDraftService:
         )
 
 
-__all__ = ["EngineeringAIDraftError", "EngineeringAIDraftService"]
+__all__ = [
+    "EngineeringAIDraftConversationNotFoundError",
+    "EngineeringAIDraftError",
+    "EngineeringAIDraftService",
+    "EngineeringAIDraftWorkflowService",
+]

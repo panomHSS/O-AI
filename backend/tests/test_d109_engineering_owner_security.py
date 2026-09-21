@@ -232,6 +232,7 @@ def test_d109_engineering_routes_are_exact_and_bounded() -> None:
     assert paths == {
         "/engineering/read",
         "/engineering/proposals",
+        "/engineering/ai-drafts",
         "/engineering/conversations/{conversation_id}/active",
         "/engineering/approvals/{approval_id}/approve",
         "/engineering/approvals/{approval_id}/deny",

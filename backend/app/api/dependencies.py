@@ -337,6 +337,10 @@ from app.services.engineering_apply_execution import EngineeringApplyExecutionSe
 from app.services.engineering_change_proposal import EngineeringChangeProposalService
 from app.services.engineering_owner_binding import EngineeringOwnerBindingStore
 from app.services.engineering_owner_workflow import EngineeringOwnerWorkflowService
+from app.services.engineering_ai_draft import (
+    EngineeringAIDraftService,
+    EngineeringAIDraftWorkflowService,
+)
 from app.services.engineering_repository_reader import EngineeringRepositoryReader
 @lru_cache
 def get_chatgpt_adapter() -> ChatGPTAdapter:
@@ -2363,6 +2367,29 @@ def get_engineering_apply_approval_store() -> EngineeringApplyApprovalStore:
 def get_engineering_owner_binding_store() -> EngineeringOwnerBindingStore:
     """Share bounded D109 correlation/presentation state only."""
     return EngineeringOwnerBindingStore()
+
+
+def get_engineering_ai_draft_workflow_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    execution_planner: ExecutionPlanner = Depends(get_execution_planner),
+    execution_guard: ExecutionGuard = Depends(get_execution_guard),
+    ai_runtime: AIRuntime = Depends(get_ai_runtime),
+) -> EngineeringAIDraftWorkflowService:
+    repository_root = get_engineering_repository_root()
+    return EngineeringAIDraftWorkflowService(
+        workspace_scope=workspace_scope,
+        conversation_repository=ConversationRepository(
+            database_session,
+            workspace_scope,
+        ),
+        draft_service=EngineeringAIDraftService(
+            repository_reader=EngineeringRepositoryReader(repository_root),
+            execution_planner=execution_planner,
+            execution_guard=execution_guard,
+            ai_runtime=ai_runtime,
+        ),
+    )
 
 
 def get_engineering_apply_execution_service(
