@@ -949,8 +949,8 @@ Roadmap status: **APPROVED**
 - D101 — Calendar Exact Update/Delete Owner UX v1 — COMPLETE
 - D102 — Local AI Runtime & Model Visibility v1 — COMPLETE
 - D103 — Local AI Owner Control UX v1 — COMPLETE
-- D104 — Task-Aware AI Routing Contract v1
-- D105 — Task-Aware AI Routing Integration v1
+- D104 — Task-Aware AI Routing Contract v1 — COMPLETE
+- D105 — Task-Aware AI Routing Integration v1 — COMPLETE
 - D106 — Engineering Assistant Read-Only Foundation v1
 - D107 — Engineering Change Proposal Contract v1
 - D108 — Controlled Engineering Apply v1
@@ -971,6 +971,17 @@ acceptance passed. D103 added no database migration and did not add arbitrary
 model selection, model install/delete, runtime process control, routing-policy
 editing, retry, or fallback authority.
 
-Next boundary: D104 — Task-Aware AI Routing Contract v1. Implementation has not
+Next boundary: D106 — Engineering Assistant Read-Only Foundation v1.
 started and requires its own approved Design/Implementation Spec before
 task-aware routing authority is added.
+D105 Task-Aware AI Routing Integration v1 is COMPLETE. Task-aware routing is now
+integrated into the live AI routing boundary with D98 workspace policy remaining
+authoritative. General Chat preserves the workspace default route; Software
+Engineering selects Local AI when permitted. Explicit provider preference remains
+higher precedence than task policy. No silent provider fallback, retry authority,
+execution authority, filesystem mutation, code mutation, or Git authority was added.
+
+D105 targeted integration tests, security acceptance, and full backend regression
+passed.
+
+Next boundary: D106 — Engineering Assistant Read-Only Foundation v1.

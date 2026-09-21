@@ -1,6 +1,6 @@
 # D105 - Task-Aware AI Routing Integration v1
 
-Status: **APPROVED FOR IMPLEMENTATION**
+Status: **COMPLETE**
 
 ## Purpose
 
@@ -210,3 +210,30 @@ D105 - Task-Aware AI Routing Integration v1
 ## Owner approval
 
 Owner approved **D105 - Task-Aware AI Routing Integration v1** on 2026-09-21.
+## Completion record
+
+D105 implementation completed on 2026-09-21.
+
+Acceptance evidence:
+
+`	ext
+D105 Implementation Batch 01 = PASS
+D105 Security Acceptance = PASS
+D105 Full Backend Regression = PASS
+git diff --check = PASS
+`
+
+D105 production routing policy:
+
+`	ext
+general_chat -> workspace_default
+software_engineering -> local_ai
+`
+
+D98 remains the outer workspace routing authority.
+
+No silent Local-to-Cloud or Cloud-to-Local fallback was added.
+
+Next boundary:
+
+**D106 - Engineering Assistant Read-Only Foundation v1**
