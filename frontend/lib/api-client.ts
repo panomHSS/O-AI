@@ -8,6 +8,8 @@ import type {
   ChatRequest,
   ChatResponse,
   ExecutionApprovalDecision,
+  EngineeringAIDraftRequest,
+  EngineeringAIDraftResponse,
   EngineeringOwnerActiveWorkflowResponse,
   EngineeringOwnerProposalRequest,
   EngineeringOwnerReadRequest,
@@ -662,6 +664,34 @@ export function readEngineeringRepository(
       body: payload,
     },
   ).then((response) => assertResponseWorkspace(workspaceId, response));
+}
+
+export function createEngineeringAIDraft(
+  workspaceId: WorkspaceId,
+  payload: EngineeringAIDraftRequest,
+): Promise<EngineeringAIDraftResponse> {
+  return workspaceApiRequest<EngineeringAIDraftResponse>(
+    workspaceId,
+    "/engineering/ai-drafts",
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: payload,
+      timeoutMs: configuredChatTimeoutMs(),
+    },
+  ).then((response) => {
+    if (
+      response.conversation_id !== payload.conversation_id ||
+      response.relative_path !== payload.relative_path
+    ) {
+      throw new ApiError(
+        "The Engineering draft response did not match the requested conversation and target.",
+        "HTTP",
+        409,
+      );
+    }
+    return response;
+  });
 }
 
 export function createEngineeringProposal(

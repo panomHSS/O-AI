@@ -245,6 +245,24 @@ export interface EngineeringOwnerReadResponse {
   content_sha256: string | null;
 }
 
+export interface EngineeringAIDraftRequest {
+  conversation_id: string;
+  relative_path: string;
+  instruction: string;
+}
+
+export interface EngineeringAIDraftResponse {
+  contract_version: string;
+  conversation_id: string;
+  relative_path: string;
+  draft_operation: "create_text" | "replace_text";
+  source_state: "absent" | "present";
+  source_sha256: string | null;
+  source_size_bytes: number | null;
+  draft_content: string;
+  ai_adapter_id: string;
+}
+
 export interface EngineeringOwnerProposalRequest {
   conversation_id: string;
   operation: "create_text" | "replace_text";

@@ -4,11 +4,13 @@ import { FormEvent, useEffect, useState } from "react";
 
 import {
   ApiError,
+  createEngineeringAIDraft,
   createEngineeringProposal,
   getActiveEngineeringWorkflow,
   readEngineeringRepository,
 } from "../../lib/api-client";
 import type {
+  EngineeringAIDraftResponse,
   EngineeringOwnerReadOperation,
   EngineeringOwnerReadResponse,
   EngineeringOwnerWorkflow,
@@ -34,6 +36,11 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
     useState<"create_text" | "replace_text">("replace_text");
   const [proposalPath, setProposalPath] = useState("");
   const [proposalContent, setProposalContent] = useState("");
+  const [draftPath, setDraftPath] = useState("");
+  const [draftInstruction, setDraftInstruction] = useState("");
+  const [aiDraft, setAIDraft] = useState<EngineeringAIDraftResponse | null>(null);
+  const [aiDraftContent, setAIDraftContent] = useState("");
+  const [isDrafting, setIsDrafting] = useState(false);
   const [isReading, setIsReading] = useState(false);
   const [isProposing, setIsProposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +97,80 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
       );
     } finally {
       setIsReading(false);
+    }
+  }
+
+  async function requestAIDraft(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !conversationId ||
+      !draftPath.trim() ||
+      !draftInstruction.trim() ||
+      isDrafting
+    ) {
+      return;
+    }
+
+    setIsDrafting(true);
+    setError(null);
+    try {
+      const result = await createEngineeringAIDraft(workspaceId, {
+        conversation_id: conversationId,
+        relative_path: draftPath.trim(),
+        instruction: draftInstruction.trim(),
+      });
+      setAIDraft(result);
+      setAIDraftContent(result.draft_content);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to create a Local AI Engineering draft.",
+      );
+    } finally {
+      setIsDrafting(false);
+    }
+  }
+
+  function discardAIDraft() {
+    setAIDraft(null);
+    setAIDraftContent("");
+    setError(null);
+  }
+
+  async function createProposalFromDraft() {
+    if (
+      !conversationId ||
+      !aiDraft ||
+      !aiDraftContent ||
+      isProposing ||
+      workflow?.presentation_state === "pending" ||
+      workflow?.presentation_state === "approved"
+    ) {
+      return;
+    }
+
+    setIsProposing(true);
+    setError(null);
+    try {
+      setWorkflow(
+        await createEngineeringProposal(workspaceId, {
+          conversation_id: conversationId,
+          operation: aiDraft.draft_operation,
+          relative_path: aiDraft.relative_path,
+          proposed_content: aiDraftContent,
+        }),
+      );
+      setAIDraft(null);
+      setAIDraftContent("");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to create the Engineering proposal from this draft.",
+      );
+    } finally {
+      setIsProposing(false);
     }
   }
 
@@ -238,6 +319,117 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
               </div>
             ) : null}
           </form>
+
+          <form
+            className="rounded-xl border border-emerald-900/70 bg-zinc-950/40 p-4"
+            onSubmit={requestAIDraft}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">AI-assisted draft</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Local AI returns candidate text only. It does not create, approve, or apply a proposal.
+                </p>
+              </div>
+              <span className="rounded-full border border-emerald-900 px-2 py-1 text-[11px] text-emerald-300">
+                Non-authoritative
+              </span>
+            </div>
+
+            <div className="mt-3 grid gap-3">
+              <input
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+                disabled={isDrafting}
+                onChange={(event) => setDraftPath(event.target.value)}
+                placeholder="Relative path"
+                value={draftPath}
+              />
+
+              <textarea
+                className="min-h-28 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+                disabled={isDrafting}
+                onChange={(event) => setDraftInstruction(event.target.value)}
+                placeholder="Describe what you want Local AI to change"
+                value={draftInstruction}
+              />
+
+              <button
+                className="w-fit rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                disabled={
+                  isDrafting ||
+                  !draftPath.trim() ||
+                  !draftInstruction.trim()
+                }
+                type="submit"
+              >
+                {isDrafting ? "Drafting with Local AI…" : "Draft with Local AI"}
+              </button>
+            </div>
+          </form>
+
+          {aiDraft ? (
+            <article className="rounded-xl border border-emerald-800/70 bg-zinc-950/60 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">Local AI draft (non-authoritative)</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Review and edit this candidate text before creating any D107 proposal.
+                  </p>
+                </div>
+                <span className="rounded-full border border-zinc-700 px-2 py-1 text-xs">
+                  {aiDraft.ai_adapter_id}
+                </span>
+              </div>
+
+              <dl className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+                <div>
+                  <dt className="text-zinc-500">Target</dt>
+                  <dd className="break-all font-mono">{aiDraft.relative_path}</dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">Draft operation</dt>
+                  <dd>{aiDraft.draft_operation}</dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">Source state</dt>
+                  <dd>{aiDraft.source_state}</dd>
+                </div>
+              </dl>
+
+              <textarea
+                className="mt-3 min-h-56 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm"
+                onChange={(event) => setAIDraftContent(event.target.value)}
+                value={aiDraftContent}
+              />
+
+              <p className="mt-2 text-xs text-zinc-500">
+                Creating a proposal is a separate owner action. D107 re-observes repository state and computes the authoritative proposal digest.
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  className="rounded-lg border border-zinc-600 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  disabled={isProposing}
+                  onClick={discardAIDraft}
+                  type="button"
+                >
+                  Discard Draft
+                </button>
+                <button
+                  className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 disabled:opacity-50"
+                  disabled={
+                    blocksNewProposal ||
+                    isProposing ||
+                    !aiDraftContent
+                  }
+                  onClick={() => void createProposalFromDraft()}
+                  type="button"
+                >
+                  {isProposing ? "Creating proposal…" : "Create Proposal from Draft"}
+                </button>
+              </div>
+            </article>
+          ) : null}
 
           <form
             className="rounded-xl border border-zinc-700 bg-zinc-950/40 p-4"
