@@ -1,7 +1,6 @@
 # D107 - Engineering Change Proposal Contract v1
 
-Status: **APPROVED FOR IMPLEMENTATION**
-
+Status: **COMPLETE**
 Date: 2026-09-21
 
 ## Purpose
@@ -1022,3 +1021,34 @@ It does not authorize D108 controlled apply, owner approval state, filesystem
 mutation, shell/process execution, Git authority, Tool/Module execution,
 network/connector access, credential access, database migration, public API,
 Chat integration, frontend UX, or any capability listed as out of scope.
+## Completion record
+
+D107 completed on 2026-09-21.
+
+Acceptance evidence:
+
+- Batch 01 Immutable Proposal Contracts: PASS.
+- Batch 02 D106-Backed Proposal Service: PASS.
+- Batch 03 Security Acceptance: PASS.
+- Canonical proposal digest/content-integrity hardening: PASS.
+- D106 read-boundary regressions: PASS.
+- D42/D48 filesystem/write regressions: PASS.
+- D98/D100/D104/D105 authority/security regressions: PASS.
+- Full backend regression: PASS.
+- Backend compileall: PASS.
+- `git diff --check`: PASS.
+
+Delivered boundary:
+
+- exact D107 operations: `create_text` and `replace_text`;
+- one proposal targets exactly one repository-relative text file;
+- server-derived base state through the completed D106 read-only boundary;
+- immutable exact before/after review snapshot;
+- deterministic UTF-8 content SHA-256 metadata;
+- deterministic canonical proposal projection and lowercase SHA-256 `proposal_digest`;
+- stale-state snapshot semantics without mutation authority;
+- no owner approval state, apply claim, filesystem mutation, shell/process, Git,
+  Tool/Module execution, network, connector, credential, public API, Chat,
+  frontend UX, database migration, or durable proposal persistence.
+
+D108 owns the next boundary: **Controlled Engineering Apply v1**.

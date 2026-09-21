@@ -952,7 +952,7 @@ Roadmap status: **APPROVED**
 - D104 — Task-Aware AI Routing Contract v1 — COMPLETE
 - D105 — Task-Aware AI Routing Integration v1 — COMPLETE
 - D106 — Engineering Assistant Read-Only Foundation v1 - COMPLETE
-- D107 — Engineering Change Proposal Contract v1
+- D107 — Engineering Change Proposal Contract v1 - COMPLETE
 - D108 — Controlled Engineering Apply v1
 - D109 — Owner Productivity UX & Acceptance v1
 - D110 — Integration Security Review v5
@@ -971,7 +971,7 @@ acceptance passed. D103 added no database migration and did not add arbitrary
 model selection, model install/delete, runtime process control, routing-policy
 editing, retry, or fallback authority.
 
-Next boundary: D107 - Engineering Change Proposal Contract v1.
+Next boundary: D108 - Controlled Engineering Apply v1.
 started and requires its own approved Design/Implementation Spec before
 task-aware routing authority is added.
 D105 Task-Aware AI Routing Integration v1 is COMPLETE. Task-aware routing is now
@@ -984,9 +984,23 @@ execution authority, filesystem mutation, code mutation, or Git authority was ad
 D105 targeted integration tests, security acceptance, and full backend regression
 passed.
 
-Next boundary: D107 - Engineering Change Proposal Contract v1.
+Next boundary: D108 - Controlled Engineering Apply v1.
 D106 Engineering Assistant Read-Only Foundation v1 is COMPLETE. D106 adds a bounded server-rooted Engineering Repository read foundation for repository overview, directory listing, path metadata, and UTF-8 text reads with integrity metadata. The boundary remains read-only and adds no filesystem mutation, code mutation, shell/process, Git, Tool/Module execution, network, connector, credential, change-proposal, apply, public API, or frontend authority.
 
 D106 targeted acceptance, security acceptance, D42/D48 filesystem regression coverage, D98/D100/D104/D105 authority/security regressions, full backend regression, backend compileall, and `git diff --check` passed.
 
 Next boundary: D107 - Engineering Change Proposal Contract v1.
+D107 Engineering Change Proposal Contract v1 is COMPLETE. D107 adds an immutable,
+proposal-only engineering change boundary for one exact text file with `create_text`
+and `replace_text` operations, D106-derived base state, exact before/after review
+snapshots, deterministic content digests, and a canonical proposal digest. D107
+adds zero filesystem mutation, owner-approval state, apply claim, shell/process,
+Git, Tool/Module execution, network, connector, credential, API, Chat, frontend,
+or durable proposal-persistence authority.
+
+D107 targeted acceptance, proposal-integrity security acceptance, D106 read-boundary
+regressions, D42/D48 filesystem/write regressions, D98/D100/D104/D105 authority/
+security regressions, full backend regression, backend compileall, and
+`git diff --check` passed.
+
+Next boundary: D108 - Controlled Engineering Apply v1.
