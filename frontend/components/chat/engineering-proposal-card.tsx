@@ -23,6 +23,7 @@ const terminalStates = new Set([
   "stale",
   "failed",
   "indeterminate",
+  "expired",
 ]);
 
 export function EngineeringProposalCard({
@@ -107,6 +108,10 @@ export function EngineeringProposalCard({
       </div>
 
       <dl className="mt-4 grid gap-2 text-xs">
+        <div>
+          <dt className="text-zinc-500">Contract version</dt>
+          <dd>{workflow.review.contract_version}</dd>
+        </div>
         <div>
           <dt className="text-zinc-500">Operation</dt>
           <dd>{workflow.review.operation}</dd>

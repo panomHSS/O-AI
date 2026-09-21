@@ -70,28 +70,26 @@ def test_d109_one_active_workflow_per_conversation() -> None:
         store.bind(second)
 
 
-def test_d109_binding_expires_and_rehydrates_none() -> None:
-    now_box = [datetime(2026, 9, 21, tzinfo=timezone.utc)]
+def test_d109_binding_expires_as_terminal_presentation_state() -> None:
+    from datetime import timedelta
+
+    binding = _binding()
+    now_box = [binding.expires_at - timedelta(seconds=1)]
     store = EngineeringOwnerBindingStore(clock=lambda: now_box[0])
-    binding = EngineeringOwnerBinding(
-        workspace_scope=PERSONAL,
-        conversation_id=uuid4(),
-        approval_id="approval-1",
-        proposal_digest="a" * 64,
-        review=_binding().review,
-        expires_at=now_box[0] + timedelta(seconds=1),
-    )
     store.bind(binding)
 
-    now_box[0] = now_box[0] + timedelta(seconds=2)
+    now_box[0] = binding.expires_at
 
-    assert (
-        store.active_for_conversation(
-            workspace_scope=PERSONAL,
-            conversation_id=binding.conversation_id,
-        )
-        is None
+    expired = store.active_for_conversation(
+        workspace_scope=binding.workspace_scope,
+        conversation_id=binding.conversation_id,
     )
+
+    assert expired is not None
+    assert expired.approval_id == binding.approval_id
+    assert expired.proposal_digest == binding.proposal_digest
+    assert expired.presentation_state == "expired"
+    assert expired.reason_code == "engineering_apply_expired"
 
 
 def test_d109_binding_is_workspace_isolated() -> None:

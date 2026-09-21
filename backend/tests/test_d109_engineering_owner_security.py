@@ -237,3 +237,42 @@ def test_d109_engineering_routes_are_exact_and_bounded() -> None:
         "/engineering/approvals/{approval_id}/deny",
         "/engineering/approvals/{approval_id}/apply",
     }
+
+
+def test_d109_closeout_review_contract_version_and_expired_terminal() -> None:
+    binding = _read("backend/app/services/engineering_owner_binding.py")
+    schema = _read("backend/app/schemas/engineering_owner.py")
+    frontend_types = _read("frontend/types/chat.ts")
+    card = _read("frontend/components/chat/engineering-proposal-card.tsx")
+
+    assert "contract_version=proposal.contract_version" in binding
+    assert "contract_version: str" in schema
+    assert "contract_version=review.contract_version" in schema
+    assert "contract_version: string;" in frontend_types
+
+    assert 'presentation_state="expired"' in binding
+    assert 'reason_code="engineering_apply_expired"' in binding
+    assert '"expired",' in schema
+    assert '| "expired";' in frontend_types
+    assert '"expired",' in card
+    assert "No Retry is available." in card
+
+
+def test_d109_closeout_expiry_remains_presentation_only() -> None:
+    binding = _read("backend/app/services/engineering_owner_binding.py")
+    workflow = _read("backend/app/services/engineering_owner_workflow.py")
+
+    cleanup_start = binding.index("    def _cleanup(self, now: datetime) -> None:")
+    cleanup_end = binding.index(
+        "    def _for_conversation_locked(",
+        cleanup_start,
+    )
+    cleanup = binding[cleanup_start:cleanup_end]
+
+    assert 'presentation_state="expired"' in cleanup
+    assert "engineering_apply_expired" in cleanup
+    assert "self._execution_service.apply(" not in cleanup
+    assert "FilesystemCreateTextToolAdapter" not in cleanup
+    assert "FilesystemReplaceTextToolAdapter" not in cleanup
+
+    assert "self._execution_service.apply(" in workflow

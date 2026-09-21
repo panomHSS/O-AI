@@ -14,7 +14,10 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 
-from app.contracts.engineering_change_proposal import EngineeringChangeProposal
+from app.contracts.engineering_change_proposal import (
+    ENGINEERING_CHANGE_CONTRACT_VERSION,
+    EngineeringChangeProposal,
+)
 from app.contracts.workspace import WorkspaceScope
 
 
@@ -28,11 +31,12 @@ EngineeringOwnerPresentationState = Literal[
     "stale",
     "failed",
     "indeterminate",
+    "expired",
 ]
 
 _NON_TERMINAL = frozenset({"pending", "approved"})
 _TERMINAL = frozenset(
-    {"denied", "applied", "stale", "failed", "indeterminate"}
+    {"denied", "applied", "stale", "failed", "indeterminate", "expired"}
 )
 _ALLOWED_TRANSITIONS = {
     "pending": frozenset({"approved", "denied"}),
@@ -83,6 +87,11 @@ class EngineeringOwnerReview:
     after_content: str
     after_sha256: str
     after_size_bytes: int
+    contract_version: str = ENGINEERING_CHANGE_CONTRACT_VERSION
+
+    def __post_init__(self) -> None:
+        if self.contract_version != ENGINEERING_CHANGE_CONTRACT_VERSION:
+            raise ValueError("engineering_owner_request_invalid")
 
     @classmethod
     def from_proposal(
@@ -101,6 +110,7 @@ class EngineeringOwnerReview:
             after_content=proposal.proposed_content,
             after_sha256=proposal.proposed_sha256,
             after_size_bytes=proposal.proposed_size_bytes,
+            contract_version=proposal.contract_version,
         )
 
 
@@ -210,6 +220,18 @@ class EngineeringOwnerBindingStore:
                     conversation_existing.approval_id,
                     None,
                 )
+
+            if len(self._items) >= self._max_items:
+                evictable = next(
+                    (
+                        approval_id
+                        for approval_id, item in self._items.items()
+                        if item.presentation_state in _TERMINAL
+                    ),
+                    None,
+                )
+                if evictable is not None:
+                    self._items.pop(evictable, None)
 
             if len(self._items) >= self._max_items:
                 raise EngineeringOwnerBindingStoreFullError(
@@ -340,13 +362,15 @@ class EngineeringOwnerBindingStore:
         return now
 
     def _cleanup(self, now: datetime) -> None:
-        expired = [
-            approval_id
-            for approval_id, binding in self._items.items()
-            if binding.expires_at <= now
-        ]
-        for approval_id in expired:
-            self._items.pop(approval_id, None)
+        for approval_id, binding in tuple(self._items.items()):
+            if binding.expires_at > now:
+                continue
+            if binding.presentation_state in _NON_TERMINAL:
+                self._items[approval_id] = replace(
+                    binding,
+                    presentation_state="expired",
+                    reason_code="engineering_apply_expired",
+                )
 
     def _for_conversation_locked(
         self,

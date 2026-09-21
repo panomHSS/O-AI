@@ -150,6 +150,7 @@ class EngineeringOwnerDecisionRequest(BaseModel):
 class EngineeringOwnerReviewResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    contract_version: str
     operation: Literal["create_text", "replace_text"]
     relative_path: str
     base_state: Literal["absent", "present"]
@@ -189,6 +190,7 @@ class EngineeringOwnerWorkflowResponse(BaseModel):
         "stale",
         "failed",
         "indeterminate",
+        "expired",
     ]
     reason_code: str | None = None
     expires_at: datetime
@@ -211,6 +213,7 @@ class EngineeringOwnerWorkflowResponse(BaseModel):
             reason_code=binding.reason_code,
             expires_at=binding.expires_at,
             review=EngineeringOwnerReviewResponse(
+                contract_version=review.contract_version,
                 operation=review.operation,
                 relative_path=review.relative_path,
                 base_state=review.base_state,

@@ -253,6 +253,7 @@ export interface EngineeringOwnerProposalRequest {
 }
 
 export interface EngineeringOwnerReview {
+  contract_version: string;
   operation: "create_text" | "replace_text";
   relative_path: string;
   base_state: "absent" | "present";
@@ -271,7 +272,8 @@ export type EngineeringOwnerPresentationState =
   | "applied"
   | "stale"
   | "failed"
-  | "indeterminate";
+  | "indeterminate"
+  | "expired";
 
 export interface EngineeringOwnerWorkflow {
   workspace_id: WorkspaceId;
