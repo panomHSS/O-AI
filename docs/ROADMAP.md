@@ -1004,3 +1004,11 @@ security regressions, full backend regression, backend compileall, and
 `git diff --check` passed.
 
 Next boundary: D108 - Controlled Engineering Apply v1.
+## D108 closeout - 2026-09-21
+
+- D108 - Controlled Engineering Apply v1: **COMPLETE**.
+- Full backend regression: **GREEN**.
+- Security acceptance: **GREEN**.
+- Working boundary after D108: **D109 - Owner Productivity UX & Acceptance v1**.
+- D109 implementation has **not started** and requires its own approved Design/Implementation Spec.
+- D110 - Integration Security Review v5 remains a later boundary.

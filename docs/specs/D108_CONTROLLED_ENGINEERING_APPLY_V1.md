@@ -1,6 +1,6 @@
 # D108 - Controlled Engineering Apply v1
 
-Status: **APPROVED FOR IMPLEMENTATION**
+Status: **COMPLETE**
 
 Date: 2026-09-21
 
@@ -1161,3 +1161,42 @@ This approval does **not** authorize:
 
 D109 remains separately unauthorized until D108 is complete and D109 receives
 its own approved Design/Implementation Spec.
+## Completion record
+
+D108 - Controlled Engineering Apply v1 completed on 2026-09-21.
+
+Validated implementation chain:
+
+D107 immutable proposal
+-> dedicated D108 owner approval
+-> deterministic private D48 Tool plan
+-> D36 authorization
+-> immediate D106 stale-state revalidation
+-> atomic one-time claim
+-> D38 ToolRuntime
+-> D48 safe create/replace
+-> terminal applied/stale/failed/indeterminate outcome
+
+Acceptance confirmed:
+
+- create_text and replace_text are the only D108 mutation operations;
+- server-owned same-root D106/D48 composition is preserved;
+- workspace, proposal digest, and execution-plan digest bindings are enforced;
+- proposal digest and execution-plan digest remain distinct domains;
+- stale create/replace state fails closed before or during D48 mutation checks;
+- one approved proposal produces at most one runtime dispatch;
+- concurrent losers, replay, stale, failed, and indeterminate outcomes grant no retry authority;
+- D45 generic approval, D35 generic planner, and generic command coordinator are not D108 authority;
+- D108 adds no public API, Chat, frontend, database migration, shell/process, Git,
+  network/connector, credential, or AI-provider authority;
+- D109 Owner Productivity UX remains separately unauthorized;
+- full backend regression passed before closeout.
+
+Local D108 checkpoints:
+
+- Spec approval: 9930321
+- Batch 01 approval lifecycle: 27213ef
+- Batch 02 controlled apply lane: 330dc5b
+- Batch 03 security acceptance: 4bd20da
+
+Next boundary: D109 - Owner Productivity UX & Acceptance v1.
