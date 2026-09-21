@@ -1,4 +1,4 @@
-"""Deterministic AI router with D32 availability and D98 workspace policy."""
+"""Deterministic AI router with D32 availability, D98 policy, and D105 task routing."""
 
 from __future__ import annotations
 
@@ -10,9 +10,21 @@ from app.contracts.ai_route import (
     AIRouteDecision,
 )
 from app.contracts.command_decision import CommandDecision
+from app.contracts.task_aware_ai_routing import (
+    AITaskKind,
+    AITaskRouteDirective,
+    TaskAwareAIRoutingPolicy,
+)
 from app.contracts.workspace_ai_policy import WorkspaceAIRoutingPolicy
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
+from app.services.task_aware_ai_routing import TaskAwareAIRoutingResolver
+
+
+_D105_PRODUCTION_TASK_POLICY = TaskAwareAIRoutingPolicy(
+    general_chat=AITaskRouteDirective.WORKSPACE_DEFAULT,
+    software_engineering=AITaskRouteDirective.LOCAL_AI,
+)
 
 
 class AIRouter:
@@ -41,6 +53,7 @@ class AIRouter:
         self._registry = registry
         self._workspace_policy = workspace_policy
         self._local_ai_adapter_id = local_ai_adapter_id
+        self._task_aware_resolver = TaskAwareAIRoutingResolver()
 
         if policy is not None:
             self._default_adapter_id = policy.default_adapter_id
@@ -54,6 +67,8 @@ class AIRouter:
         self,
         decision: CommandDecision,
         workspace_policy: WorkspaceAIRoutingPolicy | None = None,
+        *,
+        task_kind: AITaskKind | None = AITaskKind.GENERAL_CHAT,
     ) -> AIRouteDecision:
         """Return a fail-closed route decision without adapter invocation."""
         if not self._is_supported_decision(decision):
@@ -63,6 +78,15 @@ class AIRouter:
                 adapter_id=None,
                 selection_source=None,
                 reason_code="invalid_command_decision",
+            )
+
+        if task_kind is not None and not isinstance(task_kind, AITaskKind):
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="invalid_task_kind",
             )
 
         if decision.disposition == "reject":
@@ -96,13 +120,28 @@ class AIRouter:
                     selection_source=None,
                     reason_code="invalid_workspace_ai_policy",
                 )
+            if task_kind is not None:
+                return self._route_with_task_policy(
+                    decision,
+                    effective_workspace_policy,
+                    task_kind,
+                )
             return self._route_with_workspace_policy(
                 decision,
                 effective_workspace_policy,
             )
 
-        # Preserve the legacy D32 path until Batch 03 wires exact workspace
-        # policy into production. Explicit cloud routing is not accepted here.
+        if task_kind is AITaskKind.SOFTWARE_ENGINEERING:
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="workspace_ai_policy_required",
+            )
+
+        # Preserve the legacy D32 path when exact workspace policy is absent.
+        # Explicit cloud routing is not accepted here.
         if decision.provider_preference_hint == "cloud_ai_explicit":
             return AIRouteDecision(
                 request_id=decision.request_id,
@@ -148,6 +187,78 @@ class AIRouter:
             adapter_id=self._default_adapter_id,
             selection_source=selection_source,
             reason_code="configured_default",
+        )
+
+    def _route_with_task_policy(
+        self,
+        decision: CommandDecision,
+        workspace_policy: WorkspaceAIRoutingPolicy,
+        task_kind: AITaskKind,
+    ) -> AIRouteDecision:
+        resolution = self._task_aware_resolver.resolve(
+            task_kind=task_kind,
+            provider_preference=decision.provider_preference_hint,
+            workspace_policy=workspace_policy,
+            task_policy=_D105_PRODUCTION_TASK_POLICY,
+        )
+
+        if resolution.status == "rejected":
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code=resolution.reason_code,
+            )
+
+        adapter_id = resolution.adapter_id
+        if adapter_id is None:
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="invalid_task_route_resolution",
+            )
+
+        if not self._is_route_available(adapter_id):
+            reason_code = (
+                "local_ai_unavailable"
+                if adapter_id == LOCAL_AI_ADAPTER_ID
+                else "cloud_ai_unavailable"
+            )
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="unavailable",
+                adapter_id=adapter_id,
+                selection_source=None,
+                reason_code=reason_code,
+            )
+
+        if resolution.selection_source == "explicit":
+            selection_source = "explicit"
+            selected_reason = (
+                "local_ai_explicit"
+                if adapter_id == LOCAL_AI_ADAPTER_ID
+                else "cloud_ai_explicit"
+            )
+        elif resolution.selection_source == "task":
+            selection_source = "task"
+            selected_reason = "task_route_selected"
+        else:
+            selection_source = (
+                "automatic"
+                if decision.provider_preference_hint == "automatic"
+                else "default"
+            )
+            selected_reason = "workspace_configured_default"
+
+        return AIRouteDecision(
+            request_id=decision.request_id,
+            status="selected",
+            adapter_id=adapter_id,
+            selection_source=selection_source,
+            reason_code=selected_reason,
         )
 
     def _route_with_workspace_policy(

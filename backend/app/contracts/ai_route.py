@@ -1,4 +1,4 @@
-"""Internal D24 AI route-selection contracts."""
+"""Internal D24/D105 AI route-selection contracts."""
 
 from __future__ import annotations
 
@@ -7,7 +7,12 @@ from typing import Literal, TypeAlias
 
 
 AIRouteStatus: TypeAlias = Literal["selected", "unavailable", "rejected"]
-AIRouteSelectionSource: TypeAlias = Literal["default", "automatic", "explicit"]
+AIRouteSelectionSource: TypeAlias = Literal[
+    "default",
+    "automatic",
+    "explicit",
+    "task",
+]
 
 CHATGPT_DEFAULT_ADAPTER_ID = "chatgpt.default"
 LOCAL_AI_ADAPTER_ID = "local_ai.default"
