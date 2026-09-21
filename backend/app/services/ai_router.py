@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Collection
 
+from app.contracts.ai_brain_routing import (
+    AIBrainRouteStatus,
+    AIMode,
+    AIProviderClass,
+)
 from app.contracts.ai_route import (
     CHATGPT_DEFAULT_ADAPTER_ID,
     LOCAL_AI_ADAPTER_ID,
@@ -17,6 +22,10 @@ from app.contracts.task_aware_ai_routing import (
 )
 from app.contracts.workspace_ai_policy import WorkspaceAIRoutingPolicy
 from app.services.adapter_registry import AdapterRegistry
+from app.services.ai_brain_routing import (
+    AIBrainRoutingPolicy,
+    AIProviderCapabilityRegistry,
+)
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.task_aware_ai_routing import TaskAwareAIRoutingResolver
 
@@ -54,6 +63,7 @@ class AIRouter:
         self._workspace_policy = workspace_policy
         self._local_ai_adapter_id = local_ai_adapter_id
         self._task_aware_resolver = TaskAwareAIRoutingResolver()
+        self._brain_routing_policy = AIBrainRoutingPolicy()
 
         if policy is not None:
             self._default_adapter_id = policy.default_adapter_id
@@ -189,6 +199,129 @@ class AIRouter:
             reason_code="configured_default",
         )
 
+    def route_mode(
+        self,
+        decision: CommandDecision,
+        *,
+        task_kind: AITaskKind,
+        requested_mode: AIMode,
+    ) -> AIRouteDecision:
+        """Bridge one bounded D111 mode into the existing D35 route shape."""
+        if not self._is_supported_decision(decision):
+            return AIRouteDecision(
+                request_id=getattr(decision, "request_id", ""),
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="invalid_command_decision",
+            )
+        if decision.disposition == "reject":
+            reason_code = (
+                "conflicting_provider_preference"
+                if decision.reason_code == "conflicting_provider_preference"
+                else "command_rejected"
+            )
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code=reason_code,
+            )
+        if not isinstance(task_kind, AITaskKind):
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="invalid_task_kind",
+            )
+        if not isinstance(requested_mode, AIMode):
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="invalid_ai_mode",
+            )
+        if self._workspace_policy is None:
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="workspace_ai_policy_required",
+            )
+
+        available_ids = tuple(
+            adapter_id
+            for adapter_id in (
+                CHATGPT_DEFAULT_ADAPTER_ID,
+                LOCAL_AI_ADAPTER_ID,
+            )
+            if self._is_route_available(adapter_id)
+        )
+        capabilities = AIProviderCapabilityRegistry(available_ids)
+        brain = self._brain_routing_policy.resolve(
+            task_kind=task_kind,
+            requested_mode=requested_mode,
+            workspace_policy=self._workspace_policy,
+            capabilities=capabilities,
+        )
+
+        if brain.route_status is AIBrainRouteStatus.BLOCKED:
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code=brain.reason_code,
+            )
+
+        if brain.route_status is AIBrainRouteStatus.UNAVAILABLE:
+            provider_class = brain.effective_provider_class
+            if provider_class is None:
+                return AIRouteDecision(
+                    request_id=decision.request_id,
+                    status="unavailable",
+                    adapter_id=None,
+                    selection_source=None,
+                    reason_code="ai_route_unavailable",
+                )
+            adapter_id = capabilities.adapter_id_for(provider_class)
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="unavailable",
+                adapter_id=adapter_id,
+                selection_source=None,
+                reason_code=brain.reason_code,
+            )
+
+        adapter_id = brain.effective_adapter_id
+        if (
+            brain.route_status is not AIBrainRouteStatus.READY
+            or adapter_id is None
+        ):
+            return AIRouteDecision(
+                request_id=decision.request_id,
+                status="rejected",
+                adapter_id=None,
+                selection_source=None,
+                reason_code="invalid_d111_route_resolution",
+            )
+
+        selection_source = (
+            "automatic"
+            if requested_mode is AIMode.AUTO
+            else "explicit"
+        )
+        return AIRouteDecision(
+            request_id=decision.request_id,
+            status="selected",
+            adapter_id=adapter_id,
+            selection_source=selection_source,
+            reason_code="d111_route_ready",
+        )
     def _route_with_task_policy(
         self,
         decision: CommandDecision,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from app.contracts.ai_brain_routing import AIMode
 from app.contracts.ai_discovery import (
     AI_CAPABILITY_TEXT_GENERATION,
     AI_DISCOVERY_STATUS_AVAILABLE,
@@ -50,11 +51,17 @@ class ExecutionPlanner:
         request: CommandRequest,
         *,
         task_kind: AITaskKind = AITaskKind.GENERAL_CHAT,
+        ai_mode: AIMode | None = None,
     ) -> ExecutionPlanningOutcome:
         """Return a deterministic single-step proposal for one command."""
         if not isinstance(task_kind, AITaskKind):
             outcome = self._rejected(
                 "invalid_task_kind",
+                getattr(request, "request_id", "invalid"),
+            )
+        elif ai_mode is not None and not isinstance(ai_mode, AIMode):
+            outcome = self._rejected(
+                "invalid_ai_mode",
                 getattr(request, "request_id", "invalid"),
             )
         elif (
@@ -64,7 +71,13 @@ class ExecutionPlanner:
         ):
             outcome = self._rejected("invalid_request", "invalid")
         elif request.command == CHAT_MESSAGE_COMMAND:
-            outcome = self._plan_ai(request, task_kind=task_kind)
+            outcome = self._plan_ai(
+                request,
+                task_kind=task_kind,
+                ai_mode=ai_mode,
+            )
+        elif ai_mode is not None:
+            outcome = self._rejected("invalid_ai_mode", request.request_id)
         elif task_kind is not AITaskKind.GENERAL_CHAT:
             outcome = self._rejected("invalid_task_kind", request.request_id)
         elif request.command == TOOL_EXECUTE_COMMAND:
@@ -102,6 +115,7 @@ class ExecutionPlanner:
         request: CommandRequest,
         *,
         task_kind: AITaskKind,
+        ai_mode: AIMode | None,
     ) -> ExecutionPlanningOutcome:
         try:
             CommandInputPipeline.validated_chat_arguments(request)
@@ -112,7 +126,13 @@ class ExecutionPlanner:
         if decision.disposition != "defer_to_existing_chat":
             return self._rejected("ai_route_rejected", request.request_id)
 
-        if task_kind is AITaskKind.GENERAL_CHAT:
+        if ai_mode is not None:
+            route = self._ai_router.route_mode(
+                decision,
+                task_kind=task_kind,
+                requested_mode=ai_mode,
+            )
+        elif task_kind is AITaskKind.GENERAL_CHAT:
             route = self._ai_router.route(decision)
         else:
             route = self._ai_router.route(decision, task_kind=task_kind)
