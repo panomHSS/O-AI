@@ -649,16 +649,6 @@ export function cancelAutomation(
   );
 }
 
-export function getAutomationDeliveries(): Promise<AutomationDeliveryListResponse> {
-  return apiRequest<AutomationDeliveryListResponse>(
-    "/automation-deliveries?limit=20",
-    {
-      method: "GET",
-      headers: { "X-OAI-Local-Request": "1" },
-    },
-  );
-}
-
 export function readEngineeringRepository(
   workspaceId: WorkspaceId,
   payload: EngineeringOwnerReadRequest,
@@ -766,5 +756,15 @@ export function applyEngineeringProposal(
     "apply",
     conversationId,
     proposalDigest,
+  );
+}
+
+export function getAutomationDeliveries(): Promise<AutomationDeliveryListResponse> {
+  return apiRequest<AutomationDeliveryListResponse>(
+    "/automation-deliveries?limit=20",
+    {
+      method: "GET",
+      headers: { "X-OAI-Local-Request": "1" },
+    },
   );
 }
