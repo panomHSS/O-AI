@@ -1,7 +1,4 @@
-"""D109 local owner Engineering read/proposal API.
-
-Batch 01 deliberately exposes no Approve, Deny, or Apply endpoint.
-"""
+"""D109 local owner Engineering API."""
 
 from __future__ import annotations
 
@@ -14,6 +11,7 @@ from app.api.dependencies import get_engineering_owner_workflow_service
 from app.schemas.api import ApiSuccess
 from app.schemas.engineering_owner import (
     EngineeringOwnerActiveWorkflowResponse,
+    EngineeringOwnerDecisionRequest,
     EngineeringOwnerProposalRequest,
     EngineeringOwnerReadRequest,
     EngineeringOwnerReadResponse,
@@ -22,6 +20,8 @@ from app.schemas.engineering_owner import (
 from app.services.engineering_owner_binding import (
     EngineeringOwnerActiveWorkflowError,
     EngineeringOwnerBindingError,
+    EngineeringOwnerBindingNotFoundError,
+    EngineeringOwnerBindingStateError,
     EngineeringOwnerBindingStoreFullError,
 )
 from app.services.engineering_owner_workflow import (
@@ -50,7 +50,13 @@ def _service_error(error: Exception) -> HTTPException:
     if isinstance(error, EngineeringOwnerConversationNotFoundError):
         http_status = status.HTTP_404_NOT_FOUND
         detail = error.reason_code
+    elif isinstance(error, EngineeringOwnerBindingNotFoundError):
+        http_status = status.HTTP_404_NOT_FOUND
+        detail = error.reason_code
     elif isinstance(error, EngineeringOwnerActiveWorkflowError):
+        http_status = status.HTTP_409_CONFLICT
+        detail = error.reason_code
+    elif isinstance(error, EngineeringOwnerBindingStateError):
         http_status = status.HTTP_409_CONFLICT
         detail = error.reason_code
     elif isinstance(error, EngineeringOwnerBindingStoreFullError):
@@ -60,7 +66,7 @@ def _service_error(error: Exception) -> HTTPException:
         http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
         detail = error.reason_code
     elif isinstance(error, EngineeringOwnerUpstreamError):
-        http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
+        http_status = status.HTTP_409_CONFLICT
         detail = error.reason_code
     elif isinstance(error, EngineeringOwnerBindingError):
         http_status = status.HTTP_409_CONFLICT
@@ -72,6 +78,18 @@ def _service_error(error: Exception) -> HTTPException:
         http_status = status.HTTP_400_BAD_REQUEST
         detail = "engineering_owner_request_invalid"
     return HTTPException(status_code=http_status, detail=detail)
+
+
+def _workflow_response(
+    service: EngineeringOwnerWorkflowService,
+    binding,
+) -> ApiSuccess[EngineeringOwnerWorkflowResponse]:
+    return ApiSuccess(
+        data=EngineeringOwnerWorkflowResponse.from_binding(
+            workspace_id=service.workspace_scope.workspace_id.value,
+            binding=binding,
+        )
+    )
 
 
 @router.post(
@@ -147,12 +165,7 @@ def create_engineering_proposal(
         ):
             raise _service_error(error) from error
         raise
-    return ApiSuccess(
-        data=EngineeringOwnerWorkflowResponse.from_binding(
-            workspace_id=service.workspace_scope.workspace_id.value,
-            binding=binding,
-        )
-    )
+    return _workflow_response(service, binding)
 
 
 @router.get(
@@ -202,11 +215,122 @@ def get_active_engineering_workflow(
     )
 
 
+@router.post(
+    "/approvals/{approval_id}/approve",
+    response_model=ApiSuccess[EngineeringOwnerWorkflowResponse],
+    status_code=status.HTTP_200_OK,
+)
+def approve_engineering_proposal(
+    approval_id: Annotated[str, Path(min_length=1)],
+    payload: EngineeringOwnerDecisionRequest,
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    service: Annotated[
+        EngineeringOwnerWorkflowService,
+        Depends(get_engineering_owner_workflow_service),
+    ],
+) -> ApiSuccess[EngineeringOwnerWorkflowResponse]:
+    try:
+        binding = service.approve(
+            conversation_id=payload.conversation_id,
+            approval_id=approval_id,
+            proposal_digest=payload.proposal_digest,
+        )
+    except Exception as error:
+        if isinstance(
+            error,
+            (
+                EngineeringOwnerWorkflowError,
+                EngineeringOwnerBindingError,
+            ),
+        ):
+            raise _service_error(error) from error
+        raise
+    return _workflow_response(service, binding)
+
+
+@router.post(
+    "/approvals/{approval_id}/deny",
+    response_model=ApiSuccess[EngineeringOwnerWorkflowResponse],
+    status_code=status.HTTP_200_OK,
+)
+def deny_engineering_proposal(
+    approval_id: Annotated[str, Path(min_length=1)],
+    payload: EngineeringOwnerDecisionRequest,
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    service: Annotated[
+        EngineeringOwnerWorkflowService,
+        Depends(get_engineering_owner_workflow_service),
+    ],
+) -> ApiSuccess[EngineeringOwnerWorkflowResponse]:
+    try:
+        binding = service.deny(
+            conversation_id=payload.conversation_id,
+            approval_id=approval_id,
+            proposal_digest=payload.proposal_digest,
+        )
+    except Exception as error:
+        if isinstance(
+            error,
+            (
+                EngineeringOwnerWorkflowError,
+                EngineeringOwnerBindingError,
+            ),
+        ):
+            raise _service_error(error) from error
+        raise
+    return _workflow_response(service, binding)
+
+
+@router.post(
+    "/approvals/{approval_id}/apply",
+    response_model=ApiSuccess[EngineeringOwnerWorkflowResponse],
+    status_code=status.HTTP_200_OK,
+)
+def apply_engineering_proposal(
+    approval_id: Annotated[str, Path(min_length=1)],
+    payload: EngineeringOwnerDecisionRequest,
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    service: Annotated[
+        EngineeringOwnerWorkflowService,
+        Depends(get_engineering_owner_workflow_service),
+    ],
+) -> ApiSuccess[EngineeringOwnerWorkflowResponse]:
+    try:
+        binding = service.apply(
+            conversation_id=payload.conversation_id,
+            approval_id=approval_id,
+            proposal_digest=payload.proposal_digest,
+        )
+    except Exception as error:
+        if isinstance(
+            error,
+            (
+                EngineeringOwnerWorkflowError,
+                EngineeringOwnerBindingError,
+            ),
+        ):
+            raise _service_error(error) from error
+        raise
+    return _workflow_response(service, binding)
+
+
 __all__ = [
     "LOCAL_REQUEST_HEADER_VALUE",
+    "apply_engineering_proposal",
+    "approve_engineering_proposal",
+    "create_engineering_proposal",
+    "deny_engineering_proposal",
     "get_active_engineering_workflow",
     "read_engineering_repository",
-    "create_engineering_proposal",
     "require_local_engineering_owner_request_marker",
     "router",
 ]

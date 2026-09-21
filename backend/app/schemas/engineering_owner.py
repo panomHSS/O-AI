@@ -136,6 +136,17 @@ class EngineeringOwnerProposalRequest(BaseModel):
     proposed_content: str
 
 
+class EngineeringOwnerDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    conversation_id: UUID
+    proposal_digest: str = Field(
+        min_length=64,
+        max_length=64,
+        pattern=_HEX_PATTERN,
+    )
+
+
 class EngineeringOwnerReviewResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -170,7 +181,16 @@ class EngineeringOwnerWorkflowResponse(BaseModel):
         max_length=64,
         pattern=_HEX_PATTERN,
     )
-    presentation_state: Literal["pending"]
+    presentation_state: Literal[
+        "pending",
+        "approved",
+        "denied",
+        "applied",
+        "stale",
+        "failed",
+        "indeterminate",
+    ]
+    reason_code: str | None = None
     expires_at: datetime
     review: EngineeringOwnerReviewResponse
 
@@ -188,6 +208,7 @@ class EngineeringOwnerWorkflowResponse(BaseModel):
             approval_id=binding.approval_id,
             proposal_digest=binding.proposal_digest,
             presentation_state=binding.presentation_state,
+            reason_code=binding.reason_code,
             expires_at=binding.expires_at,
             review=EngineeringOwnerReviewResponse(
                 operation=review.operation,
@@ -213,6 +234,7 @@ class EngineeringOwnerActiveWorkflowResponse(BaseModel):
 
 __all__ = [
     "EngineeringOwnerActiveWorkflowResponse",
+    "EngineeringOwnerDecisionRequest",
     "EngineeringOwnerProposalRequest",
     "EngineeringOwnerReadEntryResponse",
     "EngineeringOwnerReadRequest",

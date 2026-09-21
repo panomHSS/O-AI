@@ -333,6 +333,7 @@ from app.services.engineering_apply_approval import (
     EngineeringApplyApprovalService,
     EngineeringApplyApprovalStore,
 )
+from app.services.engineering_apply_execution import EngineeringApplyExecutionService
 from app.services.engineering_change_proposal import EngineeringChangeProposalService
 from app.services.engineering_owner_binding import EngineeringOwnerBindingStore
 from app.services.engineering_owner_workflow import EngineeringOwnerWorkflowService
@@ -2364,6 +2365,20 @@ def get_engineering_owner_binding_store() -> EngineeringOwnerBindingStore:
     return EngineeringOwnerBindingStore()
 
 
+def get_engineering_apply_execution_service(
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    approval_store: EngineeringApplyApprovalStore = Depends(
+        get_engineering_apply_approval_store
+    ),
+) -> EngineeringApplyExecutionService:
+    """Compose D108 exact apply over the same server-owned Engineering root."""
+    return EngineeringApplyExecutionService(
+        approval_store=approval_store,
+        workspace_scope=workspace_scope,
+        repository_root=get_engineering_repository_root(),
+    )
+
+
 def get_engineering_owner_workflow_service(
     database_session: Session = Depends(get_db),
     workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
@@ -2373,8 +2388,11 @@ def get_engineering_owner_workflow_service(
     binding_store: EngineeringOwnerBindingStore = Depends(
         get_engineering_owner_binding_store
     ),
+    execution_service: EngineeringApplyExecutionService = Depends(
+        get_engineering_apply_execution_service
+    ),
 ) -> EngineeringOwnerWorkflowService:
-    """Compose D109 Batch 01 read/proposal/rehydration without apply."""
+    """Compose D109 exact owner workflow while preserving D108 authority."""
     repository_root = get_engineering_repository_root()
     reader = EngineeringRepositoryReader(repository_root)
     return EngineeringOwnerWorkflowService(
@@ -2389,5 +2407,6 @@ def get_engineering_owner_workflow_service(
             store=approval_store,
             workspace_scope=workspace_scope,
         ),
+        execution_service=execution_service,
         binding_store=binding_store,
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,6 +10,9 @@ from app.contracts.workspace import WorkspaceId, WorkspaceScope
 from app.services.engineering_apply_approval import (
     EngineeringApplyApprovalService,
     EngineeringApplyApprovalStore,
+)
+from app.services.engineering_apply_execution import (
+    EngineeringApplyExecutionService,
 )
 from app.services.engineering_change_proposal import (
     EngineeringChangeProposalService,
@@ -40,8 +44,9 @@ class FakeConversationRepository:
 
 def _service(root: Path, conversation_id):
     reader = EngineeringRepositoryReader(root)
+    counter = itertools.count(1)
     store = EngineeringApplyApprovalStore(
-        approval_id_factory=lambda: "approval-1"
+        approval_id_factory=lambda: f"approval-{next(counter)}"
     )
     return (
         EngineeringOwnerWorkflowService(
@@ -54,6 +59,11 @@ def _service(root: Path, conversation_id):
             approval_service=EngineeringApplyApprovalService(
                 store=store,
                 workspace_scope=PERSONAL,
+            ),
+            execution_service=EngineeringApplyExecutionService(
+                approval_store=store,
+                workspace_scope=PERSONAL,
+                repository_root=root,
             ),
             binding_store=EngineeringOwnerBindingStore(),
         ),

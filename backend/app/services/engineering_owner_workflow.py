@@ -1,8 +1,8 @@
-"""D109 backend owner workflow foundation.
+"""D109 owner-facing Engineering workflow orchestration.
 
-Batch 01 exposes bounded D106 reads and structured D107 proposal creation with
-D108 pending registration. It deliberately exposes no Approve, Deny, Apply, D36,
-D38, D48, shell, Git, network, credential, connector, or AI execution surface.
+D109 binds owner-visible workflow state to exact workspace/conversation
+correlation while delegating proposal authority to D107 and mutation authority
+entirely to the completed D108 services.
 """
 
 from __future__ import annotations
@@ -22,6 +22,10 @@ from app.contracts.workspace import WorkspaceScope
 from app.services.engineering_apply_approval import (
     EngineeringApplyApprovalError,
     EngineeringApplyApprovalService,
+)
+from app.services.engineering_apply_execution import (
+    EngineeringApplyExecutionError,
+    EngineeringApplyExecutionService,
 )
 from app.services.engineering_change_proposal import (
     EngineeringChangeProposalError,
@@ -65,7 +69,7 @@ class EngineeringOwnerUpstreamError(EngineeringOwnerWorkflowError):
 
 
 class EngineeringOwnerWorkflowService:
-    """Workspace-bound D109 read/propose/rehydrate orchestration."""
+    """Workspace-bound D109 read/propose/decision/apply orchestration."""
 
     def __init__(
         self,
@@ -75,6 +79,7 @@ class EngineeringOwnerWorkflowService:
         repository_reader: EngineeringRepositoryReader,
         proposal_service: EngineeringChangeProposalService,
         approval_service: EngineeringApplyApprovalService,
+        execution_service: EngineeringApplyExecutionService,
         binding_store: EngineeringOwnerBindingStore,
     ) -> None:
         if not isinstance(workspace_scope, WorkspaceScope):
@@ -99,15 +104,24 @@ class EngineeringOwnerWorkflowService:
             raise TypeError(
                 "approval_service must be EngineeringApplyApprovalService."
             )
+        if not isinstance(
+            execution_service,
+            EngineeringApplyExecutionService,
+        ):
+            raise TypeError(
+                "execution_service must be EngineeringApplyExecutionService."
+            )
         if not isinstance(binding_store, EngineeringOwnerBindingStore):
             raise TypeError(
                 "binding_store must be EngineeringOwnerBindingStore."
             )
+
         self._workspace_scope = workspace_scope
         self._conversations = conversation_repository
         self._reader = repository_reader
         self._proposal_service = proposal_service
         self._approval_service = approval_service
+        self._execution_service = execution_service
         self._bindings = binding_store
 
     @property
@@ -146,12 +160,14 @@ class EngineeringOwnerWorkflowService:
         proposed_content: str,
     ) -> EngineeringOwnerBinding:
         self._require_conversation(conversation_id)
+
+        current = self._bindings.active_for_conversation(
+            workspace_scope=self._workspace_scope,
+            conversation_id=conversation_id,
+        )
         if (
-            self._bindings.active_for_conversation(
-                workspace_scope=self._workspace_scope,
-                conversation_id=conversation_id,
-            )
-            is not None
+            current is not None
+            and current.presentation_state in {"pending", "approved"}
         ):
             raise EngineeringOwnerActiveWorkflowError(
                 "Conversation already has an active Engineering workflow."
@@ -185,6 +201,107 @@ class EngineeringOwnerWorkflowService:
             expires_at=pending.expires_at,
         )
         return self._bindings.bind(binding)
+
+    def approve(
+        self,
+        *,
+        conversation_id: UUID,
+        approval_id: str,
+        proposal_digest: str,
+    ) -> EngineeringOwnerBinding:
+        self._require_conversation(conversation_id)
+        self._bindings.require(
+            workspace_scope=self._workspace_scope,
+            conversation_id=conversation_id,
+            approval_id=approval_id,
+            proposal_digest=proposal_digest,
+            expected_states=frozenset({"pending"}),
+        )
+        try:
+            decision = self._approval_service.approve(
+                approval_id,
+                proposal_digest,
+            )
+        except EngineeringApplyApprovalError as exc:
+            raise EngineeringOwnerUpstreamError(exc.reason_code) from None
+
+        return self._bindings.transition(
+            workspace_scope=self._workspace_scope,
+            conversation_id=conversation_id,
+            approval_id=approval_id,
+            proposal_digest=proposal_digest,
+            expected_state="pending",
+            new_state="approved",
+            reason_code=decision.reason_code,
+        )
+
+    def deny(
+        self,
+        *,
+        conversation_id: UUID,
+        approval_id: str,
+        proposal_digest: str,
+    ) -> EngineeringOwnerBinding:
+        self._require_conversation(conversation_id)
+        self._bindings.require(
+            workspace_scope=self._workspace_scope,
+            conversation_id=conversation_id,
+            approval_id=approval_id,
+            proposal_digest=proposal_digest,
+            expected_states=frozenset({"pending"}),
+        )
+        try:
+            decision = self._approval_service.deny(
+                approval_id,
+                proposal_digest,
+            )
+        except EngineeringApplyApprovalError as exc:
+            raise EngineeringOwnerUpstreamError(exc.reason_code) from None
+
+        return self._bindings.transition(
+            workspace_scope=self._workspace_scope,
+            conversation_id=conversation_id,
+            approval_id=approval_id,
+            proposal_digest=proposal_digest,
+            expected_state="pending",
+            new_state="denied",
+            reason_code=decision.reason_code,
+        )
+
+    def apply(
+        self,
+        *,
+        conversation_id: UUID,
+        approval_id: str,
+        proposal_digest: str,
+    ) -> EngineeringOwnerBinding:
+        self._require_conversation(conversation_id)
+        self._bindings.require(
+            workspace_scope=self._workspace_scope,
+            conversation_id=conversation_id,
+            approval_id=approval_id,
+            proposal_digest=proposal_digest,
+            expected_states=frozenset({"approved"}),
+        )
+        try:
+            outcome = self._execution_service.apply(
+                approval_id,
+                proposal_digest,
+            )
+        except EngineeringApplyApprovalError as exc:
+            raise EngineeringOwnerUpstreamError(exc.reason_code) from None
+        except EngineeringApplyExecutionError as exc:
+            raise EngineeringOwnerUpstreamError(exc.reason_code) from None
+
+        return self._bindings.transition(
+            workspace_scope=self._workspace_scope,
+            conversation_id=conversation_id,
+            approval_id=approval_id,
+            proposal_digest=proposal_digest,
+            expected_state="approved",
+            new_state=outcome.status,
+            reason_code=outcome.reason_code,
+        )
 
     def active(
         self,

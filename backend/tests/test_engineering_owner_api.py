@@ -7,12 +7,13 @@ from fastapi import HTTPException
 
 from app.api.v1 import engineering
 from app.schemas.engineering_owner import (
+    EngineeringOwnerDecisionRequest,
     EngineeringOwnerProposalRequest,
     EngineeringOwnerReadRequest,
 )
 
 
-def test_d109_batch01_api_routes_are_bounded() -> None:
+def test_d109_api_routes_are_bounded() -> None:
     routes = {
         (route.path, tuple(sorted(route.methods or ())))
         for route in engineering.router.routes
@@ -24,11 +25,18 @@ def test_d109_batch01_api_routes_are_bounded() -> None:
         "/engineering/conversations/{conversation_id}/active",
         ("GET",),
     ) in routes
-
-    paths = {path for path, _ in routes}
-    assert not any("/approve" in path for path in paths)
-    assert not any("/deny" in path for path in paths)
-    assert not any("/apply" in path for path in paths)
+    assert (
+        "/engineering/approvals/{approval_id}/approve",
+        ("POST",),
+    ) in routes
+    assert (
+        "/engineering/approvals/{approval_id}/deny",
+        ("POST",),
+    ) in routes
+    assert (
+        "/engineering/approvals/{approval_id}/apply",
+        ("POST",),
+    ) in routes
 
 
 def test_d109_local_owner_marker_is_required() -> None:
@@ -36,11 +44,10 @@ def test_d109_local_owner_marker_is_required() -> None:
         engineering.require_local_engineering_owner_request_marker(None)
 
     assert error.value.status_code == 403
-
     engineering.require_local_engineering_owner_request_marker("1")
 
 
-def test_d109_transport_forbids_authority_injection() -> None:
+def test_d109_proposal_transport_forbids_authority_injection() -> None:
     with pytest.raises(Exception):
         EngineeringOwnerProposalRequest(
             conversation_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -59,9 +66,34 @@ def test_d109_transport_forbids_authority_injection() -> None:
         )
 
 
-def test_d109_batch01_api_imports_no_apply_execution_service() -> None:
+def test_d109_decision_transport_accepts_no_apply_parameters() -> None:
+    with pytest.raises(Exception):
+        EngineeringOwnerDecisionRequest(
+            conversation_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            proposal_digest="a" * 64,
+            path="backend/new.py",
+        )
+
+    with pytest.raises(Exception):
+        EngineeringOwnerDecisionRequest(
+            conversation_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            proposal_digest="a" * 64,
+            content="evil",
+        )
+
+    with pytest.raises(Exception):
+        EngineeringOwnerDecisionRequest(
+            conversation_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            proposal_digest="a" * 64,
+            repository_root="D:/evil",
+        )
+
+
+def test_d109_api_does_not_import_d48_or_generic_execution() -> None:
     source = inspect.getsource(engineering)
-    assert "EngineeringApplyExecutionService" not in source
     assert "ToolRuntime" not in source
     assert "FilesystemCreateTextToolAdapter" not in source
     assert "FilesystemReplaceTextToolAdapter" not in source
+    assert "ExecutionApprovalService" not in source
+    assert "ExecutionPlanner" not in source
+    assert "CommandExecutionCoordinator" not in source

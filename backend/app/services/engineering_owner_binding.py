@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
@@ -19,7 +19,27 @@ from app.contracts.workspace import WorkspaceScope
 
 
 DEFAULT_ENGINEERING_OWNER_BINDING_CAPACITY = 128
-EngineeringOwnerPresentationState = Literal["pending"]
+
+EngineeringOwnerPresentationState = Literal[
+    "pending",
+    "approved",
+    "denied",
+    "applied",
+    "stale",
+    "failed",
+    "indeterminate",
+]
+
+_NON_TERMINAL = frozenset({"pending", "approved"})
+_TERMINAL = frozenset(
+    {"denied", "applied", "stale", "failed", "indeterminate"}
+)
+_ALLOWED_TRANSITIONS = {
+    "pending": frozenset({"approved", "denied"}),
+    "approved": frozenset(
+        {"applied", "stale", "failed", "indeterminate"}
+    ),
+}
 
 
 def _utcnow() -> datetime:
@@ -36,6 +56,14 @@ class EngineeringOwnerActiveWorkflowError(EngineeringOwnerBindingError):
 
 class EngineeringOwnerBindingCollisionError(EngineeringOwnerBindingError):
     reason_code = "engineering_owner_binding_mismatch"
+
+
+class EngineeringOwnerBindingNotFoundError(EngineeringOwnerBindingError):
+    reason_code = "engineering_owner_workflow_not_found"
+
+
+class EngineeringOwnerBindingStateError(EngineeringOwnerBindingError):
+    reason_code = "engineering_owner_state_invalid"
 
 
 class EngineeringOwnerBindingStoreFullError(EngineeringOwnerBindingError):
@@ -78,7 +106,7 @@ class EngineeringOwnerReview:
 
 @dataclass(frozen=True, slots=True)
 class EngineeringOwnerBinding:
-    """Non-authoritative correlation for one exact live D108 approval."""
+    """Non-authoritative correlation for one exact D108 workflow."""
 
     workspace_scope: WorkspaceScope
     conversation_id: UUID
@@ -87,6 +115,7 @@ class EngineeringOwnerBinding:
     review: EngineeringOwnerReview
     expires_at: datetime
     presentation_state: EngineeringOwnerPresentationState = "pending"
+    reason_code: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.workspace_scope, WorkspaceScope):
@@ -113,7 +142,13 @@ class EngineeringOwnerBinding:
             or self.expires_at.utcoffset() is None
         ):
             raise ValueError("engineering_owner_request_invalid")
-        if self.presentation_state != "pending":
+        if self.presentation_state not in (_NON_TERMINAL | _TERMINAL):
+            raise ValueError("engineering_owner_request_invalid")
+        if self.reason_code is not None and (
+            type(self.reason_code) is not str
+            or not self.reason_code
+            or self.reason_code != self.reason_code.strip()
+        ):
             raise ValueError("engineering_owner_request_invalid")
 
 
@@ -153,21 +188,29 @@ class EngineeringOwnerBindingStore:
         now = self._now()
         with self._lock:
             self._cleanup(now)
-            existing = self._items.get(binding.approval_id)
-            if existing is not None:
-                if existing == binding:
-                    return existing
+
+            approval_existing = self._items.get(binding.approval_id)
+            if approval_existing is not None:
+                if approval_existing == binding:
+                    return approval_existing
                 raise EngineeringOwnerBindingCollisionError(
                     "Engineering approval is already bound differently."
                 )
-            if any(
-                item.workspace_scope == binding.workspace_scope
-                and item.conversation_id == binding.conversation_id
-                for item in self._items.values()
-            ):
-                raise EngineeringOwnerActiveWorkflowError(
-                    "Conversation already has an active Engineering workflow."
+
+            conversation_existing = self._for_conversation_locked(
+                workspace_scope=binding.workspace_scope,
+                conversation_id=binding.conversation_id,
+            )
+            if conversation_existing is not None:
+                if conversation_existing.presentation_state in _NON_TERMINAL:
+                    raise EngineeringOwnerActiveWorkflowError(
+                        "Conversation already has an active Engineering workflow."
+                    )
+                self._items.pop(
+                    conversation_existing.approval_id,
+                    None,
                 )
+
             if len(self._items) >= self._max_items:
                 raise EngineeringOwnerBindingStoreFullError(
                     "Engineering owner binding capacity is full."
@@ -176,6 +219,7 @@ class EngineeringOwnerBindingStore:
                 raise EngineeringOwnerBindingCollisionError(
                     "Engineering owner binding is already expired."
                 )
+
             self._items[binding.approval_id] = binding
             return binding
 
@@ -185,20 +229,101 @@ class EngineeringOwnerBindingStore:
         workspace_scope: WorkspaceScope,
         conversation_id: UUID,
     ) -> EngineeringOwnerBinding | None:
-        if not isinstance(workspace_scope, WorkspaceScope):
-            raise ValueError("engineering_owner_workspace_mismatch")
-        if not isinstance(conversation_id, UUID):
-            raise ValueError("engineering_owner_request_invalid")
+        """Return current live presentation state, including terminal state."""
+        self._validate_scope_and_conversation(
+            workspace_scope,
+            conversation_id,
+        )
         now = self._now()
         with self._lock:
             self._cleanup(now)
-            for item in self._items.values():
-                if (
-                    item.workspace_scope == workspace_scope
-                    and item.conversation_id == conversation_id
-                ):
-                    return item
-            return None
+            return self._for_conversation_locked(
+                workspace_scope=workspace_scope,
+                conversation_id=conversation_id,
+            )
+
+    def require(
+        self,
+        *,
+        workspace_scope: WorkspaceScope,
+        conversation_id: UUID,
+        approval_id: str,
+        proposal_digest: str,
+        expected_states: frozenset[str],
+    ) -> EngineeringOwnerBinding:
+        self._validate_scope_and_conversation(
+            workspace_scope,
+            conversation_id,
+        )
+        if type(approval_id) is not str or not approval_id:
+            raise EngineeringOwnerBindingNotFoundError(
+                "Engineering workflow was not found."
+            )
+        now = self._now()
+        with self._lock:
+            self._cleanup(now)
+            binding = self._items.get(approval_id)
+            if binding is None:
+                raise EngineeringOwnerBindingNotFoundError(
+                    "Engineering workflow was not found."
+                )
+            if (
+                binding.workspace_scope != workspace_scope
+                or binding.conversation_id != conversation_id
+                or binding.proposal_digest != proposal_digest
+            ):
+                raise EngineeringOwnerBindingCollisionError(
+                    "Engineering workflow binding does not match."
+                )
+            if binding.presentation_state not in expected_states:
+                raise EngineeringOwnerBindingStateError(
+                    "Engineering workflow is not in the required state."
+                )
+            return binding
+
+    def transition(
+        self,
+        *,
+        workspace_scope: WorkspaceScope,
+        conversation_id: UUID,
+        approval_id: str,
+        proposal_digest: str,
+        expected_state: str,
+        new_state: EngineeringOwnerPresentationState,
+        reason_code: str,
+    ) -> EngineeringOwnerBinding:
+        now = self._now()
+        with self._lock:
+            self._cleanup(now)
+            binding = self._items.get(approval_id)
+            if binding is None:
+                raise EngineeringOwnerBindingNotFoundError(
+                    "Engineering workflow was not found."
+                )
+            if (
+                binding.workspace_scope != workspace_scope
+                or binding.conversation_id != conversation_id
+                or binding.proposal_digest != proposal_digest
+            ):
+                raise EngineeringOwnerBindingCollisionError(
+                    "Engineering workflow binding does not match."
+                )
+            if binding.presentation_state != expected_state:
+                raise EngineeringOwnerBindingStateError(
+                    "Engineering workflow state changed."
+                )
+            allowed = _ALLOWED_TRANSITIONS.get(expected_state, frozenset())
+            if new_state not in allowed:
+                raise EngineeringOwnerBindingStateError(
+                    "Engineering workflow transition is not allowed."
+                )
+            updated = replace(
+                binding,
+                presentation_state=new_state,
+                reason_code=reason_code,
+            )
+            self._items[approval_id] = updated
+            return updated
 
     def clear(self) -> None:
         with self._lock:
@@ -223,6 +348,30 @@ class EngineeringOwnerBindingStore:
         for approval_id in expired:
             self._items.pop(approval_id, None)
 
+    def _for_conversation_locked(
+        self,
+        *,
+        workspace_scope: WorkspaceScope,
+        conversation_id: UUID,
+    ) -> EngineeringOwnerBinding | None:
+        for item in self._items.values():
+            if (
+                item.workspace_scope == workspace_scope
+                and item.conversation_id == conversation_id
+            ):
+                return item
+        return None
+
+    @staticmethod
+    def _validate_scope_and_conversation(
+        workspace_scope: WorkspaceScope,
+        conversation_id: UUID,
+    ) -> None:
+        if not isinstance(workspace_scope, WorkspaceScope):
+            raise ValueError("engineering_owner_workspace_mismatch")
+        if not isinstance(conversation_id, UUID):
+            raise ValueError("engineering_owner_request_invalid")
+
 
 __all__ = [
     "DEFAULT_ENGINEERING_OWNER_BINDING_CAPACITY",
@@ -230,6 +379,8 @@ __all__ = [
     "EngineeringOwnerBinding",
     "EngineeringOwnerBindingCollisionError",
     "EngineeringOwnerBindingError",
+    "EngineeringOwnerBindingNotFoundError",
+    "EngineeringOwnerBindingStateError",
     "EngineeringOwnerBindingStore",
     "EngineeringOwnerBindingStoreFullError",
     "EngineeringOwnerPresentationState",
