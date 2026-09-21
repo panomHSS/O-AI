@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.params import Depends as DependsParam
 
 from app.api.dependencies import (
+    get_ai_capability_model_discovery,
     get_ai_provider_routing_policy,
     get_workspace_ai_policy,
     get_chat_action_bridge,
@@ -19,6 +20,10 @@ from app.api.dependencies import (
 )
 from app.api.workspace_scope import get_workspace_scope
 from app.contracts.ai_brain_routing import AIMode
+from app.contracts.ai_discovery import (
+    AI_CAPABILITY_TEXT_GENERATION,
+    AI_DISCOVERY_STATUS_AVAILABLE,
+)
 from app.contracts.task_aware_ai_routing import AITaskKind
 from app.contracts.workspace import WorkspaceScope
 from app.contracts.workspace_ai_policy import WorkspaceAIRoutingPolicy
@@ -43,6 +48,9 @@ from app.schemas.context_usage import ContextUsageResponse
 from app.services.ai_brain_routing import (
     AIBrainRoutingPolicy,
     AIProviderCapabilityRegistry,
+)
+from app.services.ai_capability_model_discovery import (
+    AICapabilityModelDiscovery,
 )
 from app.services.ai_provider_routing import AIProviderRoutingPolicy
 from app.services.chat_action_bridge import ChatActionBridge
@@ -80,10 +88,38 @@ def get_ai_brain_capabilities(
         AIProviderRoutingPolicy,
         Depends(get_ai_provider_routing_policy),
     ],
+    ai_discovery: AICapabilityModelDiscovery = Depends(
+        get_ai_capability_model_discovery
+    ),
 ) -> ApiSuccess[AIBrainCapabilitiesResponse]:
     """Return bounded workspace AI-mode presentation; never execution authority."""
+    available_adapter_ids = set(provider_policy.enabled_adapter_ids)
+
+    # Real HTTP requests receive D34 discovery through FastAPI.  Direct legacy
+    # unit calls may leave the default Depends marker in place; preserve those
+    # narrow compatibility seams without granting browser/provider authority.
+    if not isinstance(ai_discovery, DependsParam):
+        execution_ready_adapter_ids: set[str] = set()
+        for adapter_id in available_adapter_ids:
+            try:
+                discovery = ai_discovery.discover(adapter_id)
+            except (KeyError, ValueError):
+                continue
+
+            if (
+                discovery.status == AI_DISCOVERY_STATUS_AVAILABLE
+                and AI_CAPABILITY_TEXT_GENERATION
+                in discovery.capability_ids
+                and discovery.configured_model_id is not None
+            ):
+                execution_ready_adapter_ids.add(adapter_id)
+
+        available_adapter_ids.intersection_update(
+            execution_ready_adapter_ids
+        )
+
     capabilities = AIProviderCapabilityRegistry(
-        provider_policy.enabled_adapter_ids
+        available_adapter_ids
     )
     routing = AIBrainRoutingPolicy()
     tasks: list[AIBrainTaskCapabilityResponse] = []
