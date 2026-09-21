@@ -329,6 +329,14 @@ from app.services.workspace_knowledge_root import WorkspaceKnowledgeRootResolver
 from app.pipeline.retrieval import RetrievalPipeline
 from app.pipeline.components import RetrievalComponents
 
+from app.services.engineering_apply_approval import (
+    EngineeringApplyApprovalService,
+    EngineeringApplyApprovalStore,
+)
+from app.services.engineering_change_proposal import EngineeringChangeProposalService
+from app.services.engineering_owner_binding import EngineeringOwnerBindingStore
+from app.services.engineering_owner_workflow import EngineeringOwnerWorkflowService
+from app.services.engineering_repository_reader import EngineeringRepositoryReader
 @lru_cache
 def get_chatgpt_adapter() -> ChatGPTAdapter:
     """Compose the configured ChatGPT adapter around the legacy provider."""
@@ -2336,4 +2344,50 @@ def get_knowledge_answer_service(
         ai_runtime=ai_runtime,
         error_normalizer=error_normalizer,
         response_composer=response_composer,
+    )
+
+@lru_cache
+def get_engineering_repository_root() -> Path:
+    """Return the server-owned O-AI repository root for D109 Engineering UX."""
+    return Path(__file__).resolve().parents[3]
+
+
+@lru_cache
+def get_engineering_apply_approval_store() -> EngineeringApplyApprovalStore:
+    """Share one bounded process-local D108 Engineering approval store."""
+    return EngineeringApplyApprovalStore()
+
+
+@lru_cache
+def get_engineering_owner_binding_store() -> EngineeringOwnerBindingStore:
+    """Share bounded D109 correlation/presentation state only."""
+    return EngineeringOwnerBindingStore()
+
+
+def get_engineering_owner_workflow_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    approval_store: EngineeringApplyApprovalStore = Depends(
+        get_engineering_apply_approval_store
+    ),
+    binding_store: EngineeringOwnerBindingStore = Depends(
+        get_engineering_owner_binding_store
+    ),
+) -> EngineeringOwnerWorkflowService:
+    """Compose D109 Batch 01 read/proposal/rehydration without apply."""
+    repository_root = get_engineering_repository_root()
+    reader = EngineeringRepositoryReader(repository_root)
+    return EngineeringOwnerWorkflowService(
+        workspace_scope=workspace_scope,
+        conversation_repository=ConversationRepository(
+            database_session,
+            workspace_scope,
+        ),
+        repository_reader=reader,
+        proposal_service=EngineeringChangeProposalService(reader),
+        approval_service=EngineeringApplyApprovalService(
+            store=approval_store,
+            workspace_scope=workspace_scope,
+        ),
+        binding_store=binding_store,
     )

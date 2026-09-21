@@ -22,9 +22,12 @@ from app.api.v1.gmail_send_oauth import router as gmail_send_oauth_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.project_update_proposals import router as project_update_proposals_router
 
+from app.api.v1.engineering import router as engineering_router
+
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(automations_router)
 api_router.include_router(chat_router)
+api_router.include_router(engineering_router)
 api_router.include_router(conversations_router)
 api_router.include_router(diagnostics_router)
 api_router.include_router(local_ai_visibility_router)
