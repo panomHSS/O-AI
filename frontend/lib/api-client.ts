@@ -8,6 +8,11 @@ import type {
   ChatRequest,
   ChatResponse,
   ExecutionApprovalDecision,
+  EngineeringOwnerActiveWorkflowResponse,
+  EngineeringOwnerProposalRequest,
+  EngineeringOwnerReadRequest,
+  EngineeringOwnerReadResponse,
+  EngineeringOwnerWorkflow,
 } from "../types/chat";
 import type { ConversationDetail } from "../types/conversation";
 import type {
@@ -651,5 +656,115 @@ export function getAutomationDeliveries(): Promise<AutomationDeliveryListRespons
       method: "GET",
       headers: { "X-OAI-Local-Request": "1" },
     },
+  );
+}
+
+export function readEngineeringRepository(
+  workspaceId: WorkspaceId,
+  payload: EngineeringOwnerReadRequest,
+): Promise<EngineeringOwnerReadResponse> {
+  return workspaceApiRequest<EngineeringOwnerReadResponse>(
+    workspaceId,
+    "/engineering/read",
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: payload,
+    },
+  ).then((response) => assertResponseWorkspace(workspaceId, response));
+}
+
+export function createEngineeringProposal(
+  workspaceId: WorkspaceId,
+  payload: EngineeringOwnerProposalRequest,
+): Promise<EngineeringOwnerWorkflow> {
+  return workspaceApiRequest<EngineeringOwnerWorkflow>(
+    workspaceId,
+    "/engineering/proposals",
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: payload,
+    },
+  ).then((response) => assertResponseWorkspace(workspaceId, response));
+}
+
+export function getActiveEngineeringWorkflow(
+  workspaceId: WorkspaceId,
+  conversationId: string,
+): Promise<EngineeringOwnerActiveWorkflowResponse> {
+  return workspaceApiRequest<EngineeringOwnerActiveWorkflowResponse>(
+    workspaceId,
+    `/engineering/conversations/${encodeURIComponent(conversationId)}/active`,
+    {
+      method: "GET",
+      headers: { "X-OAI-Local-Request": "1" },
+    },
+  ).then((response) => assertResponseWorkspace(workspaceId, response));
+}
+
+function engineeringDecisionRequest(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  action: "approve" | "deny" | "apply",
+  conversationId: string,
+  proposalDigest: string,
+): Promise<EngineeringOwnerWorkflow> {
+  return workspaceApiRequest<EngineeringOwnerWorkflow>(
+    workspaceId,
+    `/engineering/approvals/${encodeURIComponent(approvalId)}/${action}`,
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: {
+        conversation_id: conversationId,
+        proposal_digest: proposalDigest,
+      },
+    },
+  ).then((response) => assertResponseWorkspace(workspaceId, response));
+}
+
+export function approveEngineeringProposal(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  conversationId: string,
+  proposalDigest: string,
+): Promise<EngineeringOwnerWorkflow> {
+  return engineeringDecisionRequest(
+    workspaceId,
+    approvalId,
+    "approve",
+    conversationId,
+    proposalDigest,
+  );
+}
+
+export function denyEngineeringProposal(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  conversationId: string,
+  proposalDigest: string,
+): Promise<EngineeringOwnerWorkflow> {
+  return engineeringDecisionRequest(
+    workspaceId,
+    approvalId,
+    "deny",
+    conversationId,
+    proposalDigest,
+  );
+}
+
+export function applyEngineeringProposal(
+  workspaceId: WorkspaceId,
+  approvalId: string,
+  conversationId: string,
+  proposalDigest: string,
+): Promise<EngineeringOwnerWorkflow> {
+  return engineeringDecisionRequest(
+    workspaceId,
+    approvalId,
+    "apply",
+    conversationId,
+    proposalDigest,
   );
 }

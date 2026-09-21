@@ -214,3 +214,78 @@ export interface ChatResponse {
   calendar_write: CalendarWriteChatProposal | null;
   context_usage: ContextUsage | null;
 }
+
+export type EngineeringOwnerReadOperation =
+  | "repository_overview"
+  | "list_directory"
+  | "stat_path"
+  | "read_text";
+
+export interface EngineeringOwnerReadRequest {
+  conversation_id: string;
+  operation: EngineeringOwnerReadOperation;
+  relative_path?: string;
+}
+
+export interface EngineeringOwnerReadEntry {
+  relative_path: string;
+  kind: "file" | "directory";
+  size_bytes: number | null;
+}
+
+export interface EngineeringOwnerReadResponse {
+  workspace_id: WorkspaceId;
+  conversation_id: string;
+  operation: EngineeringOwnerReadOperation;
+  relative_path: string | null;
+  entries: EngineeringOwnerReadEntry[] | null;
+  entry: EngineeringOwnerReadEntry | null;
+  content: string | null;
+  size_bytes: number | null;
+  content_sha256: string | null;
+}
+
+export interface EngineeringOwnerProposalRequest {
+  conversation_id: string;
+  operation: "create_text" | "replace_text";
+  relative_path: string;
+  proposed_content: string;
+}
+
+export interface EngineeringOwnerReview {
+  operation: "create_text" | "replace_text";
+  relative_path: string;
+  base_state: "absent" | "present";
+  before_content: string | null;
+  before_sha256: string | null;
+  before_size_bytes: number | null;
+  after_content: string;
+  after_sha256: string;
+  after_size_bytes: number;
+}
+
+export type EngineeringOwnerPresentationState =
+  | "pending"
+  | "approved"
+  | "denied"
+  | "applied"
+  | "stale"
+  | "failed"
+  | "indeterminate";
+
+export interface EngineeringOwnerWorkflow {
+  workspace_id: WorkspaceId;
+  conversation_id: string;
+  approval_id: string;
+  proposal_digest: string;
+  presentation_state: EngineeringOwnerPresentationState;
+  reason_code: string | null;
+  expires_at: string;
+  review: EngineeringOwnerReview;
+}
+
+export interface EngineeringOwnerActiveWorkflowResponse {
+  workspace_id: WorkspaceId;
+  conversation_id: string;
+  active: EngineeringOwnerWorkflow | null;
+}

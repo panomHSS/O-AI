@@ -1,0 +1,314 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+
+import {
+  ApiError,
+  createEngineeringProposal,
+  getActiveEngineeringWorkflow,
+  readEngineeringRepository,
+} from "../../lib/api-client";
+import type {
+  EngineeringOwnerReadOperation,
+  EngineeringOwnerReadResponse,
+  EngineeringOwnerWorkflow,
+} from "../../types/chat";
+import { workspaceLabel, type WorkspaceId } from "../../types/workspace";
+import { EngineeringProposalCard } from "./engineering-proposal-card";
+
+interface Props {
+  workspaceId: WorkspaceId;
+  conversationId: string | null;
+}
+
+export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [workflow, setWorkflow] = useState<EngineeringOwnerWorkflow | null>(null);
+  const [isRehydrating, setIsRehydrating] = useState(Boolean(conversationId));
+  const [readOperation, setReadOperation] =
+    useState<EngineeringOwnerReadOperation>("repository_overview");
+  const [readPath, setReadPath] = useState("");
+  const [readResult, setReadResult] =
+    useState<EngineeringOwnerReadResponse | null>(null);
+  const [proposalOperation, setProposalOperation] =
+    useState<"create_text" | "replace_text">("replace_text");
+  const [proposalPath, setProposalPath] = useState("");
+  const [proposalContent, setProposalContent] = useState("");
+  const [isReading, setIsReading] = useState(false);
+  const [isProposing, setIsProposing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    let cancelled = false;
+
+    getActiveEngineeringWorkflow(workspaceId, conversationId)
+      .then((result) => {
+        if (!cancelled) setWorkflow(result.active);
+      })
+      .catch((caughtError) => {
+        if (!cancelled) {
+          setError(
+            caughtError instanceof ApiError
+              ? caughtError.message
+              : "Unable to restore the Engineering workflow.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsRehydrating(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, conversationId]);
+
+  async function readRepository(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!conversationId || isReading) return;
+
+    setIsReading(true);
+    setError(null);
+    try {
+      setReadResult(
+        await readEngineeringRepository(workspaceId, {
+          conversation_id: conversationId,
+          operation: readOperation,
+          relative_path:
+            readOperation === "repository_overview"
+              ? undefined
+              : readPath.trim() || undefined,
+        }),
+      );
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to read the repository.",
+      );
+    } finally {
+      setIsReading(false);
+    }
+  }
+
+  async function createProposal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !conversationId ||
+      !proposalPath.trim() ||
+      !proposalContent ||
+      isProposing
+    ) {
+      return;
+    }
+
+    setIsProposing(true);
+    setError(null);
+    try {
+      setWorkflow(
+        await createEngineeringProposal(workspaceId, {
+          conversation_id: conversationId,
+          operation: proposalOperation,
+          relative_path: proposalPath.trim(),
+          proposed_content: proposalContent,
+        }),
+      );
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to create the Engineering proposal.",
+      );
+    } finally {
+      setIsProposing(false);
+    }
+  }
+
+  const blocksNewProposal =
+    workflow?.presentation_state === "pending" ||
+    workflow?.presentation_state === "approved";
+
+  return (
+    <section className="rounded-xl border border-zinc-700 bg-zinc-900/60 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">Engineering owner workflow</p>
+          <p className="mt-1 text-xs text-zinc-400">
+            Workspace: {workspaceLabel(workspaceId)} · structured owner controls only
+          </p>
+        </div>
+        <button
+          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium"
+          onClick={() => setIsOpen((value) => !value)}
+          type="button"
+        >
+          {isOpen ? "Hide Engineering" : "Open Engineering"}
+        </button>
+      </div>
+
+      {!conversationId ? (
+        <p className="mt-3 text-sm text-zinc-400">
+          Send a Chat message first. Engineering actions require an exact existing conversation in this workspace.
+        </p>
+      ) : null}
+
+      {isRehydrating ? (
+        <p className="mt-3 text-sm text-zinc-400">Restoring Engineering workflow…</p>
+      ) : null}
+
+      {isOpen && conversationId ? (
+        <div className="mt-4 space-y-5">
+          <form
+            className="rounded-xl border border-zinc-700 bg-zinc-950/40 p-4"
+            onSubmit={readRepository}
+          >
+            <p className="font-medium">Repository read</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              D106 bounded read only.
+            </p>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-[12rem_1fr_auto]">
+              <select
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+                onChange={(event) =>
+                  setReadOperation(
+                    event.target.value as EngineeringOwnerReadOperation,
+                  )
+                }
+                value={readOperation}
+              >
+                <option value="repository_overview">Repository overview</option>
+                <option value="list_directory">List directory</option>
+                <option value="stat_path">Stat path</option>
+                <option value="read_text">Read text</option>
+              </select>
+
+              <input
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm disabled:opacity-50"
+                disabled={readOperation === "repository_overview"}
+                onChange={(event) => setReadPath(event.target.value)}
+                placeholder="Relative path"
+                value={readPath}
+              />
+
+              <button
+                className="rounded-lg border border-zinc-600 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                disabled={
+                  isReading ||
+                  (readOperation !== "repository_overview" && !readPath.trim())
+                }
+                type="submit"
+              >
+                {isReading ? "Reading…" : "Read"}
+              </button>
+            </div>
+
+            {readResult ? (
+              <div className="mt-4 rounded-lg border border-zinc-800 p-3 text-xs">
+                {readResult.entries ? (
+                  <ul className="space-y-1 font-mono">
+                    {readResult.entries.map((entry) => (
+                      <li key={`${entry.kind}:${entry.relative_path}`}>
+                        {entry.kind} · {entry.relative_path}
+                        {entry.size_bytes !== null ? ` · ${entry.size_bytes} bytes` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {readResult.entry ? (
+                  <p className="font-mono">
+                    {readResult.entry.kind} · {readResult.entry.relative_path}
+                  </p>
+                ) : null}
+
+                {readResult.content !== null ? (
+                  <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-zinc-950 p-3">
+                    {readResult.content}
+                  </pre>
+                ) : null}
+
+                {readResult.content_sha256 ? (
+                  <p className="mt-2 break-all font-mono text-[11px] text-zinc-500">
+                    SHA-256: {readResult.content_sha256}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </form>
+
+          <form
+            className="rounded-xl border border-zinc-700 bg-zinc-950/40 p-4"
+            onSubmit={createProposal}
+          >
+            <p className="font-medium">Create exact proposal</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              The server derives the D107 snapshot and proposal digest.
+            </p>
+
+            <div className="mt-3 grid gap-3">
+              <select
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+                disabled={blocksNewProposal}
+                onChange={(event) =>
+                  setProposalOperation(
+                    event.target.value as "create_text" | "replace_text",
+                  )
+                }
+                value={proposalOperation}
+              >
+                <option value="replace_text">Replace text</option>
+                <option value="create_text">Create text</option>
+              </select>
+
+              <input
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+                disabled={blocksNewProposal}
+                onChange={(event) => setProposalPath(event.target.value)}
+                placeholder="Relative path"
+                value={proposalPath}
+              />
+
+              <textarea
+                className="min-h-40 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm"
+                disabled={blocksNewProposal}
+                onChange={(event) => setProposalContent(event.target.value)}
+                placeholder="Exact proposed text"
+                value={proposalContent}
+              />
+
+              <button
+                className="w-fit rounded-lg border border-zinc-600 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                disabled={
+                  blocksNewProposal ||
+                  isProposing ||
+                  !proposalPath.trim() ||
+                  !proposalContent
+                }
+                type="submit"
+              >
+                {isProposing ? "Creating proposal…" : "Create proposal"}
+              </button>
+            </div>
+          </form>
+
+          {workflow ? (
+            <EngineeringProposalCard
+              onWorkflowChange={setWorkflow}
+              workflow={workflow}
+              workspaceId={workspaceId}
+            />
+          ) : (
+            <p className="text-sm text-zinc-500">
+              No live Engineering workflow for this conversation.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {error ? <p className="mt-3 text-sm text-red-400" role="alert">{error}</p> : null}
+    </section>
+  );
+}

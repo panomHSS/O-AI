@@ -24,6 +24,7 @@ import { ActionApprovalCard } from "./action-approval-card";
 import { CalendarWriteApprovalCard } from "./calendar-write-approval-card";
 import { CalendarDeleteSelectionCard } from "./calendar-delete-selection-card";
 import { ContextUsageIndicator } from "./context-usage";
+import { EngineeringOwnerPanel } from "./engineering-owner-panel";
 
 function createMessage(
   role: ChatMessage["role"],
@@ -337,6 +338,11 @@ export function Chat() {
         </button>
       </header>
 
+      <EngineeringOwnerPanel
+        key={`${workspaceId}:${conversationId ?? "none"}`}
+        conversationId={conversationId}
+        workspaceId={workspaceId}
+      />
       <div className="flex flex-1 flex-col gap-3" aria-live="polite">
         {messages.length === 0 ? <p className="text-zinc-400">Start a conversation with O-AI.</p> : null}
         {messages.map((chatMessage) => (
