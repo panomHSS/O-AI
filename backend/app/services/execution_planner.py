@@ -10,6 +10,7 @@ from app.contracts.ai_discovery import (
 )
 from app.contracts.command import CommandRequest, ExecutionPlan, ExecutionStep
 from app.contracts.execution_planning import ExecutionPlanningOutcome
+from app.contracts.task_aware_ai_routing import AITaskKind
 from app.services.adapter_registry import AdapterRegistry
 from app.services.capability_permission_policy import CapabilityPermissionPolicy
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
@@ -44,16 +45,28 @@ class ExecutionPlanner:
         self._permission_policy = permission_policy
         self._audit = audit
 
-    def plan(self, request: CommandRequest) -> ExecutionPlanningOutcome:
+    def plan(
+        self,
+        request: CommandRequest,
+        *,
+        task_kind: AITaskKind = AITaskKind.GENERAL_CHAT,
+    ) -> ExecutionPlanningOutcome:
         """Return a deterministic single-step proposal for one command."""
-        if (
+        if not isinstance(task_kind, AITaskKind):
+            outcome = self._rejected(
+                "invalid_task_kind",
+                getattr(request, "request_id", "invalid"),
+            )
+        elif (
             not isinstance(request.request_id, str)
             or not request.request_id
             or request.request_id != request.request_id.strip()
         ):
             outcome = self._rejected("invalid_request", "invalid")
         elif request.command == CHAT_MESSAGE_COMMAND:
-            outcome = self._plan_ai(request)
+            outcome = self._plan_ai(request, task_kind=task_kind)
+        elif task_kind is not AITaskKind.GENERAL_CHAT:
+            outcome = self._rejected("invalid_task_kind", request.request_id)
         elif request.command == TOOL_EXECUTE_COMMAND:
             outcome = self._plan_structured(request, target_kind="tool")
         elif request.command == MODULE_EXECUTE_COMMAND:
@@ -84,7 +97,12 @@ class ExecutionPlanner:
         except Exception:
             pass
 
-    def _plan_ai(self, request: CommandRequest) -> ExecutionPlanningOutcome:
+    def _plan_ai(
+        self,
+        request: CommandRequest,
+        *,
+        task_kind: AITaskKind,
+    ) -> ExecutionPlanningOutcome:
         try:
             CommandInputPipeline.validated_chat_arguments(request)
         except CommandInputError:
@@ -94,7 +112,10 @@ class ExecutionPlanner:
         if decision.disposition != "defer_to_existing_chat":
             return self._rejected("ai_route_rejected", request.request_id)
 
-        route = self._ai_router.route(decision)
+        if task_kind is AITaskKind.GENERAL_CHAT:
+            route = self._ai_router.route(decision)
+        else:
+            route = self._ai_router.route(decision, task_kind=task_kind)
         if route.status == "unavailable":
             safe_reason = (
                 route.reason_code
