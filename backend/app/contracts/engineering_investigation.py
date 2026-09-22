@@ -254,6 +254,232 @@ class EngineeringInvestigationEvidencePack:
             raise ValueError("engineering_investigation_evidence_invalid")
 
 
+ENGINEERING_INVESTIGATION_SUMMARY_MAX_CHARS = 4_000
+ENGINEERING_INVESTIGATION_MAX_FINDINGS = 12
+ENGINEERING_INVESTIGATION_FINDING_TITLE_MAX_CHARS = 200
+ENGINEERING_INVESTIGATION_FINDING_DETAIL_MAX_CHARS = 2_000
+ENGINEERING_INVESTIGATION_MAX_CHANGE_PLAN_ITEMS = 12
+ENGINEERING_INVESTIGATION_PLAN_TITLE_MAX_CHARS = 200
+ENGINEERING_INVESTIGATION_PLAN_RATIONALE_MAX_CHARS = 2_000
+ENGINEERING_INVESTIGATION_MAX_RESULT_EVIDENCE_REFS = 8
+
+EngineeringInvestigationConfidence: TypeAlias = Literal[
+    "low",
+    "medium",
+    "high",
+]
+EngineeringInvestigationChangeKind: TypeAlias = Literal[
+    "inspect",
+    "create_text",
+    "replace_text",
+    "test",
+    "documentation",
+    "configuration",
+    "other",
+]
+
+_FINDING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def _validated_result_text(
+    value: object,
+    *,
+    max_chars: int,
+    code: str = "engineering_investigation_result_invalid",
+) -> str:
+    if type(value) is not str:
+        raise ValueError(code)
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError(code) from None
+    normalized = value.strip()
+    if not normalized or "\x00" in normalized or len(normalized) > max_chars:
+        raise ValueError(code)
+    return normalized
+
+
+def _validated_result_evidence_refs(value: object) -> tuple[str, ...]:
+    if type(value) is not tuple:
+        raise ValueError("engineering_investigation_result_invalid")
+    if len(value) > ENGINEERING_INVESTIGATION_MAX_RESULT_EVIDENCE_REFS:
+        raise ValueError("engineering_investigation_result_invalid")
+    if len(set(value)) != len(value):
+        raise ValueError("engineering_investigation_result_invalid")
+    for evidence_id in value:
+        if (
+            type(evidence_id) is not str
+            or len(evidence_id)
+            > ENGINEERING_INVESTIGATION_EVIDENCE_ID_MAX_CHARS
+            or _EVIDENCE_ID_RE.fullmatch(evidence_id) is None
+        ):
+            raise ValueError("engineering_investigation_result_invalid")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class EngineeringInvestigationFinding:
+    """One bounded AI finding; descriptive only, never authority."""
+
+    finding_id: str
+    title: str
+    detail: str
+    evidence_refs: tuple[str, ...]
+    confidence: EngineeringInvestigationConfidence
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.finding_id) is not str
+            or _FINDING_ID_RE.fullmatch(self.finding_id) is None
+        ):
+            raise ValueError("engineering_investigation_result_invalid")
+        object.__setattr__(
+            self,
+            "title",
+            _validated_result_text(
+                self.title,
+                max_chars=ENGINEERING_INVESTIGATION_FINDING_TITLE_MAX_CHARS,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "detail",
+            _validated_result_text(
+                self.detail,
+                max_chars=ENGINEERING_INVESTIGATION_FINDING_DETAIL_MAX_CHARS,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "evidence_refs",
+            _validated_result_evidence_refs(self.evidence_refs),
+        )
+        if self.confidence not in {"low", "medium", "high"}:
+            raise ValueError("engineering_investigation_result_invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class EngineeringInvestigationChangePlanItem:
+    """One non-authoritative suggested change-plan item."""
+
+    sequence: int
+    title: str
+    rationale: str
+    candidate_relative_path: str | None
+    candidate_change_kind: EngineeringInvestigationChangeKind
+    evidence_refs: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.sequence) is not int
+            or self.sequence < 1
+            or self.sequence > ENGINEERING_INVESTIGATION_MAX_CHANGE_PLAN_ITEMS
+        ):
+            raise ValueError("engineering_investigation_result_invalid")
+        object.__setattr__(
+            self,
+            "title",
+            _validated_result_text(
+                self.title,
+                max_chars=ENGINEERING_INVESTIGATION_PLAN_TITLE_MAX_CHARS,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "rationale",
+            _validated_result_text(
+                self.rationale,
+                max_chars=ENGINEERING_INVESTIGATION_PLAN_RATIONALE_MAX_CHARS,
+            ),
+        )
+        if self.candidate_relative_path is not None:
+            try:
+                validate_engineering_relative_path(
+                    self.candidate_relative_path
+                )
+            except ValueError:
+                raise ValueError(
+                    "engineering_investigation_result_invalid"
+                ) from None
+        if self.candidate_change_kind not in {
+            "inspect",
+            "create_text",
+            "replace_text",
+            "test",
+            "documentation",
+            "configuration",
+            "other",
+        }:
+            raise ValueError("engineering_investigation_result_invalid")
+        object.__setattr__(
+            self,
+            "evidence_refs",
+            _validated_result_evidence_refs(self.evidence_refs),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EngineeringInvestigationResult:
+    """One structured non-authoritative D113 investigation result."""
+
+    contract_version: str = field(
+        default=ENGINEERING_INVESTIGATION_CONTRACT_VERSION,
+        init=False,
+    )
+    conversation_id: UUID
+    summary: str
+    findings: tuple[EngineeringInvestigationFinding, ...]
+    change_plan: tuple[EngineeringInvestigationChangePlanItem, ...]
+    evidence_refs: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.conversation_id, UUID):
+            raise ValueError("engineering_investigation_result_invalid")
+        object.__setattr__(
+            self,
+            "summary",
+            _validated_result_text(
+                self.summary,
+                max_chars=ENGINEERING_INVESTIGATION_SUMMARY_MAX_CHARS,
+            ),
+        )
+        if (
+            type(self.findings) is not tuple
+            or len(self.findings) > ENGINEERING_INVESTIGATION_MAX_FINDINGS
+            or any(
+                not isinstance(item, EngineeringInvestigationFinding)
+                for item in self.findings
+            )
+        ):
+            raise ValueError("engineering_investigation_result_invalid")
+        finding_ids = tuple(item.finding_id for item in self.findings)
+        if len(set(finding_ids)) != len(finding_ids):
+            raise ValueError("engineering_investigation_result_invalid")
+
+        if (
+            type(self.change_plan) is not tuple
+            or len(self.change_plan)
+            > ENGINEERING_INVESTIGATION_MAX_CHANGE_PLAN_ITEMS
+            or any(
+                not isinstance(
+                    item,
+                    EngineeringInvestigationChangePlanItem,
+                )
+                for item in self.change_plan
+            )
+        ):
+            raise ValueError("engineering_investigation_result_invalid")
+        if tuple(item.sequence for item in self.change_plan) != tuple(
+            range(1, len(self.change_plan) + 1)
+        ):
+            raise ValueError("engineering_investigation_result_invalid")
+
+        object.__setattr__(
+            self,
+            "evidence_refs",
+            _validated_result_evidence_refs(self.evidence_refs),
+        )
+
 __all__ = [
     "ENGINEERING_INVESTIGATION_CONTRACT_VERSION",
     "ENGINEERING_INVESTIGATION_EVIDENCE_ID_MAX_CHARS",
@@ -262,8 +488,21 @@ __all__ = [
     "ENGINEERING_INVESTIGATION_MAX_FOCUS_PATHS",
     "ENGINEERING_INVESTIGATION_MAX_TEXT_CHARS",
     "ENGINEERING_INVESTIGATION_MAX_TEXT_ITEMS",
+    "ENGINEERING_INVESTIGATION_FINDING_DETAIL_MAX_CHARS",
+    "ENGINEERING_INVESTIGATION_FINDING_TITLE_MAX_CHARS",
+    "ENGINEERING_INVESTIGATION_MAX_CHANGE_PLAN_ITEMS",
+    "ENGINEERING_INVESTIGATION_MAX_FINDINGS",
+    "ENGINEERING_INVESTIGATION_MAX_RESULT_EVIDENCE_REFS",
+    "ENGINEERING_INVESTIGATION_PLAN_RATIONALE_MAX_CHARS",
+    "ENGINEERING_INVESTIGATION_PLAN_TITLE_MAX_CHARS",
+    "ENGINEERING_INVESTIGATION_SUMMARY_MAX_CHARS",
+    "EngineeringInvestigationChangeKind",
+    "EngineeringInvestigationChangePlanItem",
+    "EngineeringInvestigationConfidence",
     "EngineeringInvestigationEvidenceItem",
     "EngineeringInvestigationEvidenceKind",
     "EngineeringInvestigationEvidencePack",
+    "EngineeringInvestigationFinding",
     "EngineeringInvestigationRequest",
+    "EngineeringInvestigationResult",
 ]
