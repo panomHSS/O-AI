@@ -12,6 +12,7 @@ import {
 import { activeConversationStorageKey } from "../../lib/workspace";
 import type {
   AIBrainCapabilitiesResponse,
+  AIBrainModeCapability,
   AIMode,
   CalendarSelectionDisplayEvent,
   CalendarWriteChatDecision,
@@ -37,6 +38,33 @@ const AI_MODE_OPTIONS: ReadonlyArray<{
   { value: "local_ai", label: "Local AI" },
   { value: "cloud_ai", label: "Cloud AI" },
 ];
+
+function aiModeAvailabilityMessage(
+  capability: AIBrainModeCapability | undefined,
+): string | null {
+  if (!capability) {
+    return "Checking AI mode availability…";
+  }
+  if (capability.status === "ready") {
+    return null;
+  }
+
+  const messages: Record<string, string> = {
+    cloud_ai_disabled: "Cloud AI is disabled by deployment configuration.",
+    cloud_ai_credential_missing:
+      "Cloud AI does not have a configured server credential.",
+    cloud_ai_model_missing:
+      "Cloud AI does not have a configured server model.",
+    cloud_ai_unavailable: "Cloud AI is unavailable.",
+    local_ai_unavailable: "Local AI is unavailable.",
+    workspace_cloud_egress_denied:
+      "Cloud AI is not permitted for this workspace.",
+    workspace_local_ai_not_permitted:
+      "Local AI is not permitted for this workspace.",
+  };
+
+  return messages[capability.reason_code] ?? "This AI mode is unavailable.";
+}
 
 function createMessage(
   role: ChatMessage["role"],
@@ -139,6 +167,13 @@ export function Chat() {
   const selectedAIModeCapability = generalChatCapabilities?.modes.find(
     (item) => item.mode === aiMode,
   );
+  const selectedAIModeReady =
+    selectedAIModeCapability?.status === "ready";
+  const selectedAIModeUsesCloud =
+    selectedAIModeCapability?.provider_class === "cloud_ai";
+  const selectedAIModeMessage = aiModeAvailabilityMessage(
+    selectedAIModeCapability,
+  );
 
   useEffect(() => {
     if (!isWorkspaceReady || !workspaceId) return;
@@ -235,7 +270,25 @@ export function Chat() {
     event.preventDefault();
     const message = draft.trim();
 
-    if (!workspaceId || !message || isLoading || isRestoring) {
+    if (
+      !workspaceId ||
+      !message ||
+      isLoading ||
+      isRestoring ||
+      !selectedAIModeReady
+    ) {
+      if (
+        workspaceId &&
+        message &&
+        !isLoading &&
+        !isRestoring &&
+        !selectedAIModeReady
+      ) {
+        setError(
+          selectedAIModeMessage ??
+            "The selected AI mode is not available.",
+        );
+      }
       return;
     }
 
@@ -391,7 +444,11 @@ export function Chat() {
             </label>
             <select
               className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm disabled:opacity-50"
-              disabled={isLoading || isRestoring}
+              disabled={
+                isLoading ||
+                isRestoring ||
+                !generalChatCapabilities
+              }
               id="chat-ai-mode"
               onChange={(event) => setAIMode(event.target.value as AIMode)}
               value={aiMode}
@@ -400,8 +457,7 @@ export function Chat() {
                 const capability = generalChatCapabilities?.modes.find(
                   (item) => item.mode === option.value,
                 );
-                const unavailable =
-                  capability !== undefined && capability.status !== "ready";
+                const unavailable = capability?.status !== "ready";
                 return (
                   <option
                     disabled={unavailable}
@@ -409,7 +465,9 @@ export function Chat() {
                     value={option.value}
                   >
                     {option.label}
-                    {unavailable ? ` — ${capability.status}` : ""}
+                    {capability && unavailable
+                      ? ` — ${capability.status}`
+                      : ""}
                   </option>
                 );
               })}
@@ -418,8 +476,21 @@ export function Chat() {
               {selectedAIModeCapability?.status ?? "checking"}
             </span>
           </div>
+          {selectedAIModeMessage ? (
+            <p className="mt-2 text-xs text-amber-300">
+              {selectedAIModeMessage}
+            </p>
+          ) : null}
+          {selectedAIModeUsesCloud && selectedAIModeReady ? (
+            <p className="mt-2 text-xs text-sky-300">
+              Cloud AI may send eligible Chat context from this workspace to the
+              configured cloud provider. O-AI routing and authority controls
+              still apply.
+            </p>
+          ) : null}
           <p className="mt-2 text-xs text-zinc-500">
-            Auto follows O-AI server policy. Provider, model, endpoint, and credentials remain server-controlled. Engineering drafting remains Local AI only in D111.
+            Auto follows O-AI server policy. Provider, model, endpoint, and
+            credentials remain server-controlled. Engineering drafting remains Local AI only. Chat AI mode does not change Engineering routing.
           </p>
         </div>
       </header>
@@ -504,7 +575,12 @@ export function Chat() {
         />
         <button
           className="rounded-lg bg-zinc-100 px-4 py-2 font-medium text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={isLoading || isRestoring || !draft.trim()}
+          disabled={
+            isLoading ||
+            isRestoring ||
+            !draft.trim() ||
+            !selectedAIModeReady
+          }
           type="submit"
         >
           Send
