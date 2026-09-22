@@ -1268,18 +1268,42 @@ def get_chatgpt_model_discovery_source(
 ) -> ChatGPTConfiguredModelDiscoverySource:
     """Describe Cloud text-generation readiness without provider/network probing.
 
-    Production readiness requires the D112 deployment gate, one configured
-    server-side OpenAI credential, and OPENAI_MODEL. The raw credential is
-    reduced to a boolean inside trusted dependency wiring and is never passed
-    into D34 discovery.
+    The production ChatGPT adapter requires the D112 deployment gate, one
+    configured server-side OpenAI credential, and OPENAI_MODEL. Raw credential
+    material is reduced to a boolean inside trusted dependency wiring and is
+    never passed into D34 discovery.
 
-    Legacy/injected conversation-provider seams that predate D112 may omit the
-    new deployment settings. Those narrow seams retain their provider-managed
-    metadata compatibility and do not change production readiness.
+    Legacy/injected conversation-provider seams remain provider-managed
+    compatibility only. They gain no OpenAI credential, model, endpoint,
+    routing, or execution authority from this discovery path.
     """
     settings = get_settings()
     configured_model_id = settings.openai_model
 
+    adapter_factory = getattr(
+        conversation_service,
+        "default_ai_adapter",
+        None,
+    )
+    provider_managed = not callable(adapter_factory)
+
+    if callable(adapter_factory):
+        selected_adapter = adapter_factory()
+        provider_managed = (
+            selected_adapter is not get_chatgpt_adapter()
+        )
+
+    if provider_managed:
+        if configured_model_id is None:
+            configured_model_id = _D49_PROVIDER_MANAGED_MODEL_ID
+        return ChatGPTConfiguredModelDiscoverySource(
+            configured_model_id=configured_model_id,
+            enabled=True,
+            credential_configured=True,
+        )
+
+    # Compatibility defaults apply only to old injected Settings mocks that
+    # predate D112. The real Settings model always defines both fields.
     cloud_enabled = getattr(
         settings,
         "oai_cloud_ai_enabled",
@@ -1312,29 +1336,11 @@ def get_chatgpt_model_discovery_source(
                 and bool(secret_value.strip())
             )
 
-    if (
-        configured_model_id is None
-        and cloud_enabled
-        and credential_configured
-    ):
-        adapter_factory = getattr(
-            conversation_service,
-            "default_ai_adapter",
-            None,
-        )
-        if not callable(adapter_factory):
-            configured_model_id = _D49_PROVIDER_MANAGED_MODEL_ID
-        else:
-            selected_adapter = adapter_factory()
-            if selected_adapter is not get_chatgpt_adapter():
-                configured_model_id = _D49_PROVIDER_MANAGED_MODEL_ID
-
     return ChatGPTConfiguredModelDiscoverySource(
         configured_model_id=configured_model_id,
         enabled=cloud_enabled,
         credential_configured=credential_configured,
     )
-
 
 def get_local_ai_model_discovery_source(
     config: LocalAIAdapterConfig = Depends(get_local_ai_config),

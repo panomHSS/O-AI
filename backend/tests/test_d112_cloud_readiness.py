@@ -163,30 +163,44 @@ def test_d112_cloud_discovery_ready_requires_all_three_prerequisites() -> None:
 
 
 def test_d112_production_dependency_reduces_secret_to_boolean() -> None:
+    production_adapter = object()
+
+    class ProductionConversationService:
+        def default_ai_adapter(self):
+            return production_adapter
+
     settings = SimpleNamespace(
         openai_model="cloud-model",
         oai_cloud_ai_enabled=True,
         openai_api_key=SecretStr("server-secret"),
     )
 
-    original = dependencies.get_settings
+    original_settings = dependencies.get_settings
+    original_adapter = dependencies.get_chatgpt_adapter
     dependencies.get_settings = lambda: settings
+    dependencies.get_chatgpt_adapter = lambda: production_adapter
     try:
         source = (
             dependencies.get_chatgpt_model_discovery_source(
-                conversation_service=object()
+                conversation_service=ProductionConversationService()
             )
         )
     finally:
-        dependencies.get_settings = original
+        dependencies.get_settings = original_settings
+        dependencies.get_chatgpt_adapter = original_adapter
 
     assert source.enabled is True
     assert source.credential_configured is True
     assert source.configured_model_id == "cloud-model"
     assert "server-secret" not in repr(source)
 
-
 def test_d112_blank_or_missing_secret_is_not_execution_ready() -> None:
+    production_adapter = object()
+
+    class ProductionConversationService:
+        def default_ai_adapter(self):
+            return production_adapter
+
     for secret in (None, SecretStr("   ")):
         settings = SimpleNamespace(
             openai_model="cloud-model",
@@ -194,16 +208,19 @@ def test_d112_blank_or_missing_secret_is_not_execution_ready() -> None:
             openai_api_key=secret,
         )
 
-        original = dependencies.get_settings
+        original_settings = dependencies.get_settings
+        original_adapter = dependencies.get_chatgpt_adapter
         dependencies.get_settings = lambda: settings
+        dependencies.get_chatgpt_adapter = lambda: production_adapter
         try:
             source = (
                 dependencies.get_chatgpt_model_discovery_source(
-                    conversation_service=object()
+                    conversation_service=ProductionConversationService()
                 )
             )
         finally:
-            dependencies.get_settings = original
+            dependencies.get_settings = original_settings
+            dependencies.get_chatgpt_adapter = original_adapter
 
         result = source.discover()
         assert result.status == "unavailable"
@@ -211,7 +228,6 @@ def test_d112_blank_or_missing_secret_is_not_execution_ready() -> None:
             result.reason_code
             == AI_DISCOVERY_REASON_CLOUD_CREDENTIAL_MISSING
         )
-
 
 @pytest.mark.parametrize(
     ("reason_code", "public_reason"),
