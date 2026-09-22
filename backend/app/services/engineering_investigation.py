@@ -22,6 +22,9 @@ from app.contracts.engineering_investigation import (
     EngineeringInvestigationResult,
 )
 from app.contracts.engineering_read import validate_engineering_relative_path
+from app.contracts.local_ai_runtime import (
+    LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY,
+)
 from app.contracts.task_aware_ai_routing import AITaskKind
 from app.contracts.workspace import WorkspaceScope
 from app.services.ai_runtime import AIRuntime
@@ -143,7 +146,18 @@ class EngineeringInvestigationService:
                     "engineering_investigation_ai_unavailable"
                 )
             generated = authorized_adapter.generate(
-                AIRequest(content=prompt)
+                AIRequest(
+                    content=prompt,
+                    metadata={
+                        LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY: {
+                            "response_schema": self._build_result_schema(
+                                evidence_pack
+                            ),
+                            "reasoning_enabled": False,
+                            "temperature": 0.0,
+                        }
+                    },
+                )
             )
         except EngineeringInvestigationError:
             raise
@@ -162,6 +176,137 @@ class EngineeringInvestigationService:
             raise EngineeringInvestigationError(
                 "engineering_investigation_result_invalid"
             ) from None
+
+    @staticmethod
+    def _build_result_schema(
+        evidence_pack: EngineeringInvestigationEvidencePack,
+    ) -> dict[str, object]:
+        allowed_refs = [
+            item.evidence_id for item in evidence_pack.evidence_items
+        ]
+
+        def refs_schema() -> dict[str, object]:
+            return {
+                "type": "array",
+                "maxItems": len(allowed_refs),
+                "items": {
+                    "type": "string",
+                    "enum": allowed_refs,
+                },
+            }
+
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "summary",
+                "findings",
+                "change_plan",
+                "evidence_refs",
+            ],
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000,
+                },
+                "findings": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "finding_id",
+                            "title",
+                            "detail",
+                            "evidence_refs",
+                            "confidence",
+                        ],
+                        "properties": {
+                            "finding_id": {
+                                "type": "string",
+                                "pattern": (
+                                    "^[A-Za-z0-9]"
+                                    "[A-Za-z0-9._-]{0,63}$"
+                                ),
+                            },
+                            "title": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                            },
+                            "detail": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2000,
+                            },
+                            "evidence_refs": refs_schema(),
+                            "confidence": {
+                                "type": "string",
+                                "enum": ["low", "medium", "high"],
+                            },
+                        },
+                    },
+                },
+                "change_plan": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "sequence",
+                            "title",
+                            "rationale",
+                            "candidate_relative_path",
+                            "candidate_change_kind",
+                            "evidence_refs",
+                        ],
+                        "properties": {
+                            "sequence": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 12,
+                            },
+                            "title": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                            },
+                            "rationale": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2000,
+                            },
+                            "candidate_relative_path": {
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "minLength": 1,
+                                    },
+                                    {"type": "null"},
+                                ]
+                            },
+                            "candidate_change_kind": {
+                                "type": "string",
+                                "enum": [
+                                    "inspect",
+                                    "create_text",
+                                    "replace_text",
+                                    "test",
+                                    "documentation",
+                                    "configuration",
+                                    "other",
+                                ],
+                            },
+                            "evidence_refs": refs_schema(),
+                        },
+                    },
+                },
+                "evidence_refs": refs_schema(),
+            },
+        }
 
     @staticmethod
     def _build_prompt(

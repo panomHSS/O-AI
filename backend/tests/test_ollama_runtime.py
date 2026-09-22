@@ -45,6 +45,47 @@ class OllamaRuntimeClientTests(unittest.TestCase):
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 9.5)
 
     @patch("app.adapters.ollama_runtime.urlopen")
+    def test_generate_maps_structured_output_options(
+        self,
+        urlopen: MagicMock,
+    ) -> None:
+        urlopen.return_value = response_with(
+            {"response": '{"summary":"ok"}'}
+        )
+        client = OllamaRuntimeClient(base_url="http://local.example/")
+        schema = {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+        }
+
+        result = client.generate(
+            model="local-model",
+            prompt="hello",
+            timeout_seconds=9.5,
+            context_length=4096,
+            response_schema=schema,
+            reasoning_enabled=False,
+            temperature=0.0,
+        )
+
+        self.assertEqual(result, '{"summary":"ok"}')
+        request = urlopen.call_args.args[0]
+        self.assertEqual(
+            json.loads(request.data.decode("utf-8")),
+            {
+                "model": "local-model",
+                "prompt": "hello",
+                "stream": False,
+                "format": schema,
+                "think": False,
+                "options": {
+                    "num_ctx": 4096,
+                    "temperature": 0.0,
+                },
+            },
+        )
+
+    @patch("app.adapters.ollama_runtime.urlopen")
     def test_timeout_is_translated(self, urlopen: MagicMock) -> None:
         urlopen.side_effect = socket.timeout("late")
 

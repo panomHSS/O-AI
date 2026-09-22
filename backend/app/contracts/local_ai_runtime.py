@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
 
 LOCAL_AI_RUNTIME_OLLAMA = "ollama"
+LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY = "local_ai_generation_options_v1"
 
 
 class LocalAIRuntimeError(Exception):
@@ -47,8 +49,11 @@ class LocalAIRuntimeClient(Protocol):
         prompt: str,
         timeout_seconds: float,
         context_length: int,
+        response_schema: Mapping[str, object] | None = None,
+        reasoning_enabled: bool | None = None,
+        temperature: float | None = None,
     ) -> str:
-        """Generate text without exposing a runtime-specific response type."""
+        """Generate text with optional provider-neutral generation constraints."""
         ...
 
 @runtime_checkable

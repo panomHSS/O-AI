@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import socket
+from collections.abc import Mapping
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -146,16 +147,29 @@ class OllamaRuntimeClient(LocalAIModelControlProvider):
         prompt: str,
         timeout_seconds: float,
         context_length: int,
+        response_schema: Mapping[str, object] | None = None,
+        reasoning_enabled: bool | None = None,
+        temperature: float | None = None,
     ) -> str:
+        options: dict[str, object] = {"num_ctx": context_length}
+        if temperature is not None:
+            options["temperature"] = temperature
+
+        body: dict[str, object] = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": options,
+        }
+        if response_schema is not None:
+            body["format"] = dict(response_schema)
+        if reasoning_enabled is not None:
+            body["think"] = reasoning_enabled
+
         payload = self._request_json(
             "/api/generate",
             timeout_seconds=timeout_seconds,
-            body={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"num_ctx": context_length},
-            },
+            body=body,
         )
         response = payload.get("response")
         if not isinstance(response, str) or not response.strip():

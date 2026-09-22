@@ -10,6 +10,7 @@ from app.adapters.local_ai import (
 from app.contracts.ai import AI_ADAPTER_CONTRACT_VERSION, AIAdapter, AIRequest, AIResult
 from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
 from app.contracts.local_ai_runtime import (
+    LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY,
     LocalAIRuntimeTimeoutError,
     LocalAIRuntimeUnavailableError,
 )
@@ -30,6 +31,7 @@ class StubRuntimeClient:
         self.result = result
         self.error = error
         self.generate_calls = 0
+        self.last_generate_kwargs: dict[str, object] | None = None
 
     def is_runtime_available(self) -> bool:
         return self.online
@@ -40,8 +42,9 @@ class StubRuntimeClient:
     def is_model_loaded(self, model: str) -> bool:
         return False
 
-    def generate(self, **_: object) -> str:
+    def generate(self, **kwargs: object) -> str:
         self.generate_calls += 1
+        self.last_generate_kwargs = dict(kwargs)
         if self.error:
             raise self.error
         return self.result  # type: ignore[return-value]
@@ -98,6 +101,60 @@ class LocalAIAdapterTests(unittest.TestCase):
 
         self.assertEqual(result, AIResult(content="local reply"))
         self.assertEqual(runtime.generate_calls, 1)
+
+    def test_structured_generation_options_are_forwarded_once(self) -> None:
+        runtime = StubRuntimeClient(result="structured reply")
+        schema = {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+        }
+
+        result = self.make_adapter(runtime).generate(
+            AIRequest(
+                content="hello",
+                metadata={
+                    LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY: {
+                        "response_schema": schema,
+                        "reasoning_enabled": False,
+                        "temperature": 0.0,
+                    }
+                },
+            )
+        )
+
+        self.assertEqual(result, AIResult(content="structured reply"))
+        self.assertEqual(runtime.generate_calls, 1)
+        self.assertEqual(
+            runtime.last_generate_kwargs,
+            {
+                "model": "configured-model",
+                "prompt": "hello",
+                "timeout_seconds": 12.5,
+                "context_length": 4096,
+                "response_schema": schema,
+                "reasoning_enabled": False,
+                "temperature": 0.0,
+            },
+        )
+
+    def test_malformed_structured_generation_options_fail_before_runtime(self) -> None:
+        runtime = StubRuntimeClient()
+
+        with self.assertRaisesRegex(LocalAIResponseError, "options"):
+            self.make_adapter(runtime).generate(
+                AIRequest(
+                    content="hello",
+                    metadata={
+                        LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY: {
+                            "response_schema": {},
+                            "reasoning_enabled": False,
+                            "temperature": 0.0,
+                        }
+                    },
+                )
+            )
+
+        self.assertEqual(runtime.generate_calls, 0)
 
     def test_runtime_unavailable_fails_without_generation(self) -> None:
         runtime = StubRuntimeClient(online=False)

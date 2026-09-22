@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Protocol
 
 from app.contracts.ai import AI_ADAPTER_CONTRACT_VERSION, AIRequest, AIResult
 from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
 from app.contracts.local_ai_runtime import (
+    LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY,
     LocalAIRuntimeClient,
     LocalAIRuntimeResponseError,
     LocalAIRuntimeTimeoutError,
@@ -67,16 +69,33 @@ class LocalAIAdapter:
 
     def generate(self, request: AIRequest) -> AIResult:
         """Generate locally after fail-closed runtime and model checks."""
+        generation_options = self._generation_options(request)
         self._require_available()
         telemetry_session = self._start_telemetry_session()
         try:
             try:
-                content = self._runtime_client.generate(
-                    model=self._model,
-                    prompt=request.content,
-                    timeout_seconds=self._timeout_seconds,
-                    context_length=self._context_length,
-                )
+                if generation_options is None:
+                    content = self._runtime_client.generate(
+                        model=self._model,
+                        prompt=request.content,
+                        timeout_seconds=self._timeout_seconds,
+                        context_length=self._context_length,
+                    )
+                else:
+                    (
+                        response_schema,
+                        reasoning_enabled,
+                        temperature,
+                    ) = generation_options
+                    content = self._runtime_client.generate(
+                        model=self._model,
+                        prompt=request.content,
+                        timeout_seconds=self._timeout_seconds,
+                        context_length=self._context_length,
+                        response_schema=response_schema,
+                        reasoning_enabled=reasoning_enabled,
+                        temperature=temperature,
+                    )
             except LocalAIRuntimeTimeoutError as error:
                 raise LocalAIResponseError("Local AI request timed out.") from error
             except LocalAIRuntimeUnavailableError as error:
@@ -93,6 +112,42 @@ class LocalAIAdapter:
                     telemetry_session.stop()
                 except Exception:
                     pass
+
+    @staticmethod
+    def _generation_options(
+        request: AIRequest,
+    ) -> tuple[Mapping[str, object], bool, float] | None:
+        if not isinstance(request.metadata, Mapping):
+            raise LocalAIResponseError("Local AI generation options are invalid.")
+
+        raw = request.metadata.get(LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY)
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            raise LocalAIResponseError("Local AI generation options are invalid.")
+        if set(raw) != {
+            "response_schema",
+            "reasoning_enabled",
+            "temperature",
+        }:
+            raise LocalAIResponseError("Local AI generation options are invalid.")
+
+        response_schema = raw["response_schema"]
+        reasoning_enabled = raw["reasoning_enabled"]
+        temperature = raw["temperature"]
+
+        if not isinstance(response_schema, Mapping) or not response_schema:
+            raise LocalAIResponseError("Local AI generation options are invalid.")
+        if type(reasoning_enabled) is not bool:
+            raise LocalAIResponseError("Local AI generation options are invalid.")
+        if (
+            type(temperature) not in {int, float}
+            or isinstance(temperature, bool)
+            or temperature < 0
+        ):
+            raise LocalAIResponseError("Local AI generation options are invalid.")
+
+        return response_schema, reasoning_enabled, float(temperature)
 
     def _require_available(self) -> None:
         if not self._enabled:
