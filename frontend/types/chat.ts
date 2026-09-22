@@ -292,6 +292,47 @@ export interface EngineeringOwnerProposalRequest {
   proposed_content: string;
 }
 
+export interface EngineeringInvestigationRequest {
+  conversation_id: string;
+  instruction: string;
+  focus_paths: string[];
+}
+
+export interface EngineeringInvestigationFinding {
+  finding_id: string;
+  title: string;
+  detail: string;
+  evidence_refs: string[];
+  confidence: "low" | "medium" | "high";
+}
+
+export interface EngineeringInvestigationChangePlanItem {
+  sequence: number;
+  title: string;
+  rationale: string;
+  candidate_relative_path: string | null;
+  candidate_change_kind:
+    | "inspect"
+    | "create_text"
+    | "replace_text"
+    | "test"
+    | "documentation"
+    | "configuration"
+    | "other";
+  evidence_refs: string[];
+}
+
+export interface EngineeringInvestigationResponse {
+  workspace_id: WorkspaceId;
+  contract_version: string;
+  conversation_id: string;
+  summary: string;
+  findings: EngineeringInvestigationFinding[];
+  change_plan: EngineeringInvestigationChangePlanItem[];
+  evidence_refs: string[];
+  focus_paths: string[];
+}
+
 export interface EngineeringOwnerReview {
   contract_version: string;
   operation: "create_text" | "replace_text";

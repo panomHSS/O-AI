@@ -92,6 +92,7 @@ def test_d110_engineering_route_set_remains_bounded() -> None:
         "/engineering/read",
         "/engineering/proposals",
         "/engineering/ai-drafts",
+        "/engineering/investigations",
         "/engineering/conversations/{conversation_id}/active",
         "/engineering/approvals/{approval_id}/approve",
         "/engineering/approvals/{approval_id}/deny",

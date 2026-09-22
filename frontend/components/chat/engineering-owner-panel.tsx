@@ -5,12 +5,14 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   ApiError,
   createEngineeringAIDraft,
+  createEngineeringInvestigation,
   createEngineeringProposal,
   getActiveEngineeringWorkflow,
   readEngineeringRepository,
 } from "../../lib/api-client";
 import type {
   EngineeringAIDraftResponse,
+  EngineeringInvestigationResponse,
   EngineeringOwnerReadOperation,
   EngineeringOwnerReadResponse,
   EngineeringOwnerWorkflow,
@@ -36,6 +38,11 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
     useState<"create_text" | "replace_text">("replace_text");
   const [proposalPath, setProposalPath] = useState("");
   const [proposalContent, setProposalContent] = useState("");
+  const [investigationInstruction, setInvestigationInstruction] = useState("");
+  const [investigationPaths, setInvestigationPaths] = useState("");
+  const [investigation, setInvestigation] =
+    useState<EngineeringInvestigationResponse | null>(null);
+  const [isInvestigating, setIsInvestigating] = useState(false);
   const [draftPath, setDraftPath] = useState("");
   const [draftInstruction, setDraftInstruction] = useState("");
   const [aiDraft, setAIDraft] = useState<EngineeringAIDraftResponse | null>(null);
@@ -97,6 +104,42 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
       );
     } finally {
       setIsReading(false);
+    }
+  }
+
+  async function requestInvestigation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !conversationId ||
+      !investigationInstruction.trim() ||
+      isInvestigating
+    ) {
+      return;
+    }
+
+    const focusPaths = investigationPaths
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    setIsInvestigating(true);
+    setError(null);
+    try {
+      setInvestigation(
+        await createEngineeringInvestigation(workspaceId, {
+          conversation_id: conversationId,
+          instruction: investigationInstruction.trim(),
+          focus_paths: focusPaths,
+        }),
+      );
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to run the Local AI Engineering investigation.",
+      );
+    } finally {
+      setIsInvestigating(false);
     }
   }
 
@@ -319,6 +362,170 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
               </div>
             ) : null}
           </form>
+
+          <form
+            className="rounded-xl border border-sky-900/70 bg-zinc-950/40 p-4"
+            onSubmit={requestInvestigation}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">
+                  AI-assisted investigation & change plan
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Local AI analyzes only the bounded server-built evidence pack.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full border border-sky-900 px-2 py-1 text-[11px] text-sky-300">
+                  Read-only
+                </span>
+                <span className="rounded-full border border-sky-900 px-2 py-1 text-[11px] text-sky-300">
+                  Non-authoritative
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-3">
+              <textarea
+                className="min-h-28 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+                disabled={isInvestigating}
+                onChange={(event) =>
+                  setInvestigationInstruction(event.target.value)
+                }
+                placeholder="What should Local AI investigate?"
+                value={investigationInstruction}
+              />
+
+              <textarea
+                className="min-h-24 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm"
+                disabled={isInvestigating}
+                onChange={(event) => setInvestigationPaths(event.target.value)}
+                placeholder={"Optional focus paths, one per line\nbackend/app\nREADME.md"}
+                value={investigationPaths}
+              />
+
+              <button
+                className="w-fit rounded-lg border border-sky-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                disabled={
+                  isInvestigating || !investigationInstruction.trim()
+                }
+                type="submit"
+              >
+                {isInvestigating
+                  ? "Investigating with Local AI…"
+                  : "Investigate with Local AI"}
+              </button>
+            </div>
+
+            <p className="mt-3 text-xs text-zinc-500">
+              No proposal is created and no repository change is applied.
+            </p>
+          </form>
+
+          {investigation ? (
+            <article className="rounded-xl border border-sky-800/70 bg-zinc-950/60 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">
+                    Engineering investigation (read-only)
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Structured findings and Change Plan only. No proposal created · no repository change applied.
+                  </p>
+                </div>
+                <span className="rounded-full border border-zinc-700 px-2 py-1 text-xs">
+                  {investigation.contract_version}
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs font-medium text-zinc-400">Summary</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm">
+                  {investigation.summary}
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs font-medium text-zinc-400">
+                  Focus paths considered
+                </p>
+                {investigation.focus_paths.length ? (
+                  <ul className="mt-1 space-y-1 font-mono text-xs">
+                    {investigation.focus_paths.map((path) => (
+                      <li key={path}>{path}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Repository overview only.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs font-medium text-zinc-400">Findings</p>
+                {investigation.findings.length ? (
+                  <ol className="mt-2 space-y-3">
+                    {investigation.findings.map((finding) => (
+                      <li
+                        className="rounded-lg border border-zinc-800 p-3"
+                        key={finding.finding_id}
+                      >
+                        <div className="flex flex-wrap justify-between gap-2">
+                          <p className="text-sm font-medium">{finding.title}</p>
+                          <span className="text-xs text-zinc-500">
+                            confidence: {finding.confidence}
+                          </span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-300">
+                          {finding.detail}
+                        </p>
+                        <p className="mt-2 break-all font-mono text-[11px] text-zinc-500">
+                          evidence: {finding.evidence_refs.join(", ") || "none"}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="mt-1 text-xs text-zinc-500">No findings.</p>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs font-medium text-zinc-400">
+                  Non-authoritative Change Plan
+                </p>
+                {investigation.change_plan.length ? (
+                  <ol className="mt-2 space-y-3">
+                    {investigation.change_plan.map((item) => (
+                      <li
+                        className="rounded-lg border border-zinc-800 p-3"
+                        key={item.sequence}
+                      >
+                        <p className="text-sm font-medium">
+                          {item.sequence}. {item.title}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-300">
+                          {item.rationale}
+                        </p>
+                        <p className="mt-2 break-all font-mono text-[11px] text-zinc-500">
+                          {item.candidate_change_kind}
+                          {item.candidate_relative_path
+                            ? ` · ${item.candidate_relative_path}`
+                            : ""}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="mt-1 text-xs text-zinc-500">
+                    No change-plan items.
+                  </p>
+                )}
+              </div>
+            </article>
+          ) : null}
 
           <form
             className="rounded-xl border border-emerald-900/70 bg-zinc-950/40 p-4"

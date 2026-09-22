@@ -9,12 +9,17 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 
 from app.api.dependencies import (
     get_engineering_ai_draft_workflow_service,
+    get_engineering_investigation_workflow_service,
     get_engineering_owner_workflow_service,
 )
 from app.schemas.api import ApiSuccess
 from app.schemas.engineering_ai_draft import (
     EngineeringAIDraftCreateRequest,
     EngineeringAIDraftResponse,
+)
+from app.schemas.engineering_investigation import (
+    EngineeringInvestigationCreateRequest,
+    EngineeringInvestigationResponse,
 )
 from app.schemas.engineering_owner import (
     EngineeringOwnerActiveWorkflowResponse,
@@ -25,10 +30,18 @@ from app.schemas.engineering_owner import (
     EngineeringOwnerWorkflowResponse,
 )
 from app.contracts.engineering_ai_draft import EngineeringAIDraftRequest
+from app.contracts.engineering_investigation import (
+    EngineeringInvestigationRequest,
+)
 from app.services.engineering_ai_draft import (
     EngineeringAIDraftConversationNotFoundError,
     EngineeringAIDraftError,
     EngineeringAIDraftWorkflowService,
+)
+from app.services.engineering_investigation import EngineeringInvestigationError
+from app.services.engineering_investigation_workflow import (
+    EngineeringInvestigationConversationNotFoundError,
+    EngineeringInvestigationWorkflowService,
 )
 from app.services.engineering_owner_binding import (
     EngineeringOwnerActiveWorkflowError,
@@ -98,6 +111,25 @@ def _ai_draft_error(error: EngineeringAIDraftError) -> HTTPException:
     if isinstance(error, EngineeringAIDraftConversationNotFoundError):
         http_status = status.HTTP_404_NOT_FOUND
     elif detail == "engineering_ai_draft_unavailable":
+        http_status = status.HTTP_503_SERVICE_UNAVAILABLE
+    else:
+        http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
+    return HTTPException(status_code=http_status, detail=detail)
+
+
+def _investigation_error(
+    error: EngineeringInvestigationError,
+) -> HTTPException:
+    detail = error.code
+    if isinstance(
+        error,
+        EngineeringInvestigationConversationNotFoundError,
+    ):
+        http_status = status.HTTP_404_NOT_FOUND
+    elif detail in {
+        "engineering_investigation_ai_unavailable",
+        "engineering_investigation_evidence_unavailable",
+    }:
         http_status = status.HTTP_503_SERVICE_UNAVAILABLE
     else:
         http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -192,6 +224,49 @@ def create_engineering_ai_draft(
 
     return ApiSuccess(
         data=EngineeringAIDraftResponse.from_result(result)
+    )
+
+
+@router.post(
+    "/investigations",
+    response_model=ApiSuccess[EngineeringInvestigationResponse],
+    status_code=status.HTTP_200_OK,
+)
+def create_engineering_investigation(
+    payload: EngineeringInvestigationCreateRequest,
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    service: Annotated[
+        EngineeringInvestigationWorkflowService,
+        Depends(get_engineering_investigation_workflow_service),
+    ],
+) -> ApiSuccess[EngineeringInvestigationResponse]:
+    try:
+        request = EngineeringInvestigationRequest(
+            conversation_id=payload.conversation_id,
+            instruction=payload.instruction,
+            focus_paths=tuple(payload.focus_paths),
+        )
+        result = service.investigate(request)
+    except ValueError as error:
+        detail = str(error)
+        if not detail.startswith("engineering_investigation_"):
+            detail = "engineering_investigation_request_invalid"
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=detail,
+        ) from error
+    except EngineeringInvestigationError as error:
+        raise _investigation_error(error) from error
+
+    return ApiSuccess(
+        data=EngineeringInvestigationResponse.from_result(
+            workspace_id=service.workspace_scope.workspace_id.value,
+            focus_paths=request.focus_paths,
+            result=result,
+        )
     )
 
 
@@ -391,6 +466,7 @@ __all__ = [
     "apply_engineering_proposal",
     "approve_engineering_proposal",
     "create_engineering_ai_draft",
+    "create_engineering_investigation",
     "create_engineering_proposal",
     "deny_engineering_proposal",
     "get_active_engineering_workflow",

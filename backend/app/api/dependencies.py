@@ -341,6 +341,13 @@ from app.services.engineering_ai_draft import (
     EngineeringAIDraftService,
     EngineeringAIDraftWorkflowService,
 )
+from app.services.engineering_investigation import EngineeringInvestigationService
+from app.services.engineering_investigation_evidence import (
+    EngineeringInvestigationEvidenceBuilder,
+)
+from app.services.engineering_investigation_workflow import (
+    EngineeringInvestigationWorkflowService,
+)
 from app.services.engineering_repository_reader import EngineeringRepositoryReader
 @lru_cache
 def get_chatgpt_adapter() -> ChatGPTAdapter:
@@ -2435,6 +2442,31 @@ def get_engineering_ai_draft_workflow_service(
         ),
         draft_service=EngineeringAIDraftService(
             repository_reader=EngineeringRepositoryReader(repository_root),
+            execution_planner=execution_planner,
+            execution_guard=execution_guard,
+            ai_runtime=ai_runtime,
+        ),
+    )
+
+
+def get_engineering_investigation_workflow_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    execution_planner: ExecutionPlanner = Depends(get_execution_planner),
+    execution_guard: ExecutionGuard = Depends(get_execution_guard),
+    ai_runtime: AIRuntime = Depends(get_ai_runtime),
+) -> EngineeringInvestigationWorkflowService:
+    """Compose D113 read-only Local AI investigation in the exact workspace."""
+    repository_root = get_engineering_repository_root()
+    reader = EngineeringRepositoryReader(repository_root)
+    return EngineeringInvestigationWorkflowService(
+        workspace_scope=workspace_scope,
+        conversation_repository=ConversationRepository(
+            database_session,
+            workspace_scope,
+        ),
+        investigation_service=EngineeringInvestigationService(
+            evidence_builder=EngineeringInvestigationEvidenceBuilder(reader),
             execution_planner=execution_planner,
             execution_guard=execution_guard,
             ai_runtime=ai_runtime,

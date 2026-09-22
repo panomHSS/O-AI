@@ -12,6 +12,8 @@ import type {
   ExecutionApprovalDecision,
   EngineeringAIDraftRequest,
   EngineeringAIDraftResponse,
+  EngineeringInvestigationRequest,
+  EngineeringInvestigationResponse,
   EngineeringOwnerActiveWorkflowResponse,
   EngineeringOwnerProposalRequest,
   EngineeringOwnerReadRequest,
@@ -721,6 +723,32 @@ export function createEngineeringProposal(
       body: payload,
     },
   ).then((response) => assertResponseWorkspace(workspaceId, response));
+}
+
+export function createEngineeringInvestigation(
+  workspaceId: WorkspaceId,
+  payload: EngineeringInvestigationRequest,
+): Promise<EngineeringInvestigationResponse> {
+  return workspaceApiRequest<EngineeringInvestigationResponse>(
+    workspaceId,
+    "/engineering/investigations",
+    {
+      method: "POST",
+      headers: { "X-OAI-Local-Request": "1" },
+      body: payload,
+      timeoutMs: configuredChatTimeoutMs(),
+    },
+  ).then((response) => {
+    assertResponseWorkspace(workspaceId, response);
+    if (response.conversation_id !== payload.conversation_id) {
+      throw new ApiError(
+        "The Engineering investigation response did not match the requested conversation.",
+        "HTTP",
+        409,
+      );
+    }
+    return response;
+  });
 }
 
 export function getActiveEngineeringWorkflow(
