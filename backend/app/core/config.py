@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: list(LOOPBACK_CORS_ORIGINS))
     openai_api_key: SecretStr | None = None
     openai_model: str | None = None
+    oai_cloud_ai_enabled: bool = False
+    oai_cloud_ai_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     oai_embedding_model: str | None = None
     oai_embedding_dimensions: int = Field(
         default=1536,

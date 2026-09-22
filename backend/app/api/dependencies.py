@@ -356,6 +356,8 @@ def get_chatgpt_adapter() -> ChatGPTAdapter:
     provider = OpenAIChatProvider(
         api_key=api_key,
         model=settings.openai_model,
+        enabled=settings.oai_cloud_ai_enabled,
+        timeout_seconds=settings.oai_cloud_ai_timeout_seconds,
     )
 
     return ChatGPTAdapter(provider)
