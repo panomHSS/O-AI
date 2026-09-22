@@ -11,6 +11,8 @@ from app.contracts.ai_discovery import (
     AI_DISCOVERY_REASON_CONFIGURED_MODEL,
     AI_DISCOVERY_REASON_CONFIGURED_MODEL_MISSING,
     AI_DISCOVERY_REASON_CONFIGURED_MODEL_UNAVAILABLE,
+    AI_DISCOVERY_REASON_CLOUD_CREDENTIAL_MISSING,
+    AI_DISCOVERY_REASON_CLOUD_DISABLED,
     AI_DISCOVERY_REASON_MODEL_DISCOVERY_UNSUPPORTED,
     AI_DISCOVERY_REASON_MODELS_DISCOVERED,
     AI_DISCOVERY_REASON_RUNTIME_UNAVAILABLE,
@@ -40,22 +42,48 @@ class AIModelDiscoverySource(Protocol):
 @dataclass(frozen=True, slots=True)
 class ChatGPTConfiguredModelDiscoverySource:
     configured_model_id: str | None
+    enabled: bool = True
+    credential_configured: bool = True
     adapter_id: str = CHATGPT_DEFAULT_ADAPTER_ID
 
-    def discover(self) -> AIAdapterDiscovery:
-        model = self.configured_model_id
-        if model is None or not isinstance(model, str) or not model.strip():
-            return AIAdapterDiscovery(
-                adapter_id=self.adapter_id,
-                status=AI_DISCOVERY_STATUS_UNAVAILABLE,
-                configured_model_id=None,
-                capability_ids=(AI_CAPABILITY_TEXT_GENERATION,),
-                models=(),
-                reason_code=AI_DISCOVERY_REASON_CONFIGURED_MODEL_MISSING,
+    def __post_init__(self) -> None:
+        if type(self.enabled) is not bool:
+            raise ValueError("Cloud AI enabled state must be a boolean.")
+        if type(self.credential_configured) is not bool:
+            raise ValueError(
+                "Cloud AI credential-configured state must be a boolean."
             )
+
+    def discover(self) -> AIAdapterDiscovery:
+        if not self.enabled:
+            return self._unavailable(
+                AI_DISCOVERY_REASON_CLOUD_DISABLED
+            )
+
+        if not self.credential_configured:
+            return self._unavailable(
+                AI_DISCOVERY_REASON_CLOUD_CREDENTIAL_MISSING
+            )
+
+        model = self.configured_model_id
+        if (
+            model is None
+            or not isinstance(model, str)
+            or not model.strip()
+        ):
+            return self._unavailable(
+                AI_DISCOVERY_REASON_CONFIGURED_MODEL_MISSING
+            )
+
         if model != model.strip():
-            raise ValueError("Configured ChatGPT model must be trimmed.")
-        descriptor = AIModelDescriptor(model_id=model, capability_ids=(AI_CAPABILITY_TEXT_GENERATION,))
+            raise ValueError(
+                "Configured ChatGPT model must be trimmed."
+            )
+
+        descriptor = AIModelDescriptor(
+            model_id=model,
+            capability_ids=(AI_CAPABILITY_TEXT_GENERATION,),
+        )
         return AIAdapterDiscovery(
             adapter_id=self.adapter_id,
             status=AI_DISCOVERY_STATUS_AVAILABLE,
@@ -63,6 +91,19 @@ class ChatGPTConfiguredModelDiscoverySource:
             capability_ids=(AI_CAPABILITY_TEXT_GENERATION,),
             models=(descriptor,),
             reason_code=AI_DISCOVERY_REASON_CONFIGURED_MODEL,
+        )
+
+    def _unavailable(
+        self,
+        reason_code: str,
+    ) -> AIAdapterDiscovery:
+        return AIAdapterDiscovery(
+            adapter_id=self.adapter_id,
+            status=AI_DISCOVERY_STATUS_UNAVAILABLE,
+            configured_model_id=None,
+            capability_ids=(AI_CAPABILITY_TEXT_GENERATION,),
+            models=(),
+            reason_code=reason_code,
         )
 
 

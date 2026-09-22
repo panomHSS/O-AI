@@ -19,6 +19,8 @@ AI_DISCOVERY_REASON_CONFIGURED_MODEL_UNAVAILABLE = "configured_model_unavailable
 AI_DISCOVERY_REASON_SOURCE_MISSING = "discovery_source_missing"
 AI_DISCOVERY_REASON_MODEL_DISCOVERY_UNSUPPORTED = "model_discovery_unsupported"
 AI_DISCOVERY_REASON_CONFIGURED_MODEL_MISSING = "configured_model_missing"
+AI_DISCOVERY_REASON_CLOUD_DISABLED = "cloud_ai_disabled"
+AI_DISCOVERY_REASON_CLOUD_CREDENTIAL_MISSING = "cloud_ai_credential_missing"
 
 
 def _validate_identifier(value: str, *, label: str) -> str:

@@ -22,6 +22,9 @@ from app.api.workspace_scope import get_workspace_scope
 from app.contracts.ai_brain_routing import AIMode
 from app.contracts.ai_discovery import (
     AI_CAPABILITY_TEXT_GENERATION,
+    AI_DISCOVERY_REASON_CLOUD_CREDENTIAL_MISSING,
+    AI_DISCOVERY_REASON_CLOUD_DISABLED,
+    AI_DISCOVERY_REASON_CONFIGURED_MODEL_MISSING,
     AI_DISCOVERY_STATUS_AVAILABLE,
 )
 from app.contracts.task_aware_ai_routing import AITaskKind
@@ -94,16 +97,23 @@ def get_ai_brain_capabilities(
 ) -> ApiSuccess[AIBrainCapabilitiesResponse]:
     """Return bounded workspace AI-mode presentation; never execution authority."""
     available_adapter_ids = set(provider_policy.enabled_adapter_ids)
+    unavailable_reason_by_adapter: dict[str, str] = {}
 
-    # Real HTTP requests receive D34 discovery through FastAPI.  Direct legacy
+    # Real HTTP requests receive D34 discovery through FastAPI. Direct legacy
     # unit calls may leave the default Depends marker in place; preserve those
     # narrow compatibility seams without granting browser/provider authority.
     if not isinstance(ai_discovery, DependsParam):
         execution_ready_adapter_ids: set[str] = set()
+
         for adapter_id in available_adapter_ids:
             try:
                 discovery = ai_discovery.discover(adapter_id)
             except (KeyError, ValueError):
+                unavailable_reason_by_adapter[adapter_id] = (
+                    "cloud_ai_unavailable"
+                    if adapter_id == "chatgpt.default"
+                    else "local_ai_unavailable"
+                )
                 continue
 
             if (
@@ -113,6 +123,32 @@ def get_ai_brain_capabilities(
                 and discovery.configured_model_id is not None
             ):
                 execution_ready_adapter_ids.add(adapter_id)
+                continue
+
+            if adapter_id == "chatgpt.default":
+                discovery_reason = getattr(
+                    discovery,
+                    "reason_code",
+                    None,
+                )
+                unavailable_reason_by_adapter[adapter_id] = {
+                    AI_DISCOVERY_REASON_CLOUD_DISABLED: (
+                        "cloud_ai_disabled"
+                    ),
+                    AI_DISCOVERY_REASON_CLOUD_CREDENTIAL_MISSING: (
+                        "cloud_ai_credential_missing"
+                    ),
+                    AI_DISCOVERY_REASON_CONFIGURED_MODEL_MISSING: (
+                        "cloud_ai_model_missing"
+                    ),
+                }.get(
+                    discovery_reason,
+                    "cloud_ai_unavailable",
+                )
+            else:
+                unavailable_reason_by_adapter[adapter_id] = (
+                    "local_ai_unavailable"
+                )
 
         available_adapter_ids.intersection_update(
             execution_ready_adapter_ids
@@ -128,17 +164,44 @@ def get_ai_brain_capabilities(
         AITaskKind.GENERAL_CHAT,
         AITaskKind.SOFTWARE_ENGINEERING,
     ):
-        mode_capabilities = [
-            AIBrainModeCapabilityResponse.from_decision(
-                routing.resolve(
-                    task_kind=task_kind,
-                    requested_mode=requested_mode,
-                    workspace_policy=workspace_policy,
-                    capabilities=capabilities,
+        mode_capabilities: list[
+            AIBrainModeCapabilityResponse
+        ] = []
+
+        for requested_mode in AIMode:
+            decision = routing.resolve(
+                task_kind=task_kind,
+                requested_mode=requested_mode,
+                workspace_policy=workspace_policy,
+                capabilities=capabilities,
+            )
+            projected = (
+                AIBrainModeCapabilityResponse.from_decision(
+                    decision
                 )
             )
-            for requested_mode in AIMode
-        ]
+
+            if (
+                projected.status == "unavailable"
+                and decision.effective_provider_class is not None
+            ):
+                adapter_id = capabilities.adapter_id_for(
+                    decision.effective_provider_class
+                )
+                bounded_reason = (
+                    unavailable_reason_by_adapter.get(
+                        adapter_id
+                    )
+                )
+                if bounded_reason is not None:
+                    projected = projected.model_copy(
+                        update={
+                            "reason_code": bounded_reason
+                        }
+                    )
+
+            mode_capabilities.append(projected)
+
         tasks.append(
             AIBrainTaskCapabilityResponse(
                 task_kind=task_kind.value,

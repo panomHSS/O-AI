@@ -1266,17 +1266,57 @@ _D49_PROVIDER_MANAGED_MODEL_ID = "provider-managed"
 def get_chatgpt_model_discovery_source(
     conversation_service: ConversationService = Depends(get_conversation_service),
 ) -> ChatGPTConfiguredModelDiscoverySource:
-    """Describe the active ChatGPT-compatible model binding without probing.
+    """Describe Cloud text-generation readiness without provider/network probing.
 
-    Production OpenAI continues to require its explicit OPENAI_MODEL setting.
-    Legacy/injected conversation-provider seams that do not expose model
-    discovery receive an opaque provider-managed binding used only as D49
-    authorization metadata; it is never forwarded as a provider model override.
+    Production readiness requires the D112 deployment gate, one configured
+    server-side OpenAI credential, and OPENAI_MODEL. The raw credential is
+    reduced to a boolean inside trusted dependency wiring and is never passed
+    into D34 discovery.
+
+    Legacy/injected conversation-provider seams that predate D112 may omit the
+    new deployment settings. Those narrow seams retain their provider-managed
+    metadata compatibility and do not change production readiness.
     """
     settings = get_settings()
     configured_model_id = settings.openai_model
 
-    if configured_model_id is None:
+    cloud_enabled = getattr(
+        settings,
+        "oai_cloud_ai_enabled",
+        True,
+    )
+
+    missing_secret_marker = object()
+    configured_secret = getattr(
+        settings,
+        "openai_api_key",
+        missing_secret_marker,
+    )
+
+    if configured_secret is missing_secret_marker:
+        credential_configured = True
+    elif configured_secret is None:
+        credential_configured = False
+    else:
+        secret_reader = getattr(
+            configured_secret,
+            "get_secret_value",
+            None,
+        )
+        if not callable(secret_reader):
+            credential_configured = False
+        else:
+            secret_value = secret_reader()
+            credential_configured = (
+                isinstance(secret_value, str)
+                and bool(secret_value.strip())
+            )
+
+    if (
+        configured_model_id is None
+        and cloud_enabled
+        and credential_configured
+    ):
         adapter_factory = getattr(
             conversation_service,
             "default_ai_adapter",
@@ -1291,6 +1331,8 @@ def get_chatgpt_model_discovery_source(
 
     return ChatGPTConfiguredModelDiscoverySource(
         configured_model_id=configured_model_id,
+        enabled=cloud_enabled,
+        credential_configured=credential_configured,
     )
 
 
