@@ -1,5 +1,6 @@
 from typing import Annotated
 from app.services.builtin_skills import build_builtin_skill_catalog
+from app.services.skill_catalog import SkillCatalog
 from app.services.skill_invocation_bridge import SkillInvocationBridge
 
 from functools import lru_cache
@@ -2476,6 +2477,11 @@ def get_engineering_investigation_workflow_service(
             ai_runtime=ai_runtime,
         ),
     )
+
+def get_skill_catalog() -> SkillCatalog:
+    "Return trusted D114 declarative Skill metadata only."
+    return build_builtin_skill_catalog()
+
 
 def get_skill_invocation_bridge(
     workflow: Annotated[

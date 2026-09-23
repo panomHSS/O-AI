@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 from app.api.dependencies import (
     get_engineering_ai_draft_workflow_service,
     get_engineering_investigation_workflow_service,
+    get_skill_catalog,
     get_skill_invocation_bridge,
     get_engineering_owner_workflow_service,
 )
@@ -22,6 +23,7 @@ from app.schemas.engineering_investigation import (
     EngineeringInvestigationCreateRequest,
     EngineeringInvestigationResponse,
 )
+from app.schemas.skill_catalog import SkillCatalogResponse
 from app.schemas.engineering_owner import (
     EngineeringOwnerActiveWorkflowResponse,
     EngineeringOwnerDecisionRequest,
@@ -40,6 +42,7 @@ from app.services.engineering_ai_draft import (
     EngineeringAIDraftWorkflowService,
 )
 from app.services.engineering_investigation import EngineeringInvestigationError
+from app.services.skill_catalog import SkillCatalog
 from app.services.skill_invocation_bridge import (
     SKILL_INVOCATION_DESCRIPTOR_MISMATCH,
     SKILL_INVOCATION_REQUEST_INVALID,
@@ -295,6 +298,26 @@ def create_engineering_investigation(
             result=result,
         )
     )
+
+@router.get(
+    "/skills",
+    response_model=ApiSuccess[SkillCatalogResponse],
+    status_code=status.HTTP_200_OK,
+)
+def list_engineering_skills(
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    catalog: Annotated[
+        SkillCatalog,
+        Depends(get_skill_catalog),
+    ],
+) -> ApiSuccess[SkillCatalogResponse]:
+    return ApiSuccess(
+        data=SkillCatalogResponse.from_descriptors(catalog.list())
+    )
+
 
 @router.post(
     "/skills/{skill_id}/invoke",
