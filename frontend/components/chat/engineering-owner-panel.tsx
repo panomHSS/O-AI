@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -9,6 +9,7 @@ import {
   createEngineeringProposal,
   getActiveEngineeringWorkflow,
   readEngineeringRepository,
+  workspaceApiRequest,
 } from "../../lib/api-client";
 import type {
   EngineeringAIDraftResponse,
@@ -42,6 +43,20 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
   const [investigationPaths, setInvestigationPaths] = useState("");
   const [investigation, setInvestigation] =
     useState<EngineeringInvestigationResponse | null>(null);
+  const [investigationSource, setInvestigationSource] =
+    useState<"direct" | "skill" | null>(null);
+  const [investigationContextKey, setInvestigationContextKey] =
+    useState<string | null>(null);
+  const [
+    skillInvocationPendingContexts,
+    setSkillInvocationPendingContexts,
+  ] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const skillInvocationPendingContextsRef =
+    useRef<Set<string>>(new Set<string>());
+  const [skillInvocationError, setSkillInvocationError] = useState<{
+    contextKey: string;
+    message: string;
+  } | null>(null);
   const [isInvestigating, setIsInvestigating] = useState(false);
   const [draftPath, setDraftPath] = useState("");
   const [draftInstruction, setDraftInstruction] = useState("");
@@ -51,6 +66,12 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
   const [isReading, setIsReading] = useState(false);
   const [isProposing, setIsProposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const currentInvestigationContextKey =
+    `${workspaceId}:${conversationId ?? ""}`;
+  const isInvokingSkill = skillInvocationPendingContexts.has(
+    currentInvestigationContextKey,
+  );
 
   useEffect(() => {
     if (!conversationId) return;
@@ -125,13 +146,14 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
     setIsInvestigating(true);
     setError(null);
     try {
-      setInvestigation(
-        await createEngineeringInvestigation(workspaceId, {
-          conversation_id: conversationId,
-          instruction: investigationInstruction.trim(),
-          focus_paths: focusPaths,
-        }),
-      );
+      const result = await createEngineeringInvestigation(workspaceId, {
+        conversation_id: conversationId,
+        instruction: investigationInstruction.trim(),
+        focus_paths: focusPaths,
+      });
+      setInvestigation(result);
+      setInvestigationSource("direct");
+      setInvestigationContextKey(currentInvestigationContextKey);
     } catch (caughtError) {
       setError(
         caughtError instanceof ApiError
@@ -140,6 +162,73 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
       );
     } finally {
       setIsInvestigating(false);
+    }
+  }
+
+  async function invokeBoundedEngineeringSkill() {
+    if (!conversationId || !investigationInstruction.trim()) {
+      return;
+    }
+
+    const requestContextKey = currentInvestigationContextKey;
+    if (skillInvocationPendingContextsRef.current.has(requestContextKey)) {
+      return;
+    }
+
+    const focusPaths = investigationPaths
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    skillInvocationPendingContextsRef.current.add(requestContextKey);
+    setSkillInvocationPendingContexts(
+      new Set(skillInvocationPendingContextsRef.current),
+    );
+    setSkillInvocationError(null);
+
+    try {
+      const result = await workspaceApiRequest<EngineeringInvestigationResponse>(
+        workspaceId,
+        "/engineering/skills/engineering.investigation_change_plan/invoke",
+        {
+          method: "POST",
+          headers: { "X-OAI-Local-Request": "1" },
+          timeoutMs: 130_000,
+          body: {
+            conversation_id: conversationId,
+            instruction: investigationInstruction.trim(),
+            focus_paths: focusPaths,
+          },
+        },
+      );
+
+      if (
+        result.workspace_id !== workspaceId ||
+        result.conversation_id !== conversationId
+      ) {
+        throw new ApiError(
+          "The Engineering Skill response no longer matches this workspace and conversation.",
+          "HTTP",
+          409,
+        );
+      }
+
+      setInvestigation(result);
+      setInvestigationSource("skill");
+      setInvestigationContextKey(requestContextKey);
+    } catch (caughtError) {
+      setSkillInvocationError({
+        contextKey: requestContextKey,
+        message:
+          caughtError instanceof ApiError
+            ? caughtError.message
+            : "Unable to invoke the bounded Engineering Skill.",
+      });
+    } finally {
+      skillInvocationPendingContextsRef.current.delete(requestContextKey);
+      setSkillInvocationPendingContexts(
+        new Set(skillInvocationPendingContextsRef.current),
+      );
     }
   }
 
@@ -389,7 +478,7 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
             <div className="mt-3 grid gap-3">
               <textarea
                 className="min-h-28 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
-                disabled={isInvestigating}
+                disabled={isInvestigating || isInvokingSkill}
                 onChange={(event) =>
                   setInvestigationInstruction(event.target.value)
                 }
@@ -399,23 +488,49 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
 
               <textarea
                 className="min-h-24 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm"
-                disabled={isInvestigating}
+                disabled={isInvestigating || isInvokingSkill}
                 onChange={(event) => setInvestigationPaths(event.target.value)}
                 placeholder={"Optional focus paths, one per line\nbackend/app\nREADME.md"}
                 value={investigationPaths}
               />
 
-              <button
-                className="w-fit rounded-lg border border-sky-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
-                disabled={
-                  isInvestigating || !investigationInstruction.trim()
-                }
-                type="submit"
-              >
-                {isInvestigating
-                  ? "Investigating with Local AI…"
-                  : "Investigate with Local AI"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="w-fit rounded-lg border border-sky-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  disabled={
+                    isInvestigating ||
+                    isInvokingSkill ||
+                    !investigationInstruction.trim()
+                  }
+                  type="submit"
+                >
+                  {isInvestigating
+                    ? "Investigating with Local AI…"
+                    : "Investigate with Local AI"}
+                </button>
+
+                <button
+                  className="w-fit rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  disabled={
+                    isInvestigating ||
+                    isInvokingSkill ||
+                    !investigationInstruction.trim()
+                  }
+                  onClick={invokeBoundedEngineeringSkill}
+                  type="button"
+                >
+                  {isInvokingSkill
+                    ? "Invoking bounded Skill…"
+                    : "Invoke Engineering Skill"}
+                </button>
+              </div>
+
+              {skillInvocationError?.contextKey ===
+              currentInvestigationContextKey ? (
+                <p className="text-xs text-red-300" role="alert">
+                  {skillInvocationError.message}
+                </p>
+              ) : null}
             </div>
 
             <p className="mt-3 text-xs text-zinc-500">
@@ -423,7 +538,8 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
             </p>
           </form>
 
-          {investigation ? (
+          {investigation &&
+          investigationContextKey === currentInvestigationContextKey ? (
             <article className="rounded-xl border border-sky-800/70 bg-zinc-950/60 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -438,6 +554,12 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
                   {investigation.contract_version}
                 </span>
               </div>
+
+              {investigationSource === "skill" ? (
+                <p className="mt-3 text-xs text-emerald-300">
+                  Bounded Skill · engineering.investigation_change_plan · read-only · non-authoritative
+                </p>
+              ) : null}
 
               <div className="mt-4">
                 <p className="text-xs font-medium text-zinc-400">Summary</p>
