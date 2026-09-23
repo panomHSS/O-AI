@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 from app.api.dependencies import (
     get_engineering_ai_draft_workflow_service,
     get_engineering_investigation_workflow_service,
+    get_skill_invocation_bridge,
     get_engineering_owner_workflow_service,
 )
 from app.schemas.api import ApiSuccess
@@ -39,6 +40,14 @@ from app.services.engineering_ai_draft import (
     EngineeringAIDraftWorkflowService,
 )
 from app.services.engineering_investigation import EngineeringInvestigationError
+from app.services.skill_invocation_bridge import (
+    SKILL_INVOCATION_DESCRIPTOR_MISMATCH,
+    SKILL_INVOCATION_REQUEST_INVALID,
+    SKILL_INVOCATION_SKILL_NOT_FOUND,
+    SKILL_INVOCATION_SKILL_UNSUPPORTED,
+    SkillInvocationBridge,
+    SkillInvocationError,
+)
 from app.services.engineering_investigation_workflow import (
     EngineeringInvestigationConversationNotFoundError,
     EngineeringInvestigationWorkflowService,
@@ -132,6 +141,24 @@ def _investigation_error(
     }:
         http_status = status.HTTP_503_SERVICE_UNAVAILABLE
     else:
+        http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
+    return HTTPException(status_code=http_status, detail=detail)
+
+def _skill_invocation_error(
+    error: SkillInvocationError,
+) -> HTTPException:
+    detail = error.code
+    if detail == SKILL_INVOCATION_SKILL_NOT_FOUND:
+        http_status = status.HTTP_404_NOT_FOUND
+    elif detail == SKILL_INVOCATION_DESCRIPTOR_MISMATCH:
+        http_status = status.HTTP_503_SERVICE_UNAVAILABLE
+    elif detail in {
+        SKILL_INVOCATION_REQUEST_INVALID,
+        SKILL_INVOCATION_SKILL_UNSUPPORTED,
+    }:
+        http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
+    else:
+        detail = SKILL_INVOCATION_REQUEST_INVALID
         http_status = status.HTTP_422_UNPROCESSABLE_ENTITY
     return HTTPException(status_code=http_status, detail=detail)
 
@@ -264,6 +291,58 @@ def create_engineering_investigation(
     return ApiSuccess(
         data=EngineeringInvestigationResponse.from_result(
             workspace_id=service.workspace_scope.workspace_id.value,
+            focus_paths=request.focus_paths,
+            result=result,
+        )
+    )
+
+@router.post(
+    "/skills/{skill_id}/invoke",
+    response_model=ApiSuccess[EngineeringInvestigationResponse],
+    status_code=status.HTTP_200_OK,
+)
+def invoke_engineering_skill(
+    skill_id: Annotated[str, Path(min_length=1)],
+    payload: EngineeringInvestigationCreateRequest,
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    bridge: Annotated[
+        SkillInvocationBridge,
+        Depends(get_skill_invocation_bridge),
+    ],
+    workflow: Annotated[
+        EngineeringInvestigationWorkflowService,
+        Depends(get_engineering_investigation_workflow_service),
+    ],
+) -> ApiSuccess[EngineeringInvestigationResponse]:
+    try:
+        request = EngineeringInvestigationRequest(
+            conversation_id=payload.conversation_id,
+            instruction=payload.instruction,
+            focus_paths=tuple(payload.focus_paths),
+        )
+        result = bridge.invoke(
+            skill_id=skill_id,
+            request=request,
+        )
+    except ValueError as error:
+        detail = str(error)
+        if not detail.startswith("engineering_investigation_"):
+            detail = SKILL_INVOCATION_REQUEST_INVALID
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=detail,
+        ) from error
+    except SkillInvocationError as error:
+        raise _skill_invocation_error(error) from error
+    except EngineeringInvestigationError as error:
+        raise _investigation_error(error) from error
+
+    return ApiSuccess(
+        data=EngineeringInvestigationResponse.from_result(
+            workspace_id=workflow.workspace_scope.workspace_id.value,
             focus_paths=request.focus_paths,
             result=result,
         )
@@ -467,6 +546,7 @@ __all__ = [
     "approve_engineering_proposal",
     "create_engineering_ai_draft",
     "create_engineering_investigation",
+    "invoke_engineering_skill",
     "create_engineering_proposal",
     "deny_engineering_proposal",
     "get_active_engineering_workflow",

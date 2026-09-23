@@ -1,3 +1,7 @@
+from typing import Annotated
+from app.services.builtin_skills import build_builtin_skill_catalog
+from app.services.skill_invocation_bridge import SkillInvocationBridge
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -2471,6 +2475,18 @@ def get_engineering_investigation_workflow_service(
             execution_guard=execution_guard,
             ai_runtime=ai_runtime,
         ),
+    )
+
+def get_skill_invocation_bridge(
+    workflow: Annotated[
+        EngineeringInvestigationWorkflowService,
+        Depends(get_engineering_investigation_workflow_service),
+    ],
+) -> SkillInvocationBridge:
+    """Build one request-scoped D115 bridge over the owner-bound D113 workflow."""
+    return SkillInvocationBridge(
+        catalog=build_builtin_skill_catalog(),
+        engineering_investigation_workflow=workflow,
     )
 
 
