@@ -333,6 +333,21 @@ export interface EngineeringInvestigationResponse {
   focus_paths: string[];
 }
 
+export interface EngineeringSkillCatalogItem {
+  skill_id: string;
+  version: string;
+  display_name: string;
+  description: string;
+  task_kind: "general_chat" | "software_engineering";
+  required_ai_capability_ids: string[];
+  input_kind: string;
+  context_kind: string;
+  output_kind: string;
+}
+
+export interface EngineeringSkillCatalogResponse {
+  skills: EngineeringSkillCatalogItem[];
+}
 export interface EngineeringOwnerReview {
   contract_version: string;
   operation: "create_text" | "replace_text";

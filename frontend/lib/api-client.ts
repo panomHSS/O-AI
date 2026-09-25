@@ -19,6 +19,7 @@ import type {
   EngineeringOwnerReadRequest,
   EngineeringOwnerReadResponse,
   EngineeringOwnerWorkflow,
+  EngineeringSkillCatalogResponse,
 } from "../types/chat";
 import type { ConversationDetail } from "../types/conversation";
 import type {
@@ -667,6 +668,15 @@ export function cancelAutomation(
   );
 }
 
+export function getEngineeringSkillCatalog(): Promise<EngineeringSkillCatalogResponse> {
+  return apiRequest<EngineeringSkillCatalogResponse>(
+    "/engineering/skills",
+    {
+      method: "GET",
+      headers: { "X-OAI-Local-Request": "1" },
+    },
+  );
+}
 export function readEngineeringRepository(
   workspaceId: WorkspaceId,
   payload: EngineeringOwnerReadRequest,

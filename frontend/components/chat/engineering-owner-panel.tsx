@@ -8,12 +8,14 @@ import {
   createEngineeringInvestigation,
   createEngineeringProposal,
   getActiveEngineeringWorkflow,
+  getEngineeringSkillCatalog,
   readEngineeringRepository,
   workspaceApiRequest,
 } from "../../lib/api-client";
 import type {
   EngineeringAIDraftResponse,
   EngineeringInvestigationResponse,
+  EngineeringSkillCatalogResponse,
   EngineeringOwnerReadOperation,
   EngineeringOwnerReadResponse,
   EngineeringOwnerWorkflow,
@@ -57,7 +59,10 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
     contextKey: string;
     message: string;
   } | null>(null);
-  const [isInvestigating, setIsInvestigating] = useState(false);
+  const [skillCatalog, setSkillCatalog] =
+    useState<EngineeringSkillCatalogResponse | null>(null);
+  const [isLoadingSkillCatalog, setIsLoadingSkillCatalog] = useState(false);
+  const [skillCatalogError, setSkillCatalogError] = useState<string | null>(null);  const [isInvestigating, setIsInvestigating] = useState(false);
   const [draftPath, setDraftPath] = useState("");
   const [draftInstruction, setDraftInstruction] = useState("");
   const [aiDraft, setAIDraft] = useState<EngineeringAIDraftResponse | null>(null);
@@ -128,6 +133,26 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
     }
   }
 
+  async function loadEngineeringSkillCatalog() {
+    if (isLoadingSkillCatalog) {
+      return;
+    }
+
+    setIsLoadingSkillCatalog(true);
+    setSkillCatalogError(null);
+
+    try {
+      setSkillCatalog(await getEngineeringSkillCatalog());
+    } catch (caughtError) {
+      setSkillCatalogError(
+        caughtError instanceof ApiError
+          ? caughtError.message
+          : "Unable to load the read-only Skill catalog.",
+      );
+    } finally {
+      setIsLoadingSkillCatalog(false);
+    }
+  }
   async function requestInvestigation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (
@@ -452,6 +477,90 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
             ) : null}
           </form>
 
+          <section className="rounded-xl border border-violet-900/70 bg-zinc-950/40 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-medium">Skill catalog (read-only)</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Trusted server metadata only. Visibility does not grant execution authority.
+                </p>
+              </div>
+              <button
+                className="rounded-lg border border-violet-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                disabled={isLoadingSkillCatalog}
+                onClick={loadEngineeringSkillCatalog}
+                type="button"
+              >
+                {isLoadingSkillCatalog ? "Loading catalog…" : "Load Skill catalog"}
+              </button>
+            </div>
+
+            {skillCatalogError ? (
+              <p className="mt-3 text-sm text-red-300">{skillCatalogError}</p>
+            ) : null}
+
+            {skillCatalog ? (
+              skillCatalog.skills.length === 0 ? (
+                <p className="mt-3 text-sm text-zinc-400">
+                  No Skills are currently listed.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {skillCatalog.skills.map((skill) => (
+                    <article
+                      className="rounded-lg border border-zinc-800 p-3"
+                      key={`${skill.skill_id}:${skill.version}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">{skill.display_name}</p>
+                          <p className="mt-1 text-xs text-zinc-400">
+                            {skill.description}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-violet-900 px-2 py-1 text-[11px] text-violet-300">
+                          Metadata only
+                        </span>
+                      </div>
+
+                      <dl className="mt-3 grid gap-2 text-xs md:grid-cols-2">
+                        <div>
+                          <dt className="text-zinc-500">Skill ID</dt>
+                          <dd className="break-all font-mono">{skill.skill_id}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-zinc-500">Version</dt>
+                          <dd className="font-mono">{skill.version}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-zinc-500">Task kind</dt>
+                          <dd className="font-mono">{skill.task_kind}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-zinc-500">AI capabilities</dt>
+                          <dd className="break-all font-mono">
+                            {skill.required_ai_capability_ids.join(", ") || "None"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-zinc-500">Input kind</dt>
+                          <dd className="font-mono">{skill.input_kind}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-zinc-500">Context kind</dt>
+                          <dd className="font-mono">{skill.context_kind}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-zinc-500">Output kind</dt>
+                          <dd className="font-mono">{skill.output_kind}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+              )
+            ) : null}
+          </section>
           <form
             className="rounded-xl border border-sky-900/70 bg-zinc-950/40 p-4"
             onSubmit={requestInvestigation}
