@@ -194,11 +194,11 @@ def test_d114_source_does_not_define_dynamic_plugin_or_manifest_loading() -> Non
             assert fragment.lower() not in source
 
 
-def test_builtin_catalog_contains_exactly_one_descriptor() -> None:
+def test_builtin_catalog_contains_exactly_two_descriptors() -> None:
     catalog = build_builtin_skill_catalog()
 
-    assert len(catalog.list()) == 1
-    assert (
-        catalog.list()[0].skill_id
-        == "engineering.investigation_change_plan"
+    assert len(catalog.list()) == 2
+    assert tuple(descriptor.skill_id for descriptor in catalog.list()) == (
+        "engineering.ai_draft",
+        "engineering.investigation_change_plan",
     )

@@ -15,6 +15,7 @@ from app.contracts.ai_discovery import AI_CAPABILITY_TEXT_GENERATION
 from app.contracts.skill import SkillDescriptor
 from app.contracts.task_aware_ai_routing import AITaskKind
 from app.services.builtin_skills import (
+    ENGINEERING_AI_DRAFT_SKILL,
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL,
     build_builtin_skill_catalog,
 )
@@ -90,9 +91,10 @@ def test_d118_catalog_returns_exact_current_builtin_projection() -> None:
         "success": True,
         "data": {
             "skills": [
+                _expected_public_descriptor(ENGINEERING_AI_DRAFT_SKILL),
                 _expected_public_descriptor(
                     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL
-                )
+                ),
             ]
         },
     }

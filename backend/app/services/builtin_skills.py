@@ -13,6 +13,24 @@ from app.contracts.task_aware_ai_routing import AITaskKind
 from app.services.skill_catalog import SkillCatalog
 
 
+ENGINEERING_AI_DRAFT_SKILL_ID = "engineering.ai_draft"
+
+ENGINEERING_AI_DRAFT_SKILL = SkillDescriptor(
+    skill_id=ENGINEERING_AI_DRAFT_SKILL_ID,
+    version="1",
+    display_name="Engineering AI Draft",
+    description=(
+        "Describe the bounded D110 non-authoritative AI-assisted Engineering "
+        "drafting capability."
+    ),
+    task_kind=AITaskKind.SOFTWARE_ENGINEERING,
+    required_ai_capability_ids=(AI_CAPABILITY_TEXT_GENERATION,),
+    input_kind="engineering_ai_draft_request",
+    context_kind="bounded_repository_observation",
+    output_kind="engineering_ai_draft_result",
+)
+
+
 ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID = (
     "engineering.investigation_change_plan"
 )
@@ -33,6 +51,7 @@ ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL = SkillDescriptor(
 )
 
 BUILTIN_SKILL_DESCRIPTORS = (
+    ENGINEERING_AI_DRAFT_SKILL,
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL,
 )
 
@@ -44,6 +63,8 @@ def build_builtin_skill_catalog() -> SkillCatalog:
 
 __all__ = [
     "BUILTIN_SKILL_DESCRIPTORS",
+    "ENGINEERING_AI_DRAFT_SKILL",
+    "ENGINEERING_AI_DRAFT_SKILL_ID",
     "ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL",
     "ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID",
     "build_builtin_skill_catalog",

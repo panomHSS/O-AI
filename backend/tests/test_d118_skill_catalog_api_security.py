@@ -14,6 +14,7 @@ from app.schemas.skill_catalog import (
 )
 from app.services.builtin_skills import (
     BUILTIN_SKILL_DESCRIPTORS,
+    ENGINEERING_AI_DRAFT_SKILL_ID,
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID,
 )
 from app.services.skill_catalog import SkillCatalog
@@ -108,7 +109,10 @@ def test_d118_security_catalog_dependency_returns_metadata_only_catalog() -> Non
     assert catalog.list() == BUILTIN_SKILL_DESCRIPTORS
     assert tuple(
         descriptor.skill_id for descriptor in catalog.list()
-    ) == (ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID,)
+    ) == (
+        ENGINEERING_AI_DRAFT_SKILL_ID,
+        ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID,
+    )
 
 
 def test_d118_security_catalog_read_function_has_no_execution_call() -> None:

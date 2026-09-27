@@ -11,6 +11,8 @@ from app.contracts.skill import SkillDescriptor
 from app.contracts.task_aware_ai_routing import AITaskKind
 from app.services.builtin_skills import (
     BUILTIN_SKILL_DESCRIPTORS,
+    ENGINEERING_AI_DRAFT_SKILL,
+    ENGINEERING_AI_DRAFT_SKILL_ID,
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL,
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID,
     build_builtin_skill_catalog,
@@ -142,13 +144,17 @@ def test_catalog_has_only_internal_descriptor_storage() -> None:
     )
 
 
-def test_builtin_catalog_contains_exactly_one_d113_descriptor() -> None:
+def test_builtin_catalog_contains_exactly_two_frozen_descriptors() -> None:
     catalog = build_builtin_skill_catalog()
 
     assert BUILTIN_SKILL_DESCRIPTORS == (
+        ENGINEERING_AI_DRAFT_SKILL,
         ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL,
     )
     assert catalog.list() == BUILTIN_SKILL_DESCRIPTORS
+    assert catalog.resolve(
+        ENGINEERING_AI_DRAFT_SKILL_ID
+    ) is ENGINEERING_AI_DRAFT_SKILL
     assert catalog.resolve(
         ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID
     ) is ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL
