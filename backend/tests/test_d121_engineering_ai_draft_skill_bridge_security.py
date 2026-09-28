@@ -235,14 +235,14 @@ def _api_client_with_real_bridge() -> TestClient:
     return TestClient(app)
 
 
-def test_d121_d116_d110_skill_path_fails_request_invalid_before_d110_side_effect(
+def test_d121_d122_static_d110_path_rejects_investigation_shape_before_side_effect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[object] = []
 
     def _unexpected_draft(self, request):
         calls.append(request)
-        raise AssertionError("D116 investigation request reached D110 draft")
+        raise AssertionError("Invalid static D110 request reached draft workflow")
 
     monkeypatch.setattr(
         EngineeringAIDraftWorkflowService,
@@ -255,13 +255,13 @@ def test_d121_d116_d110_skill_path_fails_request_invalid_before_d110_side_effect
         headers=_LOCAL_HEADERS,
         json={
             "conversation_id": str(uuid4()),
-            "instruction": "Keep D116 investigation-specific.",
+            "instruction": "Investigation shape must not become D110 input.",
             "focus_paths": [],
         },
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == SKILL_INVOCATION_REQUEST_INVALID
+    assert isinstance(response.json()["detail"], list)
     assert calls == []
 
 

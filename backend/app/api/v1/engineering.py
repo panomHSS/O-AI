@@ -36,6 +36,7 @@ from app.contracts.engineering_ai_draft import EngineeringAIDraftRequest
 from app.contracts.engineering_investigation import (
     EngineeringInvestigationRequest,
 )
+from app.services.builtin_skills import ENGINEERING_AI_DRAFT_SKILL_ID
 from app.services.engineering_ai_draft import (
     EngineeringAIDraftConversationNotFoundError,
     EngineeringAIDraftError,
@@ -316,6 +317,50 @@ def list_engineering_skills(
 ) -> ApiSuccess[SkillCatalogResponse]:
     return ApiSuccess(
         data=SkillCatalogResponse.from_descriptors(catalog.list())
+    )
+
+
+@router.post(
+    "/skills/engineering.ai_draft/invoke",
+    response_model=ApiSuccess[EngineeringAIDraftResponse],
+    status_code=status.HTTP_200_OK,
+)
+def invoke_engineering_ai_draft_skill(
+    payload: EngineeringAIDraftCreateRequest,
+    _: Annotated[
+        None,
+        Depends(require_local_engineering_owner_request_marker),
+    ],
+    bridge: Annotated[
+        SkillInvocationBridge,
+        Depends(get_skill_invocation_bridge),
+    ],
+) -> ApiSuccess[EngineeringAIDraftResponse]:
+    try:
+        request = EngineeringAIDraftRequest(
+            conversation_id=payload.conversation_id,
+            relative_path=payload.relative_path,
+            instruction=payload.instruction,
+        )
+        result = bridge.invoke(
+            skill_id=ENGINEERING_AI_DRAFT_SKILL_ID,
+            request=request,
+        )
+    except ValueError as error:
+        detail = str(error)
+        if not detail.startswith("engineering_ai_draft_"):
+            detail = "engineering_ai_draft_request_invalid"
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=detail,
+        ) from error
+    except SkillInvocationError as error:
+        raise _skill_invocation_error(error) from error
+    except EngineeringAIDraftError as error:
+        raise _ai_draft_error(error) from error
+
+    return ApiSuccess(
+        data=EngineeringAIDraftResponse.from_result(result)
     )
 
 

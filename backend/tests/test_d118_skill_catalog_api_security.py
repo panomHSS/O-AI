@@ -72,6 +72,10 @@ def test_d118_security_skill_route_surface_is_exact_and_bounded() -> None:
 
     assert surface == {
         ("/engineering/skills", ("GET",)),
+        (
+            "/engineering/skills/engineering.ai_draft/invoke",
+            ("POST",),
+        ),
         ("/engineering/skills/{skill_id}/invoke", ("POST",)),
     }
 

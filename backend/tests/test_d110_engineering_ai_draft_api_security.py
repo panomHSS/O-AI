@@ -98,5 +98,6 @@ def test_d110_engineering_route_set_remains_bounded() -> None:
         "/engineering/approvals/{approval_id}/deny",
         "/engineering/approvals/{approval_id}/apply",
         "/engineering/skills",
+        "/engineering/skills/engineering.ai_draft/invoke",
         "/engineering/skills/{skill_id}/invoke",
     }

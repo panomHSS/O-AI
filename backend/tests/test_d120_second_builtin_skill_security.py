@@ -122,7 +122,7 @@ def _api_client_with_real_bridge() -> TestClient:
     return TestClient(app)
 
 
-def test_d120_security_owner_api_d110_skill_path_rejects_investigation_contract(
+def test_d120_security_d122_static_d110_path_rejects_investigation_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     draft_calls: list[object] = []
@@ -141,13 +141,13 @@ def test_d120_security_owner_api_d110_skill_path_rejects_investigation_contract(
         headers=_LOCAL_HEADERS,
         json={
             "conversation_id": str(conversation_id),
-            "instruction": "Do not widen D116 into a D110 request contract.",
+            "instruction": "Investigation shape must not become D110 input.",
             "focus_paths": [],
         },
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == SKILL_INVOCATION_REQUEST_INVALID
+    assert isinstance(response.json()["detail"], list)
     assert draft_calls == []
 
 
