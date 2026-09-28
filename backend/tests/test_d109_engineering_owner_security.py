@@ -239,6 +239,7 @@ def test_d109_engineering_routes_are_exact_and_bounded() -> None:
         "/engineering/approvals/{approval_id}/deny",
         "/engineering/approvals/{approval_id}/apply",
         "/engineering/skills",
+        "/engineering/skills/engineering.ai_draft/invoke",
         "/engineering/skills/{skill_id}/invoke",
     }
 
