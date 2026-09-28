@@ -24,11 +24,12 @@ from app.services.builtin_skills import (
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID,
     build_builtin_skill_catalog,
 )
+from app.services.engineering_ai_draft import EngineeringAIDraftWorkflowService
 from app.services.engineering_investigation_workflow import (
     EngineeringInvestigationWorkflowService,
 )
 from app.services.skill_invocation_bridge import (
-    SKILL_INVOCATION_SKILL_UNSUPPORTED,
+    SKILL_INVOCATION_REQUEST_INVALID,
     SkillInvocationBridge,
     SkillInvocationError,
 )
@@ -47,42 +48,47 @@ def _request() -> EngineeringInvestigationRequest:
 
 
 def _real_bridge_without_runnable_workflow() -> SkillInvocationBridge:
+    ai_draft_workflow = object.__new__(EngineeringAIDraftWorkflowService)
     workflow = object.__new__(EngineeringInvestigationWorkflowService)
     return SkillInvocationBridge(
         catalog=build_builtin_skill_catalog(),
+        engineering_ai_draft_workflow=ai_draft_workflow,
         engineering_investigation_workflow=workflow,
     )
 
 
-def test_d120_security_catalog_visibility_is_not_invocation_support(
+def test_d120_security_catalog_visibility_does_not_define_request_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[object] = []
+    draft_calls: list[object] = []
+    investigation_calls: list[object] = []
 
-    def _unexpected_investigate(self, request):
-        calls.append(request)
-        raise AssertionError("unsupported D110 Skill reached D113 workflow")
-
+    monkeypatch.setattr(
+        EngineeringAIDraftWorkflowService,
+        "draft",
+        lambda self, request: draft_calls.append(request),
+    )
     monkeypatch.setattr(
         EngineeringInvestigationWorkflowService,
         "investigate",
-        _unexpected_investigate,
+        lambda self, request: investigation_calls.append(request),
     )
 
     bridge = _real_bridge_without_runnable_workflow()
-    request = _request()
 
     with pytest.raises(SkillInvocationError) as exc:
         bridge.invoke(
             skill_id=ENGINEERING_AI_DRAFT_SKILL_ID,
-            request=request,
+            request=_request(),
         )
 
-    assert exc.value.code == SKILL_INVOCATION_SKILL_UNSUPPORTED
-    assert calls == []
+    assert exc.value.code == SKILL_INVOCATION_REQUEST_INVALID
+    assert draft_calls == []
+    assert investigation_calls == []
 
 
-def test_d120_security_new_skill_is_present_but_investigation_skill_only_is_supported() -> None:
+
+def test_d120_security_new_skill_metadata_remains_exact_after_d121_support() -> None:
     catalog = build_builtin_skill_catalog()
 
     assert catalog.resolve(ENGINEERING_AI_DRAFT_SKILL_ID) is ENGINEERING_AI_DRAFT_SKILL
@@ -93,12 +99,10 @@ def test_d120_security_new_skill_is_present_but_investigation_skill_only_is_supp
 
     bridge_source = inspect.getsource(SkillInvocationBridge.invoke)
 
-    assert (
-        "skill_id != ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID"
-        in bridge_source
-    )
-    assert "ENGINEERING_AI_DRAFT_SKILL_ID" not in bridge_source
-    assert "engineering_ai_draft" not in bridge_source
+    assert "ENGINEERING_AI_DRAFT_SKILL_ID" in bridge_source
+    assert "ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID" in bridge_source
+    assert "handler_registry" not in bridge_source
+
 
 
 class _ProjectionWorkflow:
@@ -118,7 +122,17 @@ def _api_client_with_real_bridge() -> TestClient:
     return TestClient(app)
 
 
-def test_d120_security_owner_api_rejects_visible_d110_skill_as_unsupported() -> None:
+def test_d120_security_owner_api_d110_skill_path_rejects_investigation_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draft_calls: list[object] = []
+
+    monkeypatch.setattr(
+        EngineeringAIDraftWorkflowService,
+        "draft",
+        lambda self, request: draft_calls.append(request),
+    )
+
     conversation_id = uuid4()
     client = _api_client_with_real_bridge()
 
@@ -127,16 +141,18 @@ def test_d120_security_owner_api_rejects_visible_d110_skill_as_unsupported() -> 
         headers=_LOCAL_HEADERS,
         json={
             "conversation_id": str(conversation_id),
-            "instruction": "Do not turn catalog visibility into execution.",
+            "instruction": "Do not widen D116 into a D110 request contract.",
             "focus_paths": [],
         },
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == SKILL_INVOCATION_SKILL_UNSUPPORTED
+    assert response.json()["detail"] == SKILL_INVOCATION_REQUEST_INVALID
+    assert draft_calls == []
 
 
-def test_d120_security_bridge_imports_no_d110_runtime_or_contract() -> None:
+
+def test_d120_security_bridge_d110_support_adds_no_generic_or_mutation_authority() -> None:
     bridge_path = (
         _REPO_ROOT
         / "backend"
@@ -147,17 +163,23 @@ def test_d120_security_bridge_imports_no_d110_runtime_or_contract() -> None:
     source = bridge_path.read_text(encoding="utf-8").lower()
 
     forbidden = (
-        "engineering_ai_draft",
-        "engineering.ai_draft",
-        "engineeringaidraft",
-        "ai_draft",
         "create_proposal",
         "engineering_change_proposal",
         "engineering_apply",
+        "provider_id",
+        "model_id",
+        "credential",
+        "resolve_tool",
+        "resolve_module",
+        "handler_registry",
+        "register_handler",
+        'target_kind="skill"',
+        "'skill.execute'",
     )
 
     for token in forbidden:
         assert token not in source
+
 
 
 def test_d120_security_frontend_does_not_gain_catalog_driven_invocation() -> None:

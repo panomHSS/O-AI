@@ -1,22 +1,31 @@
-"""D115 bounded Skill invocation bridge.
+"""D121 bounded trusted built-in Skill invocation bridge.
 
-The bridge resolves one trusted built-in Skill identity, verifies its exact D114
-descriptor shape, and delegates once to the existing owner-bound D113 workflow.
+The bridge resolves only exact trusted built-in Skill identities, verifies each
+exact D114 descriptor and request contract, then delegates exactly once to an
+existing owner-bound Engineering workflow.
 
-It is not an execution runtime, planner, authorization boundary, handler registry,
-provider selector, Tool/Module dispatcher, proposal authority, or apply authority.
+It is not a generic execution runtime, planner, authorization boundary, handler
+registry, provider selector, Tool/Module dispatcher, proposal authority, or
+Apply authority.
 """
 
 from __future__ import annotations
 
+from app.contracts.engineering_ai_draft import (
+    EngineeringAIDraftRequest,
+    EngineeringAIDraftResult,
+)
 from app.contracts.engineering_investigation import (
     EngineeringInvestigationRequest,
     EngineeringInvestigationResult,
 )
 from app.services.builtin_skills import (
+    ENGINEERING_AI_DRAFT_SKILL,
+    ENGINEERING_AI_DRAFT_SKILL_ID,
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL,
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID,
 )
+from app.services.engineering_ai_draft import EngineeringAIDraftWorkflowService
 from app.services.engineering_investigation_workflow import (
     EngineeringInvestigationWorkflowService,
 )
@@ -30,7 +39,7 @@ SKILL_INVOCATION_DESCRIPTOR_MISMATCH = "skill_invocation_descriptor_mismatch"
 
 
 class SkillInvocationError(RuntimeError):
-    """Safe D115 bridge failure with one stable internal code."""
+    """Safe bounded bridge failure with one stable internal code."""
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -38,16 +47,25 @@ class SkillInvocationError(RuntimeError):
 
 
 class SkillInvocationBridge:
-    """Resolve one frozen Skill identity and delegate one bounded workflow once."""
+    """Resolve exact trusted Skills and delegate owner-bound workflows once."""
 
     def __init__(
         self,
         *,
         catalog: SkillCatalog,
+        engineering_ai_draft_workflow: EngineeringAIDraftWorkflowService,
         engineering_investigation_workflow: EngineeringInvestigationWorkflowService,
     ) -> None:
         if not isinstance(catalog, SkillCatalog):
             raise TypeError("catalog must be SkillCatalog.")
+        if not isinstance(
+            engineering_ai_draft_workflow,
+            EngineeringAIDraftWorkflowService,
+        ):
+            raise TypeError(
+                "engineering_ai_draft_workflow must be "
+                "EngineeringAIDraftWorkflowService."
+            )
         if not isinstance(
             engineering_investigation_workflow,
             EngineeringInvestigationWorkflowService,
@@ -58,6 +76,7 @@ class SkillInvocationBridge:
             )
 
         self._catalog = catalog
+        self._engineering_ai_draft_workflow = engineering_ai_draft_workflow
         self._engineering_investigation_workflow = (
             engineering_investigation_workflow
         )
@@ -67,8 +86,8 @@ class SkillInvocationBridge:
         *,
         skill_id: object,
         request: object,
-    ) -> EngineeringInvestigationResult:
-        """Delegate exactly one supported Skill invocation or fail closed."""
+    ) -> EngineeringAIDraftResult | EngineeringInvestigationResult:
+        """Delegate one exact supported Skill invocation or fail closed."""
         if (
             type(skill_id) is not str
             or not skill_id
@@ -80,16 +99,25 @@ class SkillInvocationBridge:
         if descriptor is None:
             raise SkillInvocationError(SKILL_INVOCATION_SKILL_NOT_FOUND)
 
-        if skill_id != ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID:
-            raise SkillInvocationError(SKILL_INVOCATION_SKILL_UNSUPPORTED)
+        if skill_id == ENGINEERING_AI_DRAFT_SKILL_ID:
+            if descriptor != ENGINEERING_AI_DRAFT_SKILL:
+                raise SkillInvocationError(
+                    SKILL_INVOCATION_DESCRIPTOR_MISMATCH
+                )
+            if not isinstance(request, EngineeringAIDraftRequest):
+                raise SkillInvocationError(SKILL_INVOCATION_REQUEST_INVALID)
+            return self._engineering_ai_draft_workflow.draft(request)
 
-        if descriptor != ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL:
-            raise SkillInvocationError(SKILL_INVOCATION_DESCRIPTOR_MISMATCH)
+        if skill_id == ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID:
+            if descriptor != ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL:
+                raise SkillInvocationError(
+                    SKILL_INVOCATION_DESCRIPTOR_MISMATCH
+                )
+            if not isinstance(request, EngineeringInvestigationRequest):
+                raise SkillInvocationError(SKILL_INVOCATION_REQUEST_INVALID)
+            return self._engineering_investigation_workflow.investigate(request)
 
-        if not isinstance(request, EngineeringInvestigationRequest):
-            raise SkillInvocationError(SKILL_INVOCATION_REQUEST_INVALID)
-
-        return self._engineering_investigation_workflow.investigate(request)
+        raise SkillInvocationError(SKILL_INVOCATION_SKILL_UNSUPPORTED)
 
 
 __all__ = [

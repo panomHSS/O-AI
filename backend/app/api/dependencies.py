@@ -2484,14 +2484,19 @@ def get_skill_catalog() -> SkillCatalog:
 
 
 def get_skill_invocation_bridge(
+    ai_draft_workflow: Annotated[
+        EngineeringAIDraftWorkflowService,
+        Depends(get_engineering_ai_draft_workflow_service),
+    ],
     workflow: Annotated[
         EngineeringInvestigationWorkflowService,
         Depends(get_engineering_investigation_workflow_service),
     ],
 ) -> SkillInvocationBridge:
-    """Build one request-scoped D115 bridge over the owner-bound D113 workflow."""
+    """Build request-scoped D121 bridge over owner-bound D110/D113 workflows."""
     return SkillInvocationBridge(
         catalog=build_builtin_skill_catalog(),
+        engineering_ai_draft_workflow=ai_draft_workflow,
         engineering_investigation_workflow=workflow,
     )
 

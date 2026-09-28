@@ -18,6 +18,7 @@ from app.services.builtin_skills import (
     ENGINEERING_INVESTIGATION_CHANGE_PLAN_SKILL_ID,
     build_builtin_skill_catalog,
 )
+from app.services.engineering_ai_draft import EngineeringAIDraftWorkflowService
 from app.services.engineering_investigation import EngineeringInvestigationError
 from app.services.engineering_investigation_workflow import (
     EngineeringInvestigationWorkflowService,
@@ -97,6 +98,9 @@ def _bridge(
 ) -> SkillInvocationBridge:
     return SkillInvocationBridge(
         catalog=catalog or build_builtin_skill_catalog(),
+        engineering_ai_draft_workflow=object.__new__(
+            EngineeringAIDraftWorkflowService
+        ),
         engineering_investigation_workflow=_workflow(request, recorder),
     )
 
@@ -267,6 +271,9 @@ def test_bridge_requires_real_skill_catalog() -> None:
     with pytest.raises(TypeError):
         SkillInvocationBridge(
             catalog=object(),  # type: ignore[arg-type]
+            engineering_ai_draft_workflow=object.__new__(
+                EngineeringAIDraftWorkflowService
+            ),
             engineering_investigation_workflow=_workflow(request, recorder),
         )
 
@@ -275,6 +282,9 @@ def test_bridge_requires_owner_bound_d113_workflow_service_type() -> None:
     with pytest.raises(TypeError):
         SkillInvocationBridge(
             catalog=build_builtin_skill_catalog(),
+            engineering_ai_draft_workflow=object.__new__(
+                EngineeringAIDraftWorkflowService
+            ),
             engineering_investigation_workflow=object(),  # type: ignore[arg-type]
         )
 
