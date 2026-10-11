@@ -538,3 +538,83 @@ bound to an already-selected Local AI task.
 
 It does not change who may select Local AI, does not give the browser model
 authority, and does not expand execution authority.
+## Amendment A — Historical LocalAIAdapter Test Migration Authorization
+
+During the required pre-implementation historical-test review, the existing
+`backend/tests/test_local_ai_adapter.py` was found to encode the pre-D125
+direct-adapter invocation contract.
+
+That historical test surface constructs LocalAIAdapter with one deployment
+model and invokes `generate()` using an AIRequest that has no authorized
+Local AI profile/model binding.
+
+D125 intentionally makes that historical assumption invalid.
+
+This amendment is the explicit authorization required by the frozen
+Historical Test Conflict Rule.
+
+### Exact historical test authorization
+
+D125 Batch 01 may modify exactly this existing historical test file:
+
+- `backend/tests/test_local_ai_adapter.py`
+
+This authorization is test-only and does not expand D125 production scope.
+
+The file may be migrated so existing direct LocalAIAdapter unit tests simulate
+the post-authorization internal request state required by D125.
+
+Permitted migration includes:
+
+- adapting the LocalAIAdapter test fixture to the D125 immutable profile
+  resolver/registry;
+- adding test helpers that construct an exact valid authorized Local AI
+  profile/model binding;
+- updating historical successful-generation tests to use that valid binding;
+- updating historical runtime-unavailable tests to use that valid binding;
+- updating historical model-unavailable tests to use that valid binding;
+- updating historical timeout tests to use that valid binding;
+- updating historical malformed/empty-response tests to use that valid
+  binding;
+- updating historical no-fallback tests to use that valid binding;
+- updating historical structured-generation tests to use that valid binding;
+- updating historical telemetry tests to use that valid binding;
+- preserving the original behavioral purpose of those tests;
+- adding or strengthening assertions that missing, malformed, conflicting, or
+  mismatched authorization binding fails before unauthorized generation.
+
+### Required security preservation
+
+This amendment does not authorize any production behavior in which an
+unbound request may successfully invoke LocalAIAdapter.
+
+In particular:
+
+- `AIRequest(content="...")` with no D125 authorized profile/model binding
+  must not be accepted by the D125 LocalAIAdapter execution path;
+- caller-supplied reserved authorization metadata must not bypass AIRuntime
+  authorization;
+- a model/profile mismatch must fail closed;
+- existing no-fallback behavior must remain tested;
+- timeout/runtime/model/response failures must remain fail-closed;
+- telemetry remains non-authoritative.
+
+Historical assertions may be mechanically updated only where the assertion
+depends on the superseded pre-D125 direct-adapter invocation shape.
+
+The behavioral intent of historical tests must not be weakened.
+
+### Scope limit
+
+This amendment authorizes changes only to:
+
+- the already frozen D125 production scope;
+- dedicated D125 tests;
+- `backend/tests/test_local_ai_adapter.py`.
+
+If any other historical test file contains a distinct frozen-design conflict,
+implementation must stop and report that exact conflict before modifying it.
+
+No frontend production change, database change, migration, routing expansion,
+provider fallback, model fallback, or execution-authority expansion is
+authorized by this amendment.
