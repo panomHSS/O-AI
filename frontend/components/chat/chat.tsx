@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
   getAIBrainCapabilities,
   getConversation,
   getProject,
+  listConversations,
   sendChatMessage,
 } from "../../lib/api-client";
 import { activeConversationStorageKey } from "../../lib/workspace";
@@ -23,6 +24,8 @@ import type {
   GmailReadDisplay,
 } from "../../types/chat";
 import type { Project } from "../../types/projects";
+import type { ConversationSummary } from "../../types/conversation";
+import type { WorkspaceId } from "../../types/workspace";
 import { useWorkspace } from "../workspace/workspace-provider";
 import { ActionApprovalCard } from "./action-approval-card";
 import { CalendarWriteApprovalCard } from "./calendar-write-approval-card";
@@ -160,6 +163,94 @@ export function Chat() {
   const [aiMode, setAIMode] = useState<AIMode>("auto");
   const [aiCapabilities, setAICapabilities] =
     useState<AIBrainCapabilitiesResponse | null>(null);
+  const [history, setHistory] = useState<ConversationSummary[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const restoreVersion = useRef(0);
+  const historyVersion = useRef(0);
+  const turnPending = useRef(false);
+
+  const refreshHistory = useCallback(async (selectedWorkspace: WorkspaceId) => {
+    const version = ++historyVersion.current;
+    setIsHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const summaries = await listConversations(selectedWorkspace);
+      if (version === historyVersion.current) setHistory(summaries);
+    } catch (caughtError) {
+      if (version === historyVersion.current) {
+        setHistoryError(caughtError instanceof ApiError
+          ? caughtError.message : "Unable to load conversation history.");
+      }
+    } finally {
+      if (version === historyVersion.current) setIsHistoryLoading(false);
+    }
+  }, []);
+
+  const restoreConversation = useCallback(async (
+    selectedWorkspace: WorkspaceId,
+    selectedConversationId: string,
+  ) => {
+    const version = ++restoreVersion.current;
+    setIsRestoring(true);
+    try {
+      // The client validates both workspace and exact ID before returning detail.
+      const conversation = await getConversation(selectedWorkspace, selectedConversationId);
+      if (version !== restoreVersion.current) return;
+      const project = conversation.project_id
+        ? await getProject(selectedWorkspace, conversation.project_id)
+        : null;
+      if (version !== restoreVersion.current) return;
+      if (project && project.id !== conversation.project_id) {
+        throw new ApiError("The Project does not match this conversation.", "HTTP", 409);
+      }
+      const restoredMessages = conversation.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        citations: message.citations,
+        contextUsage: message.context_usage,
+      }));
+      setConversationId(conversation.id);
+      setMessages(restoredMessages);
+      setAssociatedProject(project);
+      setPendingProject(null);
+      setDraft("");
+      setError(null);
+      setAIMode("auto");
+      window.history.replaceState({}, "", "/chat");
+      window.localStorage.setItem(
+        activeConversationStorageKey(selectedWorkspace), selectedConversationId,
+      );
+    } catch (caughtError) {
+      if (version === restoreVersion.current) {
+        setError(caughtError instanceof ApiError
+          ? caughtError.message : "Unable to restore the conversation.");
+      }
+    } finally {
+      if (version === restoreVersion.current) setIsRestoring(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isWorkspaceReady && workspaceId) {
+      void Promise.resolve().then(() => {
+        if (!cancelled) void refreshHistory(workspaceId);
+      });
+    }
+    return () => {
+      cancelled = true;
+      // WorkspaceResetBoundary remounts Chat; invalidate every outstanding read.
+      historyVersion.current += 1;
+      restoreVersion.current += 1;
+    };
+  }, [isWorkspaceReady, workspaceId, refreshHistory]);
+
+  function handleRestoreConversation(selectedConversationId: string) {
+    if (!workspaceId || turnPending.current) return;
+    void restoreConversation(workspaceId, selectedConversationId);
+  }
 
   const generalChatCapabilities = aiCapabilities?.tasks.find(
     (item) => item.task_kind === "general_chat",
@@ -206,65 +297,44 @@ export function Chat() {
     }
 
     const storageKey = activeConversationStorageKey(workspaceId);
+    const version = restoreVersion.current;
     const pendingProjectId = new URLSearchParams(window.location.search).get("projectId");
 
     if (pendingProjectId) {
       getProject(workspaceId, pendingProjectId)
         .then((project) => {
+          if (version !== restoreVersion.current) return;
           window.localStorage.removeItem(storageKey);
           setPendingProject(project);
         })
-        .catch((caughtError) =>
+        .catch((caughtError) => {
+          if (version !== restoreVersion.current) return;
           setError(
             caughtError instanceof ApiError
               ? caughtError.message
               : "Unable to select Project.",
-          ),
-        )
-        .finally(() => setIsRestoring(false));
+          );
+        })
+        .finally(() => {
+          if (version === restoreVersion.current) setIsRestoring(false);
+        });
       return;
     }
 
     const storedConversationId = window.localStorage.getItem(storageKey);
     if (!storedConversationId) {
-      void Promise.resolve().then(() => setIsRestoring(false));
+      void Promise.resolve().then(() => {
+        if (version === restoreVersion.current) setIsRestoring(false);
+      });
       return;
     }
 
-    getConversation(workspaceId, storedConversationId)
-      .then((conversation) => {
-        setConversationId(conversation.id);
-        setMessages(
-          conversation.messages.map((message) => ({
-            id: message.id,
-            role: message.role,
-            content: message.content,
-            citations: message.citations,
-            contextUsage: message.context_usage,
-          })),
-        );
-        if (conversation.project_id) {
-          return getProject(workspaceId, conversation.project_id).then(
-            setAssociatedProject,
-          );
-        }
-        return undefined;
-      })
-      .catch((caughtError) => {
-        if (caughtError instanceof ApiError && caughtError.status === 404) {
-          window.localStorage.removeItem(storageKey);
-          setConversationId(null);
-          return;
-        }
-
-        setError(
-          caughtError instanceof ApiError
-            ? caughtError.message
-            : "Unable to restore the conversation.",
-        );
-      })
-      .finally(() => setIsRestoring(false));
-  }, [isWorkspaceReady, workspaceId]);
+    void Promise.resolve().then(() => {
+      if (version === restoreVersion.current) {
+        void restoreConversation(workspaceId, storedConversationId);
+      }
+    });
+  }, [isWorkspaceReady, workspaceId, restoreConversation]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -274,6 +344,7 @@ export function Chat() {
       !workspaceId ||
       !message ||
       isLoading ||
+      turnPending.current ||
       isRestoring ||
       !selectedAIModeReady
     ) {
@@ -292,6 +363,8 @@ export function Chat() {
       return;
     }
 
+    turnPending.current = true;
+    const version = restoreVersion.current;
     setDraft("");
     setError(null);
     setMessages((currentMessages) => [
@@ -308,6 +381,7 @@ export function Chat() {
         conversationId ? undefined : pendingProject?.id,
         aiMode,
       );
+      if (version !== restoreVersion.current) return;
       setConversationId(response.conversation_id);
       window.localStorage.setItem(
         activeConversationStorageKey(workspaceId),
@@ -329,13 +403,16 @@ export function Chat() {
           response.context_usage,
         ),
       ]);
+      void refreshHistory(workspaceId);
     } catch (caughtError) {
+      if (version !== restoreVersion.current) return;
       setError(
         caughtError instanceof ApiError
           ? caughtError.message
           : "Something went wrong. Please try again.",
       );
     } finally {
+      turnPending.current = false;
       setIsLoading(false);
     }
   }
@@ -393,6 +470,10 @@ export function Chat() {
   }
 
   function handleNewConversation() {
+    if (turnPending.current) return;
+    restoreVersion.current += 1;
+    setIsRestoring(false);
+    setDraft("");
     if (workspaceId) {
       window.localStorage.removeItem(
         activeConversationStorageKey(workspaceId),
@@ -433,9 +514,33 @@ export function Chat() {
         <h1 className="mt-2 text-3xl font-semibold">Chat</h1>
         {pendingProject ? <p className="mt-2 text-sm text-zinc-300">New conversation Project: {pendingProject.title}</p> : null}
         {associatedProject ? <p className="mt-2 text-sm text-zinc-300">Project: {associatedProject.title} <span className="text-zinc-500">· linked when this conversation was created</span></p> : null}
-        <button className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium hover:border-zinc-400" onClick={handleNewConversation} type="button">
+        <button className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium hover:border-zinc-400" disabled={isLoading} onClick={handleNewConversation} type="button">
           New Conversation
         </button>
+
+        <details className="mt-4 rounded-xl border border-zinc-700 p-3">
+          <summary className="cursor-pointer font-medium">Conversation history</summary>
+          {isHistoryLoading ? <p role="status" className="mt-2 text-sm text-zinc-400">Loading history…</p> : null}
+          {historyError ? <p role="alert" className="mt-2 text-sm text-red-300">{historyError}</p> : null}
+          {!isHistoryLoading && !historyError && history.length === 0 ? <p className="mt-2 text-sm text-zinc-400">No saved conversations.</p> : null}
+          {isRestoring ? <p role="status" className="mt-2 text-sm text-zinc-400">Restoring conversation…</p> : null}
+          <ul className="mt-2 max-h-64 space-y-2 overflow-y-auto">
+            {history.map((conversation) => (
+              <li key={conversation.id}>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  aria-current={conversation.id === conversationId ? "true" : undefined}
+                  className="w-full rounded-lg border border-zinc-700 p-3 text-left text-sm hover:border-zinc-400 disabled:opacity-50"
+                  onClick={() => handleRestoreConversation(conversation.id)}
+                >
+                  <span className="block font-medium">{conversation.title || "Untitled conversation"}{conversation.id === conversationId ? " · Active" : ""}</span>
+                  <time className="text-xs text-zinc-400" dateTime={conversation.updated_at}>{new Date(conversation.updated_at).toLocaleString()}</time>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
 
         <div className="mt-4 rounded-xl border border-zinc-700 bg-zinc-900/60 p-3">
           <div className="flex flex-wrap items-center gap-3">

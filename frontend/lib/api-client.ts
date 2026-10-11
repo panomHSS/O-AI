@@ -21,7 +21,7 @@ import type {
   EngineeringOwnerWorkflow,
   EngineeringSkillCatalogResponse,
 } from "../types/chat";
-import type { ConversationDetail } from "../types/conversation";
+import type { ConversationDetail, ConversationSummary } from "../types/conversation";
 import type {
   KnowledgeDocumentList,
   KnowledgeScanResult,
@@ -467,6 +467,19 @@ export function disconnectGoogleCalendar(): Promise<GoogleCalendarIntegrationSta
   );
 }
 
+export function listConversations(
+  workspaceId: WorkspaceId,
+): Promise<ConversationSummary[]> {
+  return workspaceApiRequest<ConversationSummary[]>(
+    workspaceId,
+    "/conversations",
+    { method: "GET" },
+  ).then((response) => {
+    response.forEach((item) => assertResponseWorkspace(workspaceId, item));
+    return response;
+  });
+}
+
 export function getConversation(
   workspaceId: WorkspaceId,
   conversationId: string,
@@ -475,7 +488,13 @@ export function getConversation(
     workspaceId,
     `/conversations/${encodeURIComponent(conversationId)}`,
     { method: "GET" },
-  ).then((response) => assertResponseWorkspace(workspaceId, response));
+  ).then((response) => {
+    assertResponseWorkspace(workspaceId, response);
+    if (response.id !== conversationId) {
+      throw new ApiError("The conversation does not match the requested ID.", "HTTP", 409);
+    }
+    return response;
+  });
 }
 
 export function scanKnowledge(

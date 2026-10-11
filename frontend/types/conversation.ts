@@ -24,12 +24,15 @@ export interface StoredMessage {
   context_usage: ContextUsage | null;
 }
 
-export interface ConversationDetail {
+export interface ConversationSummary {
   workspace_id: WorkspaceId;
   id: string;
   title: string;
   created_at: string;
   updated_at: string;
   project_id: string | null;
+}
+
+export interface ConversationDetail extends ConversationSummary {
   messages: StoredMessage[];
 }
