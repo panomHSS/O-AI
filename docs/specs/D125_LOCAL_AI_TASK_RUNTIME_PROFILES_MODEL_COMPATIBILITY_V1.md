@@ -1163,3 +1163,102 @@ No frontend production change, D110/D113 production service change, database
 change, migration, workspace-routing expansion, provider-routing expansion,
 Cloud fallback, Local AI model fallback, profile fallback, arbitrary model
 selection, or execution-authority expansion is authorized by this amendment.
+
+## Amendment F — Historical D124 Frozen-Scope Regression Stabilization
+
+During D125 Batch 02 full backend regression, the historical D124 security test
+`backend/tests/test_d124_conversation_history_frontend_security.py` was found
+to evaluate its frozen D124 scope against the repository's current HEAD.
+
+The affected test uses D124 Design Freeze commit:
+
+`99708a296779de0e75aef0a2cee0cad8211402e5`
+
+as the lower boundary but does not specify a fixed upper boundary.
+
+As later milestones legitimately add production and support files, that
+historical test therefore rejects post-D124 work even when D124 itself remains
+unchanged.
+
+This is a historical regression-fixture defect exposed by D125. It is not
+authorization for D125 files to become part of D124's allowed scope.
+
+### Exact historical test authorization
+
+D125 Batch 02 may additionally modify exactly:
+
+- `backend/tests/test_d124_conversation_history_frontend_security.py`
+
+No other D124 historical test file is authorized by this amendment.
+
+### Required migration
+
+The D124 frozen-scope test must be converted from a moving comparison against
+the repository's current HEAD into a fixed historical comparison covering only
+the completed D124 milestone.
+
+The exact historical boundaries are:
+
+D124 Design Freeze:
+
+`99708a296779de0e75aef0a2cee0cad8211402e5`
+
+D124 Final / Remote Frozen:
+
+`9216fae36d30bab12fa815c10cc3a2686f7c8612`
+
+The migrated test must inspect the committed diff between those two exact
+commits.
+
+It must not inspect the current D125 working tree or current untracked files as
+part of the D124 milestone-scope assertion.
+
+### Exact D124 historical scope
+
+The fixed D124 commit range contains exactly:
+
+- `backend/tests/test_d124_conversation_history_frontend.py`
+- `backend/tests/test_d124_conversation_history_frontend_security.py`
+- `docs/specs/D124_CONVERSATION_HISTORY_RESTORE_UI_V1.md`
+- `frontend/components/chat/chat.tsx`
+- `frontend/lib/api-client.ts`
+- `frontend/types/conversation.ts`
+
+The migrated test should preserve or strengthen the historical assertion that
+D124 introduced no backend production, database, repository, or migration
+change.
+
+It must not add any D125 production/support path to a D124 allowlist.
+
+### Security preservation
+
+This amendment does not weaken D124 authority boundaries.
+
+The migrated test must continue proving that D124 was a bounded frontend
+Conversation History / Restore UI milestone and did not introduce backend
+execution authority or database mutation.
+
+Future milestone files must remain irrelevant to the historical D124 scope
+assertion because the test is bound to the fixed D124 commit range.
+
+### D125 Batch 02 scope after Amendment F
+
+D125 Batch 02 production/support change scope remains exactly:
+
+- `.env.example`
+- `scripts/smoke_mvp.ps1`
+- `docs/MVP_RUNBOOK.md`
+
+In addition, this amendment authorizes migration of exactly one historical test
+file:
+
+- `backend/tests/test_d124_conversation_history_frontend_security.py`
+
+No Batch 01 production source change is authorized.
+
+If another historical test exposes a distinct frozen-design conflict during
+full regression, implementation must stop and report it before modification.
+
+No frontend production change, database change, migration, provider-routing
+change, execution-authority expansion, model fallback, profile fallback, or
+Cloud fallback is authorized by this amendment.
