@@ -701,3 +701,110 @@ B.
 No frontend production change, database change, migration, provider-routing
 change, backend-selection change, fallback behavior, or execution-authority
 expansion is authorized by this amendment.
+## Amendment C — Historical Unified AI Runtime E2E Fixture Migration Authorization
+
+A third pre-implementation historical-test review found that
+`backend/tests/test_ai_runtime_e2e.py` constructs the pre-D125 unified AI
+execution lane with only adapter discovery metadata.
+
+Its Local AI path currently provides a single discovery
+`configured_model_id` but no immutable D125 task profile and no independent
+exact profile-model availability boundary.
+
+That fixture is insufficient under the frozen D125 planning contract.
+
+The behavioral purpose of this historical E2E test remains valid and must be
+preserved: Planner, Guard, AIRuntime, and the selected adapter must execute one
+authorized AI lane; explicit Local AI selection must invoke only the Local AI
+adapter; Local AI disablement or execution failure must never fall back to
+Cloud AI.
+
+### Exact additional historical test authorization
+
+D125 Batch 01 may additionally modify exactly:
+
+- `backend/tests/test_ai_runtime_e2e.py`
+
+This authorization is test-only and does not expand the frozen D125 production
+scope.
+
+Permitted migration includes:
+
+- extending the historical E2E fixture with immutable D125 Local AI task
+  profiles;
+- providing the exact profile resolver/registry required by D125 planning;
+- providing a read-only exact profile-model availability fixture;
+- keeping AI discovery as capability/model discovery rather than using its
+  configured model as profile-selection authority;
+- supplying the D125 dependencies required by ExecutionPlanner and/or
+  AIRuntime composition;
+- updating expected Local AI plan parameters to include the exact authorized
+  `local_ai_profile_id`;
+- preserving the pre-D125 Cloud AI plan shape;
+- preserving one-shot Planner -> Guard -> AIRuntime -> adapter execution;
+- preserving execution audit expectations where their semantics are
+  unaffected;
+- preserving explicit Local AI no-Cloud-fallback behavior.
+
+### Authority separation requirement
+
+The migrated fixture must keep these concepts separate:
+
+1. provider/adapter routing;
+2. AI capability/model discovery;
+3. D125 task-profile configuration;
+4. exact profile-model runtime availability;
+5. execution authorization.
+
+The historical discovery object's `configured_model_id` must not become the
+source of D125 task-profile selection authority.
+
+The Local AI profile must come only from immutable server-owned test
+configuration representing the D125 deployment boundary.
+
+### Required Local AI expectations
+
+For the existing explicit Local AI success lane:
+
+- the server-derived task kind resolves the exact D125 profile;
+- the exact profile model is reported available;
+- planning succeeds;
+- the Local AI plan pins both exact model ID and profile ID;
+- authorization succeeds;
+- AIRuntime executes exactly once;
+- only the Local AI adapter receives the request;
+- the Cloud adapter remains untouched.
+
+For Local AI disablement, unavailable profile model, or Local AI execution
+failure:
+
+- the request must fail at the appropriate frozen boundary;
+- no Cloud execution fallback is permitted.
+
+### Non-Local-AI preservation
+
+Cloud/default lanes in this historical file must preserve their pre-D125 plan
+shape and must not receive `local_ai_profile_id`.
+
+D125 must not require Local AI profile metadata for a non-Local-AI execution
+plan.
+
+### Historical-test boundary after Amendment C
+
+The only historical test files explicitly authorized for D125 migration so far
+are:
+
+- `backend/tests/test_local_ai_adapter.py`
+- `backend/tests/test_local_ai_runtime_factory.py`
+- `backend/tests/test_ai_runtime_e2e.py`
+
+If another historical test file contains a distinct conflict with the frozen
+D125 design, implementation must stop and report that exact conflict before
+modifying it.
+
+No other historical test migration is implicitly authorized by Amendments A,
+B, or C.
+
+No frontend production change, database change, migration, provider-routing
+change, Cloud fallback, Local AI model fallback, profile fallback, or
+execution-authority expansion is authorized by this amendment.
