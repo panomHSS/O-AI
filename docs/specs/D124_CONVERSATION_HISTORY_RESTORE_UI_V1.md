@@ -166,8 +166,10 @@ Conversation.
 Changing the active Conversation must remount Conversation-bound Engineering
 presentation state.
 
-Server-persisted Engineering workflow state may be re-read through existing
-Engineering APIs.
+Live process-local Engineering workflow presentation/correlation state may be
+re-read through existing Engineering APIs while the backend process remains
+alive. D124 does not add durability to that state, and a backend restart may
+legitimately clear it.
 
 Transient non-authoritative AI drafts and investigation presentation state
 must not be transferred from one Conversation to another.
@@ -274,7 +276,9 @@ D124 Guided UI Acceptance must demonstrate:
 7. switching back does not cross-contaminate active Conversation state;
 8. history loading/selection causes no AI, Skill, Action, proposal, approval, or
    Apply execution;
-9. persisted Engineering workflow remains bound to its original Conversation;
+9. a live process-local Engineering workflow remains bound to its original
+   Conversation while the backend process remains alive; a backend restart may
+   legitimately clear that presentation/correlation state;
 10. transient Engineering draft/investigation state does not leak across
     Conversation switches;
 11. Git repository remains unchanged by UI restore operations.
@@ -299,3 +303,19 @@ D124 is specifically Conversation History / Restore UI V1.
 
 It is not a generic conversation-management milestone and does not expand
 O-AI execution authority.
+## Amendment A — Engineering workflow lifetime clarification
+
+Guided UI acceptance exposed an existing D109 lifetime boundary that D124 does
+not change.
+
+`EngineeringOwnerBindingStore` is bounded process-local
+presentation/correlation state. It is not durable database persistence and
+does not survive a backend process restart.
+
+Therefore D124 Conversation History restoration must preserve exact
+conversation/workspace binding for any live Engineering workflow, but D124
+does not require a workflow that existed before a backend restart to
+reappear afterward.
+
+This amendment changes no D124 production scope, API, database, migration,
+execution authority, or implementation requirement.
