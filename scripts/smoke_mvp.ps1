@@ -27,6 +27,22 @@ function Invoke-OaiRequest([string]$Method, [string]$Uri, [object]$Body = $null,
     }
 }
 
+# Resolve only deployment values; an absent override inherits its matching common value.
+function Get-OaiDeploymentValue([string]$Text, [string]$Name, [string]$Default) {
+    $matchesForSetting = [regex]::Matches($Text, "(?m)^\s*" + [regex]::Escape($Name) + "\s*=\s*([^\r\n]*)")
+    if ($matchesForSetting.Count -eq 0) { return $Default }
+    $value = $matchesForSetting[$matchesForSetting.Count - 1].Groups[1].Value.Trim()
+    if ($value -match '^("([^"\r\n]*)"|''([^''\r\n]*)'')\s*(#.*)?$') {
+        if ($value.StartsWith('"')) { $value = $Matches[2] } else { $value = $Matches[3] }
+    } else {
+        $value = ($value -replace '\s+#.*$', '').Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw "Deployment setting '$Name' is empty. Omit an optional override to inherit the common setting."
+    }
+    return $value
+}
+
 $health = Invoke-OaiRequest "GET" "$apiBase/health" $null @{ "X-Request-ID" = $requestId }
 if ($health.StatusCode -ne 200) { throw "Backend health check failed with HTTP $($health.StatusCode)." }
 $healthBody = $health.Content | ConvertFrom-Json
@@ -44,24 +60,37 @@ $negative = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "" } $workspac
 if ($negative.StatusCode -ne 422 -or $negative.Content -match "Traceback|Exception") { throw "Safe negative chat check failed." }
 Write-Host "Safe chat error envelope: OK"
 
-$env = Get-Content ".env" -Raw
-$localEnabled = $env -match "(?m)^OAI_LOCAL_AI_ENABLED\s*=\s*true\s*$"
-$openAiConfigured = $env -match "(?m)^OPENAI_API_KEY\s*=\s*[^\s#]+\s*$"
+$deploymentEnv = Get-Content ".env" -Raw
+$localEnabled = $deploymentEnv -match "(?m)^OAI_LOCAL_AI_ENABLED\s*=\s*true\s*$"
+$openAiConfigured = $deploymentEnv -match "(?m)^OPENAI_API_KEY\s*=\s*[^\s#]+\s*$"
 
 if ($localEnabled) {
-    $model = ([regex]::Match($env, "(?m)^OAI_LOCAL_AI_MODEL\s*=\s*(.+)$").Groups[1].Value.Trim())
-    $runtimeUrl = ([regex]::Match($env, "(?m)^OAI_LOCAL_AI_BASE_URL\s*=\s*(.+)$").Groups[1].Value.Trim()).TrimEnd("/")
+    $commonModel = Get-OaiDeploymentValue $deploymentEnv "OAI_LOCAL_AI_MODEL" "qwen3.5:9b"
+    $generalChatModel = Get-OaiDeploymentValue $deploymentEnv "OAI_LOCAL_AI_GENERAL_CHAT_MODEL" $commonModel
+    $engineeringModel = Get-OaiDeploymentValue $deploymentEnv "OAI_LOCAL_AI_SOFTWARE_ENGINEERING_MODEL" $commonModel
+    $runtimeUrl = (Get-OaiDeploymentValue $deploymentEnv "OAI_LOCAL_AI_BASE_URL" "http://127.0.0.1:11434").TrimEnd("/")
     $tags = Invoke-OaiRequest "GET" "$runtimeUrl/api/tags"
-    if ($tags.StatusCode -ne 200 -or -not (($tags.Content | ConvertFrom-Json).models.name -contains $model)) {
-        throw "Local AI is enabled but Ollama or configured model '$model' is unavailable."
+    if ($tags.StatusCode -ne 200) { throw "Local AI is enabled but Ollama is unavailable (HTTP $($tags.StatusCode))." }
+    $installedModels = @((($tags.Content | ConvertFrom-Json).models) | ForEach-Object { $_.name })
+    $profileModels = @(
+        @{ Profile = "local_ai.general_chat.v1"; Model = $generalChatModel },
+        @{ Profile = "local_ai.software_engineering.v1"; Model = $engineeringModel }
+    )
+    foreach ($profileModel in $profileModels) {
+        if ($installedModels -cnotcontains $profileModel.Model) {
+            throw "Local AI profile '$($profileModel.Profile)' requires exact installed model '$($profileModel.Model)'. No model/profile/Cloud fallback is attempted."
+        }
+        Write-Host "Local AI profile $($profileModel.Profile): exact model '$($profileModel.Model)' available"
     }
+    # Existing normal Chat smoke exercises General Chat; Engineering is availability-only here.
     $chat = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "Use local AI for this command." } $workspaceHeaders
     if ($chat.StatusCode -ne 200) { throw "Explicit Local AI chat failed with HTTP $($chat.StatusCode): $($chat.Content)" }
     $chatBody = $chat.Content | ConvertFrom-Json
     if (-not $chatBody.success -or -not $chatBody.data.conversation_id) { throw "Local AI chat did not return a successful conversation." }
     $conversation = Invoke-OaiRequest "GET" "$apiBase/conversations/$($chatBody.data.conversation_id)" $null $workspaceHeaders
     if ($conversation.StatusCode -ne 200) { throw "Conversation persistence check failed." }
-    Write-Host "Local AI O-AI E2E and conversation persistence: OK"
+    Write-Host "Local AI General Chat ($generalChatModel) O-AI E2E and conversation persistence: OK"
+    Write-Host "Software Engineering ($engineeringModel): availability checked; inference requires guided acceptance"
 } elseif ($openAiConfigured) {
     $chat = Invoke-OaiRequest "POST" "$apiBase/chat" @{ message = "MVP smoke test." } $workspaceHeaders
     if ($chat.StatusCode -ne 200) { throw "Configured ChatGPT smoke failed with HTTP $($chat.StatusCode)." }

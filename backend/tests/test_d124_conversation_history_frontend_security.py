@@ -7,6 +7,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = "99708a296779de0e75aef0a2cee0cad8211402e5"
+D124_FINAL = "9216fae36d30bab12fa815c10cc3a2686f7c8612"
 
 
 def read(path: str) -> str:
@@ -58,17 +59,16 @@ def test_workspace_and_engineering_remount_boundaries_are_preserved() -> None:
 
 def test_frozen_scope_has_no_backend_production_or_database_changes() -> None:
     result = subprocess.run(
-        ["git", "diff", "--name-only", BASELINE, "--"],
+        ["git", "diff", "--name-only", BASELINE, D124_FINAL, "--"],
         cwd=ROOT, capture_output=True, text=True, check=True,
     )
-    untracked = subprocess.run(
-        ["git", "ls-files", "--others", "--exclude-standard"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    )
+    # Fixed D124 history excludes later milestones and the current working tree.
     allowed = {
+        "backend/tests/test_d124_conversation_history_frontend.py",
+        "backend/tests/test_d124_conversation_history_frontend_security.py",
+        "docs/specs/D124_CONVERSATION_HISTORY_RESTORE_UI_V1.md",
         "frontend/components/chat/chat.tsx",
         "frontend/lib/api-client.ts",
         "frontend/types/conversation.ts",
     }
-    for path in (result.stdout + untracked.stdout).splitlines():
-        assert path in allowed or path.startswith("backend/tests/"), path
+    assert set(result.stdout.splitlines()) == allowed
