@@ -317,7 +317,13 @@ def test_d121_frontend_remains_fixed_investigation_control_and_metadata_catalog(
         '"/engineering/skills/engineering.investigation_change_plan/invoke"'
         in source
     )
-    assert "engineering.ai_draft/invoke" not in source
+    assert (
+        '"/engineering/skills/engineering.ai_draft/invoke"'
+        in source
+    )
+    assert source.count(
+        "/engineering/skills/engineering.ai_draft/invoke"
+    ) == 1
     assert "selectedSkillId" not in source
     assert "activeSkillId" not in source
     assert "skillCatalog.skills.map((skill)" in source

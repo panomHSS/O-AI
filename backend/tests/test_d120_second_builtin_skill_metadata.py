@@ -84,7 +84,13 @@ def test_d120_catalog_visibility_does_not_rewire_fixed_frontend_invocation() -> 
         '"/engineering/skills/engineering.investigation_change_plan/invoke"'
         in panel
     )
-    assert "engineering.ai_draft/invoke" not in panel
+    assert (
+        '"/engineering/skills/engineering.ai_draft/invoke"'
+        in panel
+    )
+    assert panel.count(
+        "/engineering/skills/engineering.ai_draft/invoke"
+    ) == 1
     assert "selectedSkillId" not in panel
     assert "activeSkillId" not in panel
 

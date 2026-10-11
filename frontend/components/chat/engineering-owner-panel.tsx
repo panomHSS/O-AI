@@ -68,6 +68,16 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
   const [aiDraft, setAIDraft] = useState<EngineeringAIDraftResponse | null>(null);
   const [aiDraftContent, setAIDraftContent] = useState("");
   const [isDrafting, setIsDrafting] = useState(false);
+  const [
+    aiDraftSkillPendingContexts,
+    setAIDraftSkillPendingContexts,
+  ] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const aiDraftSkillPendingContextsRef =
+    useRef<Set<string>>(new Set<string>());
+  const [aiDraftSkillError, setAIDraftSkillError] = useState<{
+    contextKey: string;
+    message: string;
+  } | null>(null);
   const [isReading, setIsReading] = useState(false);
   const [isProposing, setIsProposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +86,11 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
     `${workspaceId}:${conversationId ?? ""}`;
   const isInvokingSkill = skillInvocationPendingContexts.has(
     currentInvestigationContextKey,
+  );
+  const currentAIDraftSkillContextKey =
+    `${workspaceId}:${conversationId ?? ""}`;
+  const isInvokingAIDraftSkill = aiDraftSkillPendingContexts.has(
+    currentAIDraftSkillContextKey,
   );
 
   useEffect(() => {
@@ -286,6 +301,75 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
       );
     } finally {
       setIsDrafting(false);
+    }
+  }
+
+  async function invokeAIDraftEngineeringSkill() {
+    if (
+      !conversationId ||
+      !draftPath.trim() ||
+      !draftInstruction.trim()
+    ) {
+      return;
+    }
+
+    const requestContextKey = currentAIDraftSkillContextKey;
+    if (aiDraftSkillPendingContextsRef.current.has(requestContextKey)) {
+      return;
+    }
+
+    const requestedPath = draftPath.trim();
+    const requestedInstruction = draftInstruction.trim();
+
+    aiDraftSkillPendingContextsRef.current.add(requestContextKey);
+    setAIDraftSkillPendingContexts(
+      new Set(aiDraftSkillPendingContextsRef.current),
+    );
+    setAIDraftSkillError(null);
+    setError(null);
+
+    try {
+      const result = await workspaceApiRequest<EngineeringAIDraftResponse>(
+        workspaceId,
+        "/engineering/skills/engineering.ai_draft/invoke",
+        {
+          method: "POST",
+          headers: { "X-OAI-Local-Request": "1" },
+          timeoutMs: 130_000,
+          body: {
+            conversation_id: conversationId,
+            relative_path: requestedPath,
+            instruction: requestedInstruction,
+          },
+        },
+      );
+
+      if (
+        result.conversation_id !== conversationId ||
+        result.relative_path !== requestedPath
+      ) {
+        throw new ApiError(
+          "The Engineering AI Draft Skill response no longer matches this conversation and target.",
+          "HTTP",
+          409,
+        );
+      }
+
+      setAIDraft(result);
+      setAIDraftContent(result.draft_content);
+    } catch (caughtError) {
+      setAIDraftSkillError({
+        contextKey: requestContextKey,
+        message:
+          caughtError instanceof ApiError
+            ? caughtError.message
+            : "Unable to invoke the Engineering AI Draft Skill.",
+      });
+    } finally {
+      aiDraftSkillPendingContextsRef.current.delete(requestContextKey);
+      setAIDraftSkillPendingContexts(
+        new Set(aiDraftSkillPendingContextsRef.current),
+      );
     }
   }
 
@@ -777,7 +861,7 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
             <div className="mt-3 grid gap-3">
               <input
                 className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
-                disabled={isDrafting}
+                disabled={isDrafting || isInvokingAIDraftSkill}
                 onChange={(event) => setDraftPath(event.target.value)}
                 placeholder="Relative path"
                 value={draftPath}
@@ -785,23 +869,49 @@ export function EngineeringOwnerPanel({ workspaceId, conversationId }: Props) {
 
               <textarea
                 className="min-h-28 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
-                disabled={isDrafting}
+                disabled={isDrafting || isInvokingAIDraftSkill}
                 onChange={(event) => setDraftInstruction(event.target.value)}
                 placeholder="Describe what you want Local AI to change"
                 value={draftInstruction}
               />
 
-              <button
-                className="w-fit rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
-                disabled={
-                  isDrafting ||
-                  !draftPath.trim() ||
-                  !draftInstruction.trim()
-                }
-                type="submit"
-              >
-                {isDrafting ? "Drafting with Local AI…" : "Draft with Local AI"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="w-fit rounded-lg border border-emerald-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  disabled={
+                    isDrafting ||
+                    isInvokingAIDraftSkill ||
+                    !draftPath.trim() ||
+                    !draftInstruction.trim()
+                  }
+                  type="submit"
+                >
+                  {isDrafting ? "Drafting with Local AI…" : "Draft with Local AI"}
+                </button>
+
+                <button
+                  className="w-fit rounded-lg border border-violet-800 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  disabled={
+                    isDrafting ||
+                    isInvokingAIDraftSkill ||
+                    !draftPath.trim() ||
+                    !draftInstruction.trim()
+                  }
+                  onClick={invokeAIDraftEngineeringSkill}
+                  type="button"
+                >
+                  {isInvokingAIDraftSkill
+                    ? "Drafting via Engineering Skill…"
+                    : "Draft via Engineering Skill"}
+                </button>
+              </div>
+
+              {aiDraftSkillError?.contextKey ===
+              currentAIDraftSkillContextKey ? (
+                <p className="text-xs text-red-300" role="alert">
+                  {aiDraftSkillError.message}
+                </p>
+              ) : null}
             </div>
           </form>
 

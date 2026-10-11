@@ -268,11 +268,14 @@ def test_d122_engineering_module_imports_no_new_direct_mutation_authority() -> N
         assert imported not in forbidden_modules
 
 
-def test_d122_frontend_does_not_gain_ai_draft_skill_launcher() -> None:
+def test_d122_frontend_static_ai_draft_skill_route_remains_exact_when_exposed() -> None:
     panel = _PANEL_FILE.read_text(encoding="utf-8")
+    static_path = "/engineering/skills/engineering.ai_draft/invoke"
 
-    assert "/engineering/skills/engineering.ai_draft/invoke" not in panel
-    assert "/skills/engineering.ai_draft/invoke" not in panel
+    assert panel.count(static_path) == 1
+    assert f'"{static_path}"' in panel
+    assert "selectedSkillId" not in panel
+    assert "activeSkillId" not in panel
 
 
 def test_d122_chat_does_not_gain_ai_draft_skill_invocation_authority() -> None:
