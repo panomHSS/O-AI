@@ -808,3 +808,145 @@ B, or C.
 No frontend production change, database change, migration, provider-routing
 change, Cloud fallback, Local AI model fallback, profile fallback, or
 execution-authority expansion is authorized by this amendment.
+## Amendment D — Historical D113 Investigation Runtime Fixture Migration Authorization
+
+A fourth pre-implementation historical-test review found that
+`backend/tests/test_d113_engineering_investigation_runtime.py` constructs the
+real D113 Planner -> Guard -> AIRuntime Local AI path using a pre-D125
+single-model discovery fixture.
+
+Its `build_service()` fixture provides AI capability/model discovery with a
+single `configured_model_id`, but provides neither immutable D125
+Software Engineering task-profile configuration nor an independent exact
+profile-model availability boundary.
+
+That historical fixture assumption is superseded by the frozen D125 planning
+contract.
+
+The behavioral and security purposes of the D113 historical runtime tests
+remain valid and must be preserved.
+
+### Exact additional historical test authorization
+
+D125 Batch 01 may additionally modify exactly:
+
+- `backend/tests/test_d113_engineering_investigation_runtime.py`
+
+This authorization is test-only and does not expand the frozen D125 production
+scope.
+
+Permitted migration includes:
+
+- extending the D113 `build_service()` fixture with immutable D125 Local AI
+  profile configuration;
+- providing the exact D125 profile resolver/registry required by the planner;
+- configuring the exact Software Engineering profile:
+  `local_ai.software_engineering.v1`;
+- providing a read-only exact profile-model availability fixture;
+- providing any new frozen D125 Planner/AIRuntime constructor dependency
+  required by that historical fixture;
+- updating expected Local AI authorization metadata where D125 injects the
+  exact authorized profile/model binding;
+- preserving the existing D113 request-specific structured generation options;
+- preserving strict structured-result parsing and validation;
+- preserving all existing no-Cloud-fallback and one-shot execution
+  expectations.
+
+### Authority separation requirement
+
+The migrated D113 fixture must keep these concepts distinct:
+
+1. D104 server-derived task identity;
+2. provider/adapter routing;
+3. capability/model discovery;
+4. immutable D125 task-profile configuration;
+5. exact profile-model availability;
+6. D36 authorization;
+7. D49 execution;
+8. D113 request-specific structured generation constraints.
+
+The historical discovery object's `configured_model_id` must not become the
+source of D125 Software Engineering profile authority.
+
+D125 profile authority must come only from immutable server-owned test
+configuration representing the deployment profile boundary.
+
+### Exact D113 task/profile expectation
+
+D113 already invokes planning with:
+
+`AITaskKind.SOFTWARE_ENGINEERING`
+
+The migrated runtime fixture must therefore resolve exactly:
+
+`local_ai.software_engineering.v1`
+
+The exact model pinned into the Local AI execution plan must equal that
+profile's configured model.
+
+No General Chat profile may be substituted.
+
+### Structured generation preservation
+
+The migrated historical tests must continue to prove that D113 sends its
+bounded request-specific generation constraints:
+
+- a strict response schema;
+- `reasoning_enabled = false`;
+- `temperature = 0.0`.
+
+Under D125, the Software Engineering profile default reasoning policy is also
+false.
+
+The migrated test must preserve compatibility between those values.
+
+D125 must not remove or bypass D113's structured response schema.
+
+### Existing D113 security behavior preserved
+
+The following historical behaviors in this file must remain enforced:
+
+- one valid investigation performs exactly one Local AI generation;
+- Cloud AI receives no request;
+- malformed or extra JSON fails closed after one AI call;
+- unknown evidence references fail closed;
+- invalid candidate paths and invalid sequence values fail closed;
+- unavailable Local AI produces zero Cloud fallback;
+- a Cloud-only workspace cannot expand Engineering authority;
+- provider failure remains one-shot with no retry or Cloud fallback;
+- sensitive provider failure details are not exposed by the bounded D113
+  error;
+- D113 gains no proposal, Apply, shell, Git, direct Cloud, arbitrary provider,
+  arbitrary model, or credential authority.
+
+### Missing profile-model behavior
+
+The migrated fixture may additionally test that when the exact Software
+Engineering profile model is unavailable:
+
+- planning/investigation fails closed at the appropriate D125 boundary;
+- Local AI generation does not occur;
+- Cloud AI generation does not occur;
+- no alternate Local AI model or profile is attempted.
+
+### Historical-test boundary after Amendment D
+
+The only historical test files explicitly authorized for D125 migration so far
+are:
+
+- `backend/tests/test_local_ai_adapter.py`
+- `backend/tests/test_local_ai_runtime_factory.py`
+- `backend/tests/test_ai_runtime_e2e.py`
+- `backend/tests/test_d113_engineering_investigation_runtime.py`
+
+If another historical test file contains a distinct conflict with the frozen
+D125 design, implementation must stop and report that exact conflict before
+modifying it.
+
+No other historical test migration is implicitly authorized by Amendments A,
+B, C, or D.
+
+No D110/D113 production service change, frontend production change, database
+change, migration, routing-policy change, Cloud fallback, Local AI model
+fallback, profile fallback, or execution-authority expansion is authorized by
+this amendment.
