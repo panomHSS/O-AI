@@ -744,3 +744,52 @@ D123 is complete only when:
 - owner explicitly authorizes push.
 
 No implementation work is authorized beyond this frozen design.
+---
+
+## Amendment A — Historical D120/D121 frontend-absence assertions
+
+Status: FROZEN DESIGN AMENDMENT
+
+Batch 01 regression evidence proved that four additional historical tests encode the
+same pre-D123 frontend-absence rule already identified in Section 24.
+
+Those assertions are:
+
+1. `backend/tests/test_d120_second_builtin_skill_metadata.py`
+   - `test_d120_catalog_visibility_does_not_rewire_fixed_frontend_invocation`
+2. `backend/tests/test_d120_second_builtin_skill_security.py`
+   - `test_d120_security_frontend_does_not_gain_catalog_driven_invocation`
+3. `backend/tests/test_d121_engineering_ai_draft_skill_bridge.py`
+   - `test_d121_d116_and_frontend_production_surfaces_remain_unchanged`
+4. `backend/tests/test_d121_engineering_ai_draft_skill_bridge_security.py`
+   - `test_d121_frontend_remains_fixed_investigation_control_and_metadata_catalog`
+
+D123 intentionally supersedes only the sub-assertion in each test that requires
+`engineering.ai_draft/invoke` to be absent from the Engineering owner panel.
+
+Those tests may be updated only to recognize the exact fixed D123 static path:
+
+`/engineering/skills/engineering.ai_draft/invoke`
+
+while preserving their existing security properties:
+
+- the D117 investigation Skill path remains exact and fixed;
+- the D123 AI Draft Skill path remains exact and fixed;
+- no `selectedSkillId` exists;
+- no `activeSkillId` exists;
+- D119 catalog rendering remains metadata-only;
+- no catalog item becomes an invocation control;
+- no dynamic Skill URL is introduced;
+- D116 remains investigation-specific;
+- D121 bridge authority remains bounded.
+
+No production scope is widened by this amendment.
+
+Expected D123 production scope remains exactly:
+
+`frontend/components/chat/engineering-owner-panel.tsx`
+
+This amendment authorizes only the minimum historical-test updates required by the
+new fixed D123 frontend control. Historical security assertions must not otherwise be
+removed or weakened.
+
