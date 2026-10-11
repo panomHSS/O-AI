@@ -950,3 +950,216 @@ No D110/D113 production service change, frontend production change, database
 change, migration, routing-policy change, Cloud fallback, Local AI model
 fallback, profile fallback, or execution-authority expansion is authorized by
 this amendment.
+
+## Amendment E — Historical Local AI Planning Fixture Migration Set
+
+The mandatory pre-implementation historical compatibility scan identified five
+additional historical fixture-owning test files that construct successful
+Local AI planning/execution lanes using the pre-D125 assumption that AI
+discovery's `configured_model_id` is sufficient to plan Local AI execution.
+
+That assumption is superseded by the frozen D125 authority model.
+
+D125 requires successful Local AI planning to obtain the task profile from
+immutable server-owned task-profile configuration and to independently verify
+availability of the exact model bound to that profile.
+
+AI capability/model discovery remains a separate boundary and must not become
+the source of task-profile authority.
+
+### Exact additional historical test authorization
+
+D125 Batch 01 may additionally modify exactly these existing historical test
+files:
+
+- `backend/tests/test_command_orchestrator.py`
+- `backend/tests/test_knowledge_answer_ai_execution.py`
+- `backend/tests/test_d98_workspace_ai_routing_security.py`
+- `backend/tests/test_d111_ai_brain_runtime_integration.py`
+- `backend/tests/test_engineering_ai_draft_service.py`
+
+This authorization is test-only and does not expand the frozen D125 production
+scope.
+
+Migration in these files may:
+
+- add immutable D125 Local AI task-profile fixtures;
+- add the exact profile resolver/registry required by frozen D125 planning;
+- add an independent read-only exact profile-model availability fixture;
+- supply new frozen D125 Planner/AIRuntime constructor dependencies where
+  required;
+- update expected Local AI plan parameters to include exact
+  `local_ai_profile_id`;
+- preserve the existing pre-D125 plan shape for Cloud/non-Local-AI lanes;
+- update Local AI successful execution fixtures so they reach the originally
+  tested execution boundary rather than failing early because the historical
+  fixture omitted D125 prerequisites.
+
+Migration must not use discovery's `configured_model_id` as task-profile
+configuration or task-profile authority.
+
+### Command orchestrator preservation
+
+Migration of `backend/tests/test_command_orchestrator.py` must preserve:
+
+- context-aware command orchestration;
+- explicit Local AI selection executing only Local AI;
+- exactly one selected-provider execution attempt;
+- safe Local AI error normalization;
+- zero fallback to ChatGPT/Cloud when Local AI execution fails.
+
+An enabled Local AI failure test must still be capable of reaching the Local AI
+execution failure boundary when its configured D125 profile model is available.
+
+### Knowledge answer execution preservation
+
+Migration of `backend/tests/test_knowledge_answer_ai_execution.py` must
+preserve:
+
+- grounded knowledge-answer execution through Planner, Guard, and AIRuntime;
+- no direct-provider execution bypass;
+- explicit Local AI using only Local AI;
+- one-shot execution;
+- existing execution-audit expectations and redaction;
+- zero Cloud fallback after Local AI failure.
+
+### D98 workspace routing preservation
+
+Migration of `backend/tests/test_d98_workspace_ai_routing_security.py` must
+preserve:
+
+- Company workspace routing/isolation;
+- retrieved-context provider instructions cannot reroute a turn;
+- authorized adapter identity remains frozen after planning/authorization;
+- one-shot Local AI execution;
+- replay rejection after the authorized execution attempt is consumed;
+- Local AI execution failure never invokes Cloud AI.
+
+D125 profile configuration must not become a new route-selection surface.
+
+### D111 AI brain runtime preservation
+
+Migration of `backend/tests/test_d111_ai_brain_runtime_integration.py` must
+preserve:
+
+- structured-mode routing precedence;
+- Software Engineering tasks remain exact Local AI;
+- the existing D35 planning -> D36 authorization -> D49 runtime sequence;
+- unchanged Cloud behavior;
+- Local AI execution remains one-shot;
+- provider failure has no cross-provider retry.
+
+For Software Engineering cases, D125 must resolve exactly:
+
+`local_ai.software_engineering.v1`
+
+For General Chat Local AI cases, D125 must resolve exactly:
+
+`local_ai.general_chat.v1`
+
+### D110 Engineering AI Draft preservation
+
+Migration of `backend/tests/test_engineering_ai_draft_service.py` must
+preserve:
+
+- D106 evidence use;
+- exact target/source binding;
+- non-mutating draft generation;
+- existing create/update draft semantics;
+- output-size rejection without truncation;
+- exactly one Local AI generation where the historical test expected one;
+- zero Cloud fallback;
+- Software Engineering Local-only authority.
+
+D110 already supplies the server-derived Software Engineering task identity.
+The migrated fixture must therefore resolve exactly:
+
+`local_ai.software_engineering.v1`
+
+No General Chat profile may be substituted.
+
+### Shared D98 fixture inherited by D100
+
+`backend/tests/test_d100_context_routing_egress_replay.py` imports the affected
+D98 `lane()` fixture.
+
+Amendment E does not authorize direct modification of the D100 file.
+
+The D98 fixture migration must be written so that the existing D100 tests can
+continue to exercise their historical behavior through the migrated shared
+fixture.
+
+The D100 historical behaviors that must remain valid include:
+
+- a failed authorized Local AI attempt is consumed;
+- replay after that attempt is rejected;
+- failure produces no Cloud egress;
+- quoted provider instructions do not control routing.
+
+If direct modification of
+`backend/tests/test_d100_context_routing_egress_replay.py` becomes necessary,
+implementation must stop and report the exact conflict before editing that
+file.
+
+### Authority separation requirement
+
+All migrated fixtures under Amendment E must keep these concepts distinct:
+
+1. server-derived task identity;
+2. adapter/provider routing;
+3. AI capability/model discovery;
+4. immutable D125 task-profile configuration;
+5. exact profile-model availability;
+6. execution planning;
+7. D36 authorization;
+8. D49 execution.
+
+Neither prompt text nor discovery output may select a D125 profile.
+
+### Failure-path preservation
+
+Where a historical test intentionally exercises provider failure after
+authorization, its migrated fixture may mark the exact D125 profile model as
+available so execution reaches that provider-failure boundary.
+
+This is fixture setup only.
+
+It must not weaken the production rule that an actually unavailable exact
+profile model fails closed before generation.
+
+Historical tests for post-authorization provider failure must continue to prove
+that there is:
+
+- no model retry;
+- no profile retry;
+- no alternate Local AI model;
+- no Cloud fallback;
+- no second provider execution.
+
+### Historical-test boundary after Amendment E
+
+The only historical test files explicitly authorized for D125 migration are:
+
+- `backend/tests/test_local_ai_adapter.py`
+- `backend/tests/test_local_ai_runtime_factory.py`
+- `backend/tests/test_ai_runtime_e2e.py`
+- `backend/tests/test_d113_engineering_investigation_runtime.py`
+- `backend/tests/test_command_orchestrator.py`
+- `backend/tests/test_knowledge_answer_ai_execution.py`
+- `backend/tests/test_d98_workspace_ai_routing_security.py`
+- `backend/tests/test_d111_ai_brain_runtime_integration.py`
+- `backend/tests/test_engineering_ai_draft_service.py`
+
+`backend/tests/test_d100_context_routing_egress_replay.py` is not directly
+authorized for modification by this amendment.
+
+If any other historical test file contains a distinct conflict with the frozen
+D125 design, implementation must stop and report that exact conflict before
+modifying it.
+
+No other historical test migration is implicitly authorized.
+
+No frontend production change, D110/D113 production service change, database
+change, migration, workspace-routing expansion, provider-routing expansion,
+Cloud fallback, Local AI model fallback, profile fallback, arbitrary model
+selection, or execution-authority expansion is authorized by this amendment.
