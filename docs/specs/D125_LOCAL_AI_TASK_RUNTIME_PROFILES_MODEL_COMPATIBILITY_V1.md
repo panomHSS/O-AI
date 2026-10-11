@@ -618,3 +618,86 @@ implementation must stop and report that exact conflict before modifying it.
 No frontend production change, database change, migration, routing expansion,
 provider fallback, model fallback, or execution-authority expansion is
 authorized by this amendment.
+## Amendment B — Historical Runtime-Swap Test Migration Authorization
+
+A second pre-implementation historical-test review found that
+`backend/tests/test_local_ai_runtime_factory.py` contains one pre-D125 direct
+LocalAIAdapter invocation.
+
+The historical test
+`test_non_ollama_runtime_can_power_local_ai_adapter_without_adapter_change`
+constructs a replacement runtime and invokes LocalAIAdapter without the D125
+authorized profile/model binding.
+
+That direct invocation shape is superseded by the frozen D125 authorization
+boundary.
+
+The behavioral purpose of the historical test remains valid and must be
+preserved: LocalAIAdapter must remain runtime-implementation-neutral, and a
+supported replacement Local AI runtime must be able to power the adapter
+without changing LocalAIAdapter for that backend.
+
+### Exact additional historical test authorization
+
+D125 Batch 01 may additionally modify exactly:
+
+- `backend/tests/test_local_ai_runtime_factory.py`
+
+This authorization is test-only and does not expand the frozen D125 production
+scope.
+
+Permitted migration includes:
+
+- updating the replacement-runtime test fixture to support the bounded D125
+  Local AI generation call shape;
+- supplying an immutable D125 profile resolver/registry where required by the
+  adapter composition seam;
+- supplying exact authorized profile/model metadata to the positive
+  runtime-swap adapter test;
+- updating settings mocks with the new optional D125 task-profile settings
+  when composition requires them;
+- asserting that the exact profile model, timeout, context length, and
+  reasoning policy reach the replacement runtime;
+- preserving the test's requirement that the replacement backend is not
+  silently replaced by Ollama;
+- preserving the test's requirement that generation occurs exactly once.
+
+### Required security preservation
+
+This amendment does not authorize successful unbound LocalAIAdapter execution.
+
+The migrated runtime-swap test must exercise the same post-authorization
+internal request state required by D125.
+
+It must not:
+
+- add a legacy bypass for requests without authorized profile/model binding;
+- weaken model/profile mismatch rejection;
+- introduce fallback to Ollama;
+- introduce alternate-model fallback;
+- introduce another-profile fallback;
+- introduce Cloud AI fallback;
+- grant browser, prompt, or caller model-selection authority.
+
+The replacement runtime remains an implementation of the provider-neutral Local
+AI runtime seam. D125 profile authorization remains independent of runtime
+backend identity.
+
+### Historical-test boundary after Amendment B
+
+The only historical test files explicitly authorized for D125 migration so far
+are:
+
+- `backend/tests/test_local_ai_adapter.py`
+- `backend/tests/test_local_ai_runtime_factory.py`
+
+If another historical test file contains a distinct conflict with the frozen
+D125 design, implementation must stop and report that exact conflict before
+modifying it.
+
+No other historical test migration is implicitly authorized by Amendments A or
+B.
+
+No frontend production change, database change, migration, provider-routing
+change, backend-selection change, fallback behavior, or execution-authority
+expansion is authorized by this amendment.
