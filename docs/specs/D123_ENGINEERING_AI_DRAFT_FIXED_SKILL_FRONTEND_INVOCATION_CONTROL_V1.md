@@ -792,4 +792,3 @@ Expected D123 production scope remains exactly:
 This amendment authorizes only the minimum historical-test updates required by the
 new fixed D123 frontend control. Historical security assertions must not otherwise be
 removed or weakened.
-
