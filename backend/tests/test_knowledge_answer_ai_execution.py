@@ -1,3 +1,4 @@
+from tests.d125_profile_fixtures import profiles, availability
 import unittest
 from types import SimpleNamespace
 
@@ -139,6 +140,8 @@ class KnowledgeAnswerAIExecutionTests(unittest.TestCase):
         audit = ExecutionAuditTrail(sink=sink)
         planner = RecordingExecutionPlanner(
             ExecutionPlanner(
+                local_ai_profiles=profiles(),
+                local_ai_availability=availability(),
                 registry=registry,
                 decision_engine=CommandDecisionEngine(),
                 ai_router=router,
@@ -148,6 +151,7 @@ class KnowledgeAnswerAIExecutionTests(unittest.TestCase):
             )
         )
         guard = ExecutionGuard(
+            local_ai_profiles=profiles(),
             registry=registry,
             permission_policy=object(),
             audit=audit,

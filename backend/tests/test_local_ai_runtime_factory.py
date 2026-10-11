@@ -1,3 +1,4 @@
+from tests.d125_profile_fixtures import profiles, bound_request
 import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import Mock, patch
@@ -42,6 +43,9 @@ class NonOllamaRuntime:
         prompt: str,
         timeout_seconds: float,
         context_length: int,
+        response_schema=None,
+        reasoning_enabled=None,
+        temperature=None,
     ) -> str:
         self.generate_calls += 1
         if model != "replacement-model":
@@ -52,6 +56,7 @@ class NonOllamaRuntime:
             raise AssertionError("unexpected timeout")
         if context_length != 2048:
             raise AssertionError("unexpected context length")
+        assert response_schema is None and reasoning_enabled is None and temperature is None
         return self.result
 
 
@@ -61,7 +66,7 @@ class NoopTelemetrySession:
 
 
 class NoopTelemetryProvider:
-    def start_inference_session(self) -> NoopTelemetrySession:
+    def start_inference_session(self, *, model: str) -> NoopTelemetrySession:
         return NoopTelemetrySession()
 
 
@@ -159,6 +164,7 @@ class D33LocalAIRuntimeTests(unittest.TestCase):
     ) -> None:
         runtime = NonOllamaRuntime()
         adapter = get_local_ai_adapter(
+            profiles=profiles("replacement-model", 30.0, 2048),
             config=replacement_config(),
             runtime_client=runtime,
             telemetry_provider=NoopTelemetryProvider(),  # type: ignore[arg-type]
@@ -166,7 +172,7 @@ class D33LocalAIRuntimeTests(unittest.TestCase):
 
         self.assertIsInstance(adapter, LocalAIAdapter)
         self.assertNotIsInstance(runtime, OllamaRuntimeClient)
-        result = adapter.generate(AIRequest(content="hello"))
+        result = adapter.generate(bound_request(content="hello", model="replacement-model"))
 
         self.assertEqual(result, AIResult(content="replacement backend reply"))
         self.assertEqual(runtime.generate_calls, 1)

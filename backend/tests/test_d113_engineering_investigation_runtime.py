@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tests.d125_profile_fixtures import profiles, availability
 
 import inspect
 import json
@@ -175,6 +176,10 @@ def build_service(
     )
 
     planner = ExecutionPlanner(
+
+        local_ai_profiles=profiles(),
+
+        local_ai_availability=availability(),
         registry=registry,
         decision_engine=CommandDecisionEngine(),
         ai_router=router,
@@ -182,6 +187,7 @@ def build_service(
         permission_policy=object(),  # type: ignore[arg-type]
     )
     guard = ExecutionGuard(
+        local_ai_profiles=profiles(),
         registry=registry,
         permission_policy=object(),  # type: ignore[arg-type]
     )

@@ -1,3 +1,4 @@
+from tests.d125_profile_fixtures import profiles, bound_request
 import unittest
 import time
 from unittest.mock import Mock
@@ -51,7 +52,7 @@ class StubRuntimeClient:
 
 
 class FailingTelemetryProvider:
-    def start_inference_session(self) -> object:
+    def start_inference_session(self, *, model: str) -> object:
         raise RuntimeError("metrics failure")
 
 
@@ -70,7 +71,7 @@ class RecordingTelemetryProvider:
         self.stopped = False
         self.samples = 0
 
-    def start_inference_session(self) -> RecordingTelemetrySession:
+    def start_inference_session(self, *, model: str) -> RecordingTelemetrySession:
         self.active = True
         self.samples += 1
         return RecordingTelemetrySession(self)
@@ -81,9 +82,7 @@ class LocalAIAdapterTests(unittest.TestCase):
         return LocalAIAdapter(
             runtime_client=runtime,
             enabled=True,
-            model="configured-model",
-            timeout_seconds=12.5,
-            context_length=4096,
+            profiles=profiles(),
             **kwargs,
         )
 
@@ -97,7 +96,7 @@ class LocalAIAdapterTests(unittest.TestCase):
     def test_generate_returns_ai_result_and_delegates_once(self) -> None:
         runtime = StubRuntimeClient(result="  local reply  ")
 
-        result = self.make_adapter(runtime).generate(AIRequest(content="hello"))
+        result = self.make_adapter(runtime).generate(bound_request(content="hello"))
 
         self.assertEqual(result, AIResult(content="local reply"))
         self.assertEqual(runtime.generate_calls, 1)
@@ -110,7 +109,7 @@ class LocalAIAdapterTests(unittest.TestCase):
         }
 
         result = self.make_adapter(runtime).generate(
-            AIRequest(
+            bound_request(
                 content="hello",
                 metadata={
                     LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY: {
@@ -142,7 +141,7 @@ class LocalAIAdapterTests(unittest.TestCase):
 
         with self.assertRaisesRegex(LocalAIResponseError, "options"):
             self.make_adapter(runtime).generate(
-                AIRequest(
+                bound_request(
                     content="hello",
                     metadata={
                         LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY: {
@@ -160,7 +159,7 @@ class LocalAIAdapterTests(unittest.TestCase):
         runtime = StubRuntimeClient(online=False)
 
         with self.assertRaisesRegex(LocalAIUnavailableError, "runtime"):
-            self.make_adapter(runtime).generate(AIRequest(content="hello"))
+            self.make_adapter(runtime).generate(bound_request(content="hello"))
 
         self.assertEqual(runtime.generate_calls, 0)
 
@@ -168,7 +167,7 @@ class LocalAIAdapterTests(unittest.TestCase):
         runtime = StubRuntimeClient(model_available=False)
 
         with self.assertRaisesRegex(LocalAIUnavailableError, "model"):
-            self.make_adapter(runtime).generate(AIRequest(content="hello"))
+            self.make_adapter(runtime).generate(bound_request(content="hello"))
 
         self.assertEqual(runtime.generate_calls, 0)
 
@@ -176,13 +175,13 @@ class LocalAIAdapterTests(unittest.TestCase):
         runtime = StubRuntimeClient(error=LocalAIRuntimeTimeoutError("timeout"))
 
         with self.assertRaisesRegex(LocalAIResponseError, "timed out"):
-            self.make_adapter(runtime).generate(AIRequest(content="hello"))
+            self.make_adapter(runtime).generate(bound_request(content="hello"))
 
     def test_runtime_failure_during_generation_has_no_fallback(self) -> None:
         runtime = StubRuntimeClient(error=LocalAIRuntimeUnavailableError("offline"))
 
         with self.assertRaisesRegex(LocalAIUnavailableError, "runtime"):
-            self.make_adapter(runtime).generate(AIRequest(content="hello"))
+            self.make_adapter(runtime).generate(bound_request(content="hello"))
 
         self.assertEqual(runtime.generate_calls, 1)
 
@@ -191,13 +190,13 @@ class LocalAIAdapterTests(unittest.TestCase):
             with self.subTest(result=result):
                 runtime = StubRuntimeClient(result=result)
                 with self.assertRaisesRegex(LocalAIResponseError, "invalid"):
-                    self.make_adapter(runtime).generate(AIRequest(content="hello"))
+                    self.make_adapter(runtime).generate(bound_request(content="hello"))
 
     def test_telemetry_failure_never_fails_successful_inference(self) -> None:
         result = self.make_adapter(
             StubRuntimeClient(),
             telemetry_provider=FailingTelemetryProvider(),
-        ).generate(AIRequest(content="hello"))
+        ).generate(bound_request(content="hello"))
 
         self.assertEqual(result.content, "local reply")
 
@@ -215,7 +214,7 @@ class LocalAIAdapterTests(unittest.TestCase):
         runtime.assertGreater = self.assertGreater  # type: ignore[attr-defined]
 
         self.make_adapter(runtime, telemetry_provider=telemetry).generate(
-            AIRequest(content="hello")
+            bound_request(content="hello")
         )
 
         self.assertTrue(telemetry.stopped)
@@ -251,7 +250,7 @@ class LocalAIAdapterTests(unittest.TestCase):
         self.make_adapter(
             RuntimeWaitingForSample(),
             telemetry_provider=telemetry,
-        ).generate(AIRequest(content="hello"))
+        ).generate(bound_request(content="hello"))
 
         self.assertEqual(observed_activity, ["ACTIVE"])
         self.assertEqual(telemetry.latest_summary.activity_status, "IDLE")

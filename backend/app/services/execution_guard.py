@@ -9,6 +9,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.contracts.ai_discovery import AI_CAPABILITY_TEXT_GENERATION
+from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
+from app.services.local_ai_profile import LocalAIProfileResolver
 from app.contracts.command import CommandRequest, ExecutionPlan, ExecutionStep
 from app.contracts.execution_authorization import (
     ExecutionAuthorization,
@@ -114,10 +116,12 @@ class ExecutionGuard:
         registry: AdapterRegistry,
         permission_policy: CapabilityPermissionPolicy,
         audit: ExecutionAuditTrail | None = None,
+        local_ai_profiles: LocalAIProfileResolver | None = None,
     ) -> None:
         self._registry = registry
         self._permission_policy = permission_policy
         self._audit = audit
+        self._local_ai_profiles = local_ai_profiles
 
     def authorize(
         self,
@@ -248,9 +252,21 @@ class ExecutionGuard:
 
         step = plan.steps[0]
         parameters = step.parameters
+        expected_parameters = {"capability_id", "model_id"}
+        if plan.adapter_id == LOCAL_AI_ADAPTER_ID:
+            expected_parameters.add("local_ai_profile_id")
+            try:
+                if self._local_ai_profiles is None:
+                    raise ValueError("Local AI profiles required.")
+                self._local_ai_profiles.authorized_profile(
+                    parameters.get("local_ai_profile_id"), parameters.get("model_id"),
+                )
+            except ValueError:
+                return self._rejected(request.request_id, "authorization_policy_violation",
+                                      target_kind="ai", digest=digest)
         if (
             step.operation != "ai.generate_text"
-            or set(parameters) != {"capability_id", "model_id"}
+            or set(parameters) != expected_parameters
             or parameters.get("capability_id")
             != AI_CAPABILITY_TEXT_GENERATION
             or not isinstance(parameters.get("model_id"), str)

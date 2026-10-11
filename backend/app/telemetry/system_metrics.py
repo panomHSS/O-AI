@@ -52,9 +52,11 @@ class InferenceTelemetrySession:
         provider: "SystemMetricsProvider",
         *,
         interval_seconds: float,
+        model: str | None = None,
     ) -> None:
         self._provider = provider
         self._interval_seconds = interval_seconds
+        self._model = model
         self._stop_event = Event()
         self._thread: Thread | None = None
         self._session_id: int | None = None
@@ -77,7 +79,7 @@ class InferenceTelemetrySession:
         while not self._stop_event.is_set():
             try:
                 if self._session_id is not None:
-                    self._provider._record_active_sample(self._session_id)
+                    self._provider._record_active_sample(self._session_id, model=self._model)
             except Exception:
                 pass
             self._stop_event.wait(self._interval_seconds)
@@ -115,21 +117,22 @@ class SystemMetricsProvider:
         with self._lock:
             return self._summary
 
-    def start_inference_session(self) -> InferenceTelemetrySession:
+    def start_inference_session(self, *, model: str | None = None) -> InferenceTelemetrySession:
         """Create and start a best-effort sampler for one runtime generation."""
         session = InferenceTelemetrySession(
             self,
             interval_seconds=self._sample_interval_seconds,
+            model=model,
         )
         session.start()
         return session
 
-    def collect(self, *, activity_status: ActivityStatus = "IDLE") -> SystemMetrics:
+    def collect(self, *, activity_status: ActivityStatus = "IDLE", model: str | None = None) -> SystemMetrics:
         """Return one best-effort CPU, memory, GPU, and runtime sample."""
         cpu_percent = self._read_cpu_percent()
         ram_percent = self._read_ram_percent()
         gpu_percent, vram_used_mib, vram_total_mib = self._read_gpu_metrics()
-        runtime_status, model_status = self._read_runtime_status()
+        runtime_status, model_status = self._read_runtime_status(model)
         vram_percent = (
             round((vram_used_mib / vram_total_mib) * 100, 1)
             if vram_used_mib is not None and vram_total_mib
@@ -175,8 +178,8 @@ class SystemMetricsProvider:
                 latest=latest,
             )
 
-    def _record_active_sample(self, session_id: int) -> None:
-        sample = self.collect(activity_status="ACTIVE")
+    def _record_active_sample(self, session_id: int, *, model: str | None = None) -> None:
+        sample = self.collect(activity_status="ACTIVE", model=model)
         with self._lock:
             current = self._summary
             if (
@@ -244,15 +247,16 @@ class SystemMetricsProvider:
         except Exception:
             return None, None, None
 
-    def _read_runtime_status(self) -> tuple[RuntimeStatus, ModelStatus]:
-        if self._runtime_client is None or self._model is None:
+    def _read_runtime_status(self, model: str | None = None) -> tuple[RuntimeStatus, ModelStatus]:
+        selected_model = self._model if model is None else model
+        if self._runtime_client is None or selected_model is None:
             return "UNKNOWN", "UNKNOWN"
         try:
             if not self._runtime_client.is_runtime_available():
                 return "OFFLINE", "IDLE"
             return (
                 "ONLINE",
-                "LOADED" if self._runtime_client.is_model_loaded(self._model) else "IDLE",
+                "LOADED" if self._runtime_client.is_model_loaded(selected_model) else "IDLE",
             )
         except Exception:
             return "UNKNOWN", "UNKNOWN"

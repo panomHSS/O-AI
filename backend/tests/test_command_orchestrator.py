@@ -1,3 +1,4 @@
+from tests.d125_profile_fixtures import profiles, availability
 import unittest
 from unittest.mock import Mock
 from uuid import UUID
@@ -131,6 +132,8 @@ class CommandOrchestratorTests(unittest.TestCase):
             ),
         )
         planner = ExecutionPlanner(
+            local_ai_profiles=profiles(),
+            local_ai_availability=availability(),
             registry=registry,
             decision_engine=CommandDecisionEngine(),
             ai_router=router,
@@ -138,6 +141,7 @@ class CommandOrchestratorTests(unittest.TestCase):
             permission_policy=object(),
         )
         guard = ExecutionGuard(
+            local_ai_profiles=profiles(),
             registry=registry,
             permission_policy=object(),
         )

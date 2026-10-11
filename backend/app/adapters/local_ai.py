@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Protocol
+import math
+
+from app.services.local_ai_profile import LocalAIProfileResolver
 
 from app.contracts.ai import AI_ADAPTER_CONTRACT_VERSION, AIRequest, AIResult
 from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
 from app.contracts.local_ai_runtime import (
     LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY,
+    AUTHORIZED_LOCAL_AI_PROFILE_KEY,
+    AUTHORIZED_LOCAL_AI_MODEL_KEY,
     LocalAIRuntimeClient,
     LocalAIRuntimeResponseError,
     LocalAIRuntimeTimeoutError,
@@ -39,7 +44,7 @@ class InferenceTelemetrySession(Protocol):
 class InferenceTelemetryProvider(Protocol):
     """Optional telemetry boundary kept separate from inference behavior."""
 
-    def start_inference_session(self) -> InferenceTelemetrySession:
+    def start_inference_session(self, *, model: str) -> InferenceTelemetrySession:
         """Start best-effort telemetry without blocking inference."""
         ...
 
@@ -55,47 +60,45 @@ class LocalAIAdapter:
         *,
         runtime_client: LocalAIRuntimeClient,
         enabled: bool,
-        model: str,
-        timeout_seconds: float,
-        context_length: int,
+        profiles: LocalAIProfileResolver,
         telemetry_provider: InferenceTelemetryProvider | None = None,
     ) -> None:
         self._runtime_client = runtime_client
         self._enabled = enabled
-        self._model = model
-        self._timeout_seconds = timeout_seconds
-        self._context_length = context_length
+        self._profiles = profiles
         self._telemetry_provider = telemetry_provider
 
     def generate(self, request: AIRequest) -> AIResult:
         """Generate locally after fail-closed runtime and model checks."""
+        if not isinstance(request.metadata, Mapping):
+            raise LocalAIResponseError("Local AI authorization binding is invalid.")
+        try:
+            profile = self._profiles.authorized_profile(
+                request.metadata.get(AUTHORIZED_LOCAL_AI_PROFILE_KEY),
+                request.metadata.get(AUTHORIZED_LOCAL_AI_MODEL_KEY),
+            )
+        except ValueError as error:
+            raise LocalAIResponseError("Local AI authorization binding is invalid.") from error
         generation_options = self._generation_options(request)
-        self._require_available()
-        telemetry_session = self._start_telemetry_session()
+        response_schema, request_reasoning, temperature = generation_options or (None, None, None)
+        reasoning = profile.reasoning_enabled
+        if request_reasoning is not None:
+            if reasoning is not None and request_reasoning is not reasoning:
+                raise LocalAIResponseError("Local AI reasoning policy conflicts with request.")
+            reasoning = request_reasoning
+        self._require_available(profile.model_id)
+        telemetry_session = self._start_telemetry_session(profile.model_id)
         try:
             try:
-                if generation_options is None:
-                    content = self._runtime_client.generate(
-                        model=self._model,
-                        prompt=request.content,
-                        timeout_seconds=self._timeout_seconds,
-                        context_length=self._context_length,
-                    )
-                else:
-                    (
-                        response_schema,
-                        reasoning_enabled,
-                        temperature,
-                    ) = generation_options
-                    content = self._runtime_client.generate(
-                        model=self._model,
-                        prompt=request.content,
-                        timeout_seconds=self._timeout_seconds,
-                        context_length=self._context_length,
-                        response_schema=response_schema,
-                        reasoning_enabled=reasoning_enabled,
-                        temperature=temperature,
-                    )
+                content = self._runtime_client.generate(
+                    model=profile.model_id,
+                    prompt=request.content,
+                    timeout_seconds=profile.timeout_seconds,
+                    context_length=profile.context_length,
+                    response_schema=response_schema,
+                    reasoning_enabled=reasoning,
+                    temperature=temperature,
+                )
             except LocalAIRuntimeTimeoutError as error:
                 raise LocalAIResponseError("Local AI request timed out.") from error
             except LocalAIRuntimeUnavailableError as error:
@@ -116,7 +119,7 @@ class LocalAIAdapter:
     @staticmethod
     def _generation_options(
         request: AIRequest,
-    ) -> tuple[Mapping[str, object], bool, float] | None:
+    ) -> tuple[Mapping[str, object] | None, bool | None, float | None] | None:
         if not isinstance(request.metadata, Mapping):
             raise LocalAIResponseError("Local AI generation options are invalid.")
 
@@ -125,37 +128,38 @@ class LocalAIAdapter:
             return None
         if not isinstance(raw, Mapping):
             raise LocalAIResponseError("Local AI generation options are invalid.")
-        if set(raw) != {
+        if not set(raw) <= {
             "response_schema",
             "reasoning_enabled",
             "temperature",
         }:
             raise LocalAIResponseError("Local AI generation options are invalid.")
 
-        response_schema = raw["response_schema"]
-        reasoning_enabled = raw["reasoning_enabled"]
-        temperature = raw["temperature"]
+        response_schema = raw.get("response_schema")
+        reasoning_enabled = raw.get("reasoning_enabled")
+        temperature = raw.get("temperature")
 
-        if not isinstance(response_schema, Mapping) or not response_schema:
+        if "response_schema" in raw and (not isinstance(response_schema, Mapping) or not response_schema):
             raise LocalAIResponseError("Local AI generation options are invalid.")
-        if type(reasoning_enabled) is not bool:
+        if "reasoning_enabled" in raw and type(reasoning_enabled) is not bool:
             raise LocalAIResponseError("Local AI generation options are invalid.")
-        if (
+        if "temperature" in raw and (
             type(temperature) not in {int, float}
             or isinstance(temperature, bool)
-            or temperature < 0
+            or not math.isfinite(temperature)
+            or not 0 <= temperature <= 2
         ):
             raise LocalAIResponseError("Local AI generation options are invalid.")
 
-        return response_schema, reasoning_enabled, float(temperature)
+        return response_schema, reasoning_enabled, float(temperature) if temperature is not None else None
 
-    def _require_available(self) -> None:
+    def _require_available(self, model: str) -> None:
         if not self._enabled:
             raise LocalAIUnavailableError("Local AI is disabled.")
         try:
             runtime_online = self._runtime_client.is_runtime_available()
             model_available = (
-                self._runtime_client.is_model_available(self._model)
+                self._runtime_client.is_model_available(model)
                 if runtime_online
                 else False
             )
@@ -167,10 +171,10 @@ class LocalAIAdapter:
         if not model_available:
             raise LocalAIUnavailableError("Local AI model is unavailable.")
 
-    def _start_telemetry_session(self) -> InferenceTelemetrySession | None:
+    def _start_telemetry_session(self, model: str) -> InferenceTelemetrySession | None:
         if self._telemetry_provider is None:
             return None
         try:
-            return self._telemetry_provider.start_inference_session()
+            return self._telemetry_provider.start_inference_session(model=model)
         except Exception:
             return None

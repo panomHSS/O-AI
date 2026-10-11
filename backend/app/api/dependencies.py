@@ -270,6 +270,7 @@ from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
     LocalAIModelDiscoverySource,
 )
+from app.services.local_ai_profile import LocalAIProfileResolver, LocalAIProfileAvailability
 from app.services.local_ai_config import LocalAIAdapterConfig
 from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
 from app.services.local_ai_visibility import LocalAIRuntimeVisibilityService
@@ -698,7 +699,20 @@ def get_local_ai_telemetry_provider(
     )
 
 
+def get_local_ai_profiles() -> LocalAIProfileResolver:
+    """Resolve immutable deployment configuration independently of discovery."""
+    return LocalAIProfileResolver.from_settings(get_settings())
+
+
+def get_local_ai_profile_availability(
+    config: LocalAIAdapterConfig = Depends(get_local_ai_config),
+    runtime_client: LocalAIRuntimeClient = Depends(get_local_ai_runtime_client),
+) -> LocalAIProfileAvailability:
+    return LocalAIProfileAvailability(runtime_client, config.enabled)
+
+
 def get_local_ai_adapter(
+    profiles: LocalAIProfileResolver = Depends(get_local_ai_profiles),
     config: LocalAIAdapterConfig = Depends(get_local_ai_config),
     runtime_client: LocalAIRuntimeClient = Depends(get_local_ai_runtime_client),
     telemetry_provider: SystemMetricsProvider = Depends(
@@ -709,9 +723,7 @@ def get_local_ai_adapter(
     return LocalAIAdapter(
         runtime_client=runtime_client,
         enabled=config.enabled,
-        model=config.model,
-        timeout_seconds=config.timeout_seconds,
-        context_length=config.context_length,
+        profiles=profiles,
         telemetry_provider=telemetry_provider,
     )
 
@@ -1463,6 +1475,7 @@ def get_capability_permission_policy(
 
 
 def get_execution_guard(
+    local_ai_profiles: LocalAIProfileResolver = Depends(get_local_ai_profiles),
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
     permission_policy: CapabilityPermissionPolicy = Depends(
         get_capability_permission_policy
@@ -1472,12 +1485,15 @@ def get_execution_guard(
     """Compose D36 authorization with D44 policy and D39 observation."""
     return ExecutionGuard(
         registry=adapter_registry,
+        local_ai_profiles=local_ai_profiles,
         permission_policy=permission_policy,
         audit=audit,
     )
 
 
 def get_execution_planner(
+    local_ai_profiles: LocalAIProfileResolver = Depends(get_local_ai_profiles),
+    local_ai_availability: LocalAIProfileAvailability = Depends(get_local_ai_profile_availability),
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
     decision_engine: CommandDecisionEngine = Depends(get_command_decision_engine),
     ai_router: AIRouter = Depends(get_ai_router),
@@ -1491,7 +1507,9 @@ def get_execution_planner(
 ) -> ExecutionPlanner:
     """Compose D35 planning with D44 policy and D39 observation."""
     return ExecutionPlanner(
+        local_ai_availability=local_ai_availability,
         registry=adapter_registry,
+        local_ai_profiles=local_ai_profiles,
         decision_engine=decision_engine,
         ai_router=ai_router,
         ai_discovery=ai_discovery,

@@ -8,6 +8,16 @@ from typing import Protocol, runtime_checkable
 
 LOCAL_AI_RUNTIME_OLLAMA = "ollama"
 LOCAL_AI_GENERATION_OPTIONS_METADATA_KEY = "local_ai_generation_options_v1"
+AUTHORIZED_LOCAL_AI_PROFILE_KEY = "authorized_local_ai_profile_id"
+AUTHORIZED_LOCAL_AI_MODEL_KEY = "authorized_local_ai_model_id"
+
+
+class LocalAIRuntimeAvailability(Protocol):
+    """Read-only exact-model availability, without generation authority."""
+
+    def is_runtime_available(self) -> bool: ...
+
+    def is_model_available(self, model: str) -> bool: ...
 
 
 class LocalAIRuntimeError(Exception):

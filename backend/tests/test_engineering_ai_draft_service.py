@@ -1,3 +1,4 @@
+from tests.d125_profile_fixtures import profiles, availability
 import hashlib
 from pathlib import Path
 from uuid import uuid4
@@ -90,13 +91,15 @@ def build_service(
     )
     permissions = CapabilityPermissionPolicy(registry=registry, permissions=())
     planner = ExecutionPlanner(
+        local_ai_profiles=profiles(),
+        local_ai_availability=availability(),
         registry=registry,
         decision_engine=CommandDecisionEngine(),
         ai_router=router,
         ai_discovery=Discovery(),  # type: ignore[arg-type]
         permission_policy=permissions,
     )
-    guard = ExecutionGuard(registry=registry, permission_policy=permissions)
+    guard = ExecutionGuard(registry=registry, permission_policy=permissions, local_ai_profiles=profiles())
     runtime = AIRuntime(registry=registry)
 
     return (

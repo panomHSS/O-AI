@@ -1,3 +1,4 @@
+from tests.d125_profile_fixtures import profiles, availability
 import unittest
 
 from app.adapters.local_ai import LocalAIResponseError
@@ -74,6 +75,8 @@ class UnifiedAIExecutionE2ETests(unittest.TestCase):
         sink = InMemoryAuditSink()
         audit = ExecutionAuditTrail(sink=sink)
         planner = ExecutionPlanner(
+            local_ai_profiles=profiles(),
+            local_ai_availability=availability(),
             registry=registry,
             decision_engine=CommandDecisionEngine(),
             ai_router=router,
@@ -82,6 +85,7 @@ class UnifiedAIExecutionE2ETests(unittest.TestCase):
             audit=audit,
         )
         guard = ExecutionGuard(
+            local_ai_profiles=profiles(),
             registry=registry,
             permission_policy=object(),
             audit=audit,

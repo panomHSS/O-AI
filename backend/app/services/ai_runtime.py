@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import replace
+from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
+from app.contracts.local_ai_profile import GENERAL_CHAT_PROFILE_ID, SOFTWARE_ENGINEERING_PROFILE_ID, valid_model_id
+from app.contracts.local_ai_runtime import AUTHORIZED_LOCAL_AI_PROFILE_KEY, AUTHORIZED_LOCAL_AI_MODEL_KEY
+
 from app.contracts.ai import (
     AI_ADAPTER_CONTRACT_VERSION,
     AIAdapter,
@@ -101,6 +107,16 @@ class AIRuntime:
             request,
             authorization,
         )
+        if not isinstance(ai_request.metadata, Mapping):
+            raise AIExecutionRejectedError("invalid_ai_request")
+        if {AUTHORIZED_LOCAL_AI_PROFILE_KEY, AUTHORIZED_LOCAL_AI_MODEL_KEY}.intersection(ai_request.metadata):
+            raise AIExecutionRejectedError("reserved_local_ai_authorization_metadata")
+        if plan.adapter_id == LOCAL_AI_ADAPTER_ID:
+            ai_request = replace(ai_request, metadata={
+                **ai_request.metadata,
+                AUTHORIZED_LOCAL_AI_PROFILE_KEY: plan.steps[0].parameters["local_ai_profile_id"],
+                AUTHORIZED_LOCAL_AI_MODEL_KEY: plan.steps[0].parameters["model_id"],
+            })
         self._record(
             request_id=request.request_id,
             action="started",
@@ -170,9 +186,17 @@ class AIRuntime:
         if not isinstance(step, ExecutionStep) or step.sequence != 1:
             raise AIExecutionRejectedError("authorization_policy_violation")
         parameters = step.parameters
+        expected_parameters = {"capability_id", "model_id"}
+        if plan.adapter_id == LOCAL_AI_ADAPTER_ID:
+            expected_parameters.add("local_ai_profile_id")
+            profile_id = parameters.get("local_ai_profile_id")
+            if (type(profile_id) is not str or profile_id not in {
+                    GENERAL_CHAT_PROFILE_ID, SOFTWARE_ENGINEERING_PROFILE_ID,
+                } or not valid_model_id(parameters.get("model_id"))):
+                raise AIExecutionRejectedError("authorization_policy_violation")
         if (
             step.operation != "ai.generate_text"
-            or set(parameters) != {"capability_id", "model_id"}
+            or set(parameters) != expected_parameters
             or parameters.get("capability_id")
             != AI_CAPABILITY_TEXT_GENERATION
             or not isinstance(parameters.get("model_id"), str)

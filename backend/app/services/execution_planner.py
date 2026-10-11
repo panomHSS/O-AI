@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from app.contracts.ai_brain_routing import AIMode
+from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
+from app.services.local_ai_profile import LocalAIProfileResolver, LocalAIProfileAvailability
 from app.contracts.ai_discovery import (
     AI_CAPABILITY_TEXT_GENERATION,
     AI_DISCOVERY_STATUS_AVAILABLE,
@@ -38,6 +40,8 @@ class ExecutionPlanner:
         ai_discovery: AICapabilityModelDiscovery,
         permission_policy: CapabilityPermissionPolicy,
         audit: ExecutionAuditTrail | None = None,
+        local_ai_profiles: LocalAIProfileResolver | None = None,
+        local_ai_availability: LocalAIProfileAvailability | None = None,
     ) -> None:
         self._registry = registry
         self._decision_engine = decision_engine
@@ -45,6 +49,8 @@ class ExecutionPlanner:
         self._ai_discovery = ai_discovery
         self._permission_policy = permission_policy
         self._audit = audit
+        self._local_ai_profiles = local_ai_profiles
+        self._local_ai_availability = local_ai_availability
 
     def plan(
         self,
@@ -154,40 +160,46 @@ class ExecutionPlanner:
         if self._registry.resolve_ai(route.adapter_id) is None:
             return self._unavailable("ai_route_unavailable", request.request_id)
 
-        try:
-            discovery = self._ai_discovery.discover(route.adapter_id)
-        except (KeyError, ValueError):
-            return self._unavailable("ai_discovery_unavailable", request.request_id)
-
-        if discovery.status != AI_DISCOVERY_STATUS_AVAILABLE:
-            return self._unavailable("ai_discovery_unavailable", request.request_id)
-        if AI_CAPABILITY_TEXT_GENERATION not in discovery.capability_ids:
-            return self._unavailable("ai_capability_unavailable", request.request_id)
-        if discovery.configured_model_id is None:
-            return self._unavailable("ai_discovery_unavailable", request.request_id)
+        if route.adapter_id == LOCAL_AI_ADAPTER_ID:
+            if self._local_ai_profiles is None or self._local_ai_availability is None:
+                return self._unavailable("local_ai_unavailable", request.request_id)
+            profile = self._local_ai_profiles.resolve(task_kind)
+            if not self._local_ai_availability.is_available(profile.model_id):
+                return self._unavailable("local_ai_unavailable", request.request_id)
+            parameters = {
+                "capability_id": AI_CAPABILITY_TEXT_GENERATION,
+                "model_id": profile.model_id,
+                "local_ai_profile_id": profile.profile_id,
+            }
+        else:
+            parameters = self._non_local_ai_parameters(route.adapter_id)
+            if isinstance(parameters, str):
+                return self._unavailable(parameters, request.request_id)
 
         plan = ExecutionPlan(
             request_id=request.request_id,
             adapter_id=route.adapter_id,
-            steps=(
-                ExecutionStep(
-                    sequence=1,
-                    operation="ai.generate_text",
-                    parameters={
-                        "capability_id": AI_CAPABILITY_TEXT_GENERATION,
-                        "model_id": discovery.configured_model_id,
-                    },
-                ),
-            ),
+            steps=(ExecutionStep(sequence=1, operation="ai.generate_text", parameters=parameters),),
             owner_approval_required=False,
         )
         return ExecutionPlanningOutcome(
-            request_id=request.request_id,
-            status="planned",
-            target_kind="ai",
-            plan=plan,
-            reason_code="ai_text_generation_planned",
+            request_id=request.request_id, status="planned", target_kind="ai",
+            plan=plan, reason_code="ai_text_generation_planned",
         )
+
+    def _non_local_ai_parameters(self, adapter_id: str) -> dict[str, str] | str:
+        try:
+            discovery = self._ai_discovery.discover(adapter_id)
+        except (KeyError, ValueError):
+            return "ai_discovery_unavailable"
+
+        if discovery.status != AI_DISCOVERY_STATUS_AVAILABLE:
+            return "ai_discovery_unavailable"
+        if AI_CAPABILITY_TEXT_GENERATION not in discovery.capability_ids:
+            return "ai_capability_unavailable"
+        if discovery.configured_model_id is None:
+            return "ai_discovery_unavailable"
+        return {"capability_id": AI_CAPABILITY_TEXT_GENERATION, "model_id": discovery.configured_model_id}
 
     def _plan_structured(self, request: CommandRequest, *, target_kind: str) -> ExecutionPlanningOutcome:
         reason_prefix = "tool" if target_kind == "tool" else "module"

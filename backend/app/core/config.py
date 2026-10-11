@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     oai_local_ai_model: str = "qwen3.5:9b"
     oai_local_ai_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     oai_local_ai_context_length: int = Field(default=4096, ge=256, le=32768)
+    oai_local_ai_general_chat_model: str | None = Field(default=None, min_length=1, max_length=256, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
+    oai_local_ai_general_chat_timeout_seconds: float | None = Field(default=None, gt=0, le=600, allow_inf_nan=False)
+    oai_local_ai_general_chat_context_length: int | None = Field(default=None, ge=256, le=32768)
+    oai_local_ai_general_chat_reasoning_enabled: bool | None = None
+    oai_local_ai_software_engineering_model: str | None = Field(default=None, min_length=1, max_length=256, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$")
+    oai_local_ai_software_engineering_timeout_seconds: float | None = Field(default=None, gt=0, le=600, allow_inf_nan=False)
+    oai_local_ai_software_engineering_context_length: int | None = Field(default=None, ge=256, le=32768)
+    oai_local_ai_software_engineering_reasoning_enabled: bool | None = False
     oai_github_public_repo_connector_enabled: bool = False
     oai_google_calendar_connector_enabled: bool = False
     oai_gmail_connector_enabled: bool = False
@@ -85,6 +93,30 @@ class Settings(BaseSettings):
         "http://localhost:8000/api/v1/oauth/google-gmail-send/callback"
     )
     oai_oauth_token_encryption_key: SecretStr | None = None
+
+    @field_validator(
+        "oai_local_ai_general_chat_reasoning_enabled",
+        "oai_local_ai_software_engineering_reasoning_enabled", mode="before",
+    )
+    @classmethod
+    def validate_profile_reasoning(cls, value):
+        if value is None or type(value) is bool:
+            return value
+        if type(value) is str and value in {"true", "false"}:
+            return value == "true"
+        raise ValueError("Profile reasoning must be true or false.")
+
+    @field_validator(
+        "oai_local_ai_general_chat_timeout_seconds",
+        "oai_local_ai_software_engineering_timeout_seconds",
+        "oai_local_ai_general_chat_context_length",
+        "oai_local_ai_software_engineering_context_length", mode="before",
+    )
+    @classmethod
+    def validate_profile_number(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("Profile numeric settings cannot be booleans.")
+        return value
 
     @model_validator(mode="after")
     def validate_chunk_settings(self) -> "Settings":
