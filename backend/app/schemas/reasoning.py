@@ -4,8 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.contracts.cognitive_input_semantics import CognitiveIntent
 
-ReasoningIntent = Literal["factual_lookup", "explanation", "comparison", "procedure", "troubleshooting", "summary", "general"]
+
+ReasoningIntent = CognitiveIntent
 EvidenceKind = Literal["memory", "document"]
 
 
