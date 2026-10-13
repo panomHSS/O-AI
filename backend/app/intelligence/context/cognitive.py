@@ -21,6 +21,10 @@ from app.contracts.cognitive_context_memory import (
     CognitiveContextArtifact,
     CognitiveMemoryRetrievalArtifact,
 )
+from app.contracts.cognitive_reasoning_prediction import (
+    CognitivePredictionArtifact,
+    CognitiveReasoningArtifact,
+)
 from app.contracts.cognitive_input_semantics import (
     CognitiveAttentionArtifact,
     CognitivePerceptionArtifact,
@@ -230,8 +234,90 @@ def _validate_memory_attachment(
         raise ValueError("cognitive_working_state_memory_sources_mismatch")
 
 
+def _validate_reasoning_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    task: CognitiveTaskDescription | None,
+    context: CognitiveContextArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if task is None:
+        raise ValueError("cognitive_working_state_reasoning_requires_task")
+    if context is None:
+        raise ValueError("cognitive_working_state_reasoning_requires_context")
+    if not isinstance(value, CognitiveReasoningArtifact):
+        raise ValueError("cognitive_working_state_reasoning_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError("cognitive_working_state_reasoning_turn_mismatch")
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError("cognitive_working_state_reasoning_workspace_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+    ):
+        raise ValueError("cognitive_working_state_reasoning_digest_mismatch")
+    if (
+        value.intent != task.cognitive_intent
+        or value.normalized_request != task.normalized_request
+        or value.required_information != task.required_information
+        or value.constraints != task.constraints
+        or any(
+            gap not in value.information_gaps
+            for gap in task.information_gaps
+        )
+    ):
+        raise ValueError("cognitive_working_state_reasoning_task_mismatch")
+
+    sources = _snapshot_sources(context)
+    if any(item.source not in sources for item in value.evidence):
+        raise ValueError("cognitive_working_state_reasoning_sources_mismatch")
+
+
+def _validate_prediction_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    reasoning: CognitiveReasoningArtifact | None,
+    context: CognitiveContextArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if reasoning is None:
+        raise ValueError("cognitive_working_state_prediction_requires_reasoning")
+    if context is None:
+        raise ValueError("cognitive_working_state_prediction_requires_context")
+    if not isinstance(value, CognitivePredictionArtifact):
+        raise ValueError("cognitive_working_state_prediction_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError("cognitive_working_state_prediction_turn_mismatch")
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError("cognitive_working_state_prediction_workspace_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+    ):
+        raise ValueError("cognitive_working_state_prediction_digest_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != reasoning.envelope.context_snapshot_digest
+    ):
+        raise ValueError("cognitive_working_state_prediction_reasoning_mismatch")
+
+    evidence_ids = {item.evidence_id for item in reasoning.evidence}
+    for scenario in value.scenarios:
+        if any(
+            evidence_id not in evidence_ids
+            for evidence_id in scenario.supporting_evidence_ids
+        ):
+            raise ValueError(
+                "cognitive_working_state_prediction_evidence_mismatch"
+            )
+
+
 class CognitiveWorkingState(ExecutionContext):
-    """Canonical D128/D129 Brain working state for one cognitive turn."""
+    """Canonical D128-D130 Brain working state for one cognitive turn."""
 
     model_config = ConfigDict(validate_assignment=True)
 
@@ -243,6 +329,8 @@ class CognitiveWorkingState(ExecutionContext):
     task: CognitiveTaskDescription | None = None
     context: CognitiveContextArtifact | None = None
     memory_retrieval: CognitiveMemoryRetrievalArtifact | None = None
+    reasoning: CognitiveReasoningArtifact | None = None
+    prediction: CognitivePredictionArtifact | None = None
 
     @model_validator(mode="after")
     def validate_d128_d129_invariants(self) -> "CognitiveWorkingState":
@@ -278,6 +366,18 @@ class CognitiveWorkingState(ExecutionContext):
             binding=self.binding,
             context=self.context,
         )
+        _validate_reasoning_attachment(
+            value=self.reasoning,
+            binding=self.binding,
+            task=self.task,
+            context=self.context,
+        )
+        _validate_prediction_attachment(
+            value=self.prediction,
+            binding=self.binding,
+            reasoning=self.reasoning,
+            context=self.context,
+        )
         return self
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -296,6 +396,15 @@ class CognitiveWorkingState(ExecutionContext):
                 _validate_d127_against_context(
                     name=name,
                     value=value,
+                    context=self.context,
+                )
+            if name == "task" and getattr(self, "reasoning", None) is not None:
+                _validate_reasoning_attachment(
+                    value=self.reasoning,
+                    binding=self.binding,
+                    task=value
+                    if isinstance(value, CognitiveTaskDescription)
+                    else None,
                     context=self.context,
                 )
 
@@ -319,6 +428,23 @@ class CognitiveWorkingState(ExecutionContext):
                     if isinstance(value, CognitiveContextArtifact)
                     else None,
                 )
+            proposed_context = (
+                value if isinstance(value, CognitiveContextArtifact) else None
+            )
+            if getattr(self, "reasoning", None) is not None:
+                _validate_reasoning_attachment(
+                    value=self.reasoning,
+                    binding=self.binding,
+                    task=self.task,
+                    context=proposed_context,
+                )
+            if getattr(self, "prediction", None) is not None:
+                _validate_prediction_attachment(
+                    value=self.prediction,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    context=proposed_context,
+                )
 
         if name == "memory_retrieval" and hasattr(self, "binding"):
             current = getattr(self, "memory_retrieval", None)
@@ -327,6 +453,37 @@ class CognitiveWorkingState(ExecutionContext):
             _validate_memory_attachment(
                 value=value,
                 binding=self.binding,
+                context=self.context,
+            )
+
+        if name == "reasoning" and hasattr(self, "binding"):
+            current = getattr(self, "reasoning", None)
+            if current is not None and value != current:
+                raise ValueError("cognitive_working_state_reasoning_frozen")
+            _validate_reasoning_attachment(
+                value=value,
+                binding=self.binding,
+                task=self.task,
+                context=self.context,
+            )
+            if getattr(self, "prediction", None) is not None:
+                _validate_prediction_attachment(
+                    value=self.prediction,
+                    binding=self.binding,
+                    reasoning=value
+                    if isinstance(value, CognitiveReasoningArtifact)
+                    else None,
+                    context=self.context,
+                )
+
+        if name == "prediction" and hasattr(self, "binding"):
+            current = getattr(self, "prediction", None)
+            if current is not None and value != current:
+                raise ValueError("cognitive_working_state_prediction_frozen")
+            _validate_prediction_attachment(
+                value=value,
+                binding=self.binding,
+                reasoning=self.reasoning,
                 context=self.context,
             )
 
