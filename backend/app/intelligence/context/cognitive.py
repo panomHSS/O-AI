@@ -1,11 +1,12 @@
-"""D128-D131 canonical mutable cognitive working state.
+"""D128-D132 canonical mutable cognitive working state.
 
 The state extends the historical ExecutionContext so existing DomainStep and
 Pipeline behavior remains compatible. D128 identity references are immutable;
 D129 adds one frozen Brain-facing Context truth and Memory Retrieval projection.
 D130 adds frozen Reasoning / Prediction metadata. D131 adds frozen Cognitive
-Planning and Decision / Goal metadata. Nested legacy working containers
-intentionally remain mutable.
+Planning and Decision / Goal metadata. D132 adds frozen Metacognition /
+Uncertainty metadata. Nested legacy working containers intentionally remain
+mutable.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from app.contracts.cognitive_context_memory import (
     CognitiveContextArtifact,
     CognitiveMemoryRetrievalArtifact,
 )
+from app.contracts.cognitive_metacognition import CognitiveMetacognitionArtifact
 from app.contracts.cognitive_planning_decision_goal import (
     CognitiveDecisionGoalArtifact,
     CognitivePlanningArtifact,
@@ -42,6 +44,10 @@ from app.contracts.cognitive_working_state import (
     CognitiveWorkingStateBinding,
 )
 from app.contracts.context import ContextLayer
+from app.services.cognitive_metacognition import (
+    CognitiveMetacognitionContractError,
+    CognitiveMetacognitionProjector,
+)
 
 from .execution import ExecutionContext
 from .request import RequestContext
@@ -429,8 +435,65 @@ def _validate_decision_goal_attachment(
         raise ValueError("cognitive_working_state_decision_goal_evidence_mismatch")
 
 
+def _validate_metacognition_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    reasoning: CognitiveReasoningArtifact | None,
+    prediction: CognitivePredictionArtifact | None,
+    planning: CognitivePlanningArtifact | None,
+    decision_goal: CognitiveDecisionGoalArtifact | None,
+    context: CognitiveContextArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if context is None:
+        raise ValueError("cognitive_working_state_metacognition_requires_context")
+    if reasoning is None:
+        raise ValueError("cognitive_working_state_metacognition_requires_reasoning")
+    if prediction is None:
+        raise ValueError("cognitive_working_state_metacognition_requires_prediction")
+    if planning is None:
+        raise ValueError("cognitive_working_state_metacognition_requires_planning")
+    if decision_goal is None:
+        raise ValueError(
+            "cognitive_working_state_metacognition_requires_decision_goal"
+        )
+    if not isinstance(value, CognitiveMetacognitionArtifact):
+        raise ValueError("cognitive_working_state_metacognition_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError("cognitive_working_state_metacognition_turn_mismatch")
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError(
+            "cognitive_working_state_metacognition_workspace_mismatch"
+        )
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+    ):
+        raise ValueError("cognitive_working_state_metacognition_digest_mismatch")
+
+    try:
+        expected = CognitiveMetacognitionProjector().project_metacognition(
+            value.envelope,
+            reasoning,
+            prediction,
+            planning,
+            decision_goal,
+        )
+    except CognitiveMetacognitionContractError:
+        raise ValueError(
+            "cognitive_working_state_metacognition_upstream_mismatch"
+        ) from None
+
+    if value != expected:
+        raise ValueError(
+            "cognitive_working_state_metacognition_projection_mismatch"
+        )
+
+
 class CognitiveWorkingState(ExecutionContext):
-    """Canonical D128-D131 Brain working state for one cognitive turn."""
+    """Canonical D128-D132 Brain working state for one cognitive turn."""
 
     model_config = ConfigDict(validate_assignment=True)
 
@@ -446,6 +509,7 @@ class CognitiveWorkingState(ExecutionContext):
     prediction: CognitivePredictionArtifact | None = None
     planning: CognitivePlanningArtifact | None = None
     decision_goal: CognitiveDecisionGoalArtifact | None = None
+    metacognition: CognitiveMetacognitionArtifact | None = None
 
     @model_validator(mode="after")
     def validate_cognitive_invariants(self) -> "CognitiveWorkingState":
@@ -506,6 +570,15 @@ class CognitiveWorkingState(ExecutionContext):
             reasoning=self.reasoning,
             prediction=self.prediction,
             planning=self.planning,
+            context=self.context,
+        )
+        _validate_metacognition_attachment(
+            value=self.metacognition,
+            binding=self.binding,
+            reasoning=self.reasoning,
+            prediction=self.prediction,
+            planning=self.planning,
+            decision_goal=self.decision_goal,
             context=self.context,
         )
         return self
@@ -592,6 +665,16 @@ class CognitiveWorkingState(ExecutionContext):
                     planning=self.planning,
                     context=proposed_context,
                 )
+            if getattr(self, "metacognition", None) is not None:
+                _validate_metacognition_attachment(
+                    value=self.metacognition,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=self.prediction,
+                    planning=self.planning,
+                    decision_goal=self.decision_goal,
+                    context=proposed_context,
+                )
 
         if name == "memory_retrieval" and hasattr(self, "binding"):
             current = getattr(self, "memory_retrieval", None)
@@ -640,6 +723,16 @@ class CognitiveWorkingState(ExecutionContext):
                     planning=self.planning,
                     context=self.context,
                 )
+            if getattr(self, "metacognition", None) is not None:
+                _validate_metacognition_attachment(
+                    value=self.metacognition,
+                    binding=self.binding,
+                    reasoning=proposed_reasoning,
+                    prediction=self.prediction,
+                    planning=self.planning,
+                    decision_goal=self.decision_goal,
+                    context=self.context,
+                )
 
         if name == "prediction" and hasattr(self, "binding"):
             current = getattr(self, "prediction", None)
@@ -671,6 +764,16 @@ class CognitiveWorkingState(ExecutionContext):
                     planning=self.planning,
                     context=self.context,
                 )
+            if getattr(self, "metacognition", None) is not None:
+                _validate_metacognition_attachment(
+                    value=self.metacognition,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=proposed_prediction,
+                    planning=self.planning,
+                    decision_goal=self.decision_goal,
+                    context=self.context,
+                )
 
         if name == "planning" and hasattr(self, "binding"):
             current = getattr(self, "planning", None)
@@ -695,6 +798,16 @@ class CognitiveWorkingState(ExecutionContext):
                     planning=proposed_planning,
                     context=self.context,
                 )
+            if getattr(self, "metacognition", None) is not None:
+                _validate_metacognition_attachment(
+                    value=self.metacognition,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=self.prediction,
+                    planning=proposed_planning,
+                    decision_goal=self.decision_goal,
+                    context=self.context,
+                )
 
         if name == "decision_goal" and hasattr(self, "binding"):
             current = getattr(self, "decision_goal", None)
@@ -706,6 +819,35 @@ class CognitiveWorkingState(ExecutionContext):
                 reasoning=self.reasoning,
                 prediction=self.prediction,
                 planning=self.planning,
+                context=self.context,
+            )
+            proposed_decision_goal = (
+                value
+                if isinstance(value, CognitiveDecisionGoalArtifact)
+                else None
+            )
+            if getattr(self, "metacognition", None) is not None:
+                _validate_metacognition_attachment(
+                    value=self.metacognition,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=self.prediction,
+                    planning=self.planning,
+                    decision_goal=proposed_decision_goal,
+                    context=self.context,
+                )
+
+        if name == "metacognition" and hasattr(self, "binding"):
+            current = getattr(self, "metacognition", None)
+            if current is not None and value != current:
+                raise ValueError("cognitive_working_state_metacognition_frozen")
+            _validate_metacognition_attachment(
+                value=value,
+                binding=self.binding,
+                reasoning=self.reasoning,
+                prediction=self.prediction,
+                planning=self.planning,
+                decision_goal=self.decision_goal,
                 context=self.context,
             )
 
