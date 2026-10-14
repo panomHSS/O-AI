@@ -1,18 +1,20 @@
 # D133 — Verification / Critic & Publication Gate V1
 
-**Document status:** DESIGN FROZEN — OWNER APPROVED
-**Design revision:** Rev 0.1 — FROZEN DESIGN BASELINE
+**Document status:** DESIGN AMENDED — OWNER APPROVED
+**Design revision:** Rev 0.2 — OWNER-APPROVED AMENDMENT TO REV 0.1
 **Architecture:** O-AI Cognitive Brain Architecture V1
 **Milestone:** D133 — Verification / Critic & Publication Gate V1
 **Baseline commit:** `265e02ca3c1882ea07bd1642943eea1909e1112d`
 **Baseline state:** D132 COMPLETE / PUSHED / INDEPENDENTLY REMOTE VERIFIED
 **Owner Design Reconciliation A–N:** PASS
 **Owner Exact Contract Proposal Rev 0.1 approval:** YES
+**Owner Design Amendment Rev 0.2 approval:** YES
 **Final Contract Review:** PASS
 **Design Freeze:** YES — OWNER AUTHORIZED
-**Implementation:** NOT AUTHORIZED / NOT STARTED
-**Code change:** NONE
-**Commit:** DESIGN FREEZE COMMIT
+**Implementation authorization:** RECEIVED — PAUSED PENDING AMENDMENT REMOTE VERIFICATION
+**Implementation mutation:** NONE
+**Code change:** DESIGN SPEC ONLY
+**Commit:** DESIGN AMENDMENT COMMIT
 **Push:** NOT PUSHED
 
 ---
@@ -292,7 +294,7 @@ D133_ISSUE_MAX_COUNT = 64
 D133_CITATION_MAX_COUNT = 12
 ```
 
-No truncation is permitted.
+No input truncation is permitted. Draft text, grounding evidence, grounding conflicts, and verification inputs must be validated in full. Rev 0.2 adds one explicit exception for the **diagnostic projection** `validated_citation_ids`: when more than 12 distinct valid citation IDs appear, the full set is inspected to produce `citation_limit_exceeded`, while the artifact stores only the first 12 distinct valid IDs in first-appearance order. This projection cap never mutates the Draft, never removes grounding, and never hides the overflow issue.
 
 ## 6. Exact Vocabulary
 
@@ -342,6 +344,16 @@ critic_exhausted
 ```
 
 Issue codes are diagnostic metadata only and grant no authority.
+
+Rev 0.2 clarification:
+
+```text
+critic_exhausted
+→ reserved vocabulary only in D133 V1
+→ CognitiveVerificationArtifact does not emit this issue code
+→ canonical exhaustion signal is
+   CognitivePublicationGateArtifact.critic_exhausted
+```
 
 ## 7. Draft Artifact
 
@@ -618,7 +630,9 @@ non-PASS
 validated_citation_ids
 → unique
 → ordered by first appearance in Draft
-→ max 12
+→ max 12 stored diagnostic IDs
+→ if the Draft contains >12 distinct valid IDs, the full set is still inspected,
+  result is REVISE with citation_limit_exceeded, and only the first 12 are stored
 
 draft_revision_count
 → 0 or 1
@@ -731,15 +745,46 @@ then:
 
 The original Draft is never replaced by `sanitized`.
 
-### 16.4 Citation count
+### 16.4 Citation count — Rev 0.2 amended
 
-Validated distinct citation IDs are preserved in first-appearance order.
+All distinct valid citation IDs in the Draft are inspected before any diagnostic projection cap is applied.
 
-If more than 12 distinct valid citations appear:
+Exact rule:
 
 ```text
-→ REVISE
-→ issue: citation_limit_exceeded
+if distinct valid citation count <= 12:
+    validated_citation_ids
+    = all distinct valid IDs
+      in first-appearance order
+
+if distinct valid citation count > 12:
+    result = REVISE
+    issue = citation_limit_exceeded
+
+    validated_citation_ids
+    = first 12 distinct valid IDs
+      in first-appearance order
+```
+
+The `> 12` case is an explicit bounded diagnostic projection only.
+
+It must **not**:
+
+```text
+truncate or rewrite draft.text
+remove citations from the Draft
+truncate grounding evidence
+truncate grounding conflicts
+skip validation of citation IDs after the first 12
+make the Draft publishable
+suppress citation_limit_exceeded
+```
+
+Therefore:
+
+```text
+input validation = full
+artifact diagnostic projection = bounded to 12
 ```
 
 ### 16.5 Required citation
@@ -800,6 +845,41 @@ PASS
 `PASS` means only that D133 found no blocking condition under its frozen checks.
 
 It does not mean universal factual truth has been proven.
+
+## 16.9 Rev 0.2 Amendment Boundary
+
+Rev 0.2 resolves the citation-overflow representation contradiction in Rev 0.1 without changing the result vocabulary, publication matrix, authority boundary, model boundary, or exact five-path implementation scope.
+
+The contradiction was:
+
+```text
+validated_citation_ids max 12
++
+more than 12 valid citations → REVISE
++
+No truncation is permitted
+```
+
+The final enforcement split is:
+
+```text
+verification input
+→ inspected in full
+→ never silently truncated
+
+CognitiveVerificationArtifact.validated_citation_ids
+→ bounded diagnostic projection
+→ at most first 12 distinct valid IDs in first-appearance order
+
+citation overflow
+→ always REVISE
+→ always includes citation_limit_exceeded
+→ never hidden by the projection cap
+```
+
+The reserved `critic_exhausted` issue code remains non-emitted in D133 V1; exhaustion is represented canonically by `CognitivePublicationGateArtifact.critic_exhausted`.
+
+No new artifact field is added. No security or publication restriction is weakened. D136 boundaries remain unchanged.
 
 ## 17. Exact Deterministic Precedence
 
@@ -1435,21 +1515,26 @@ R. Historical CitationEngine, ConflictDetector, D132, routing, and runtime behav
 
 ## 38. Design Freeze Scope
 
-The D133 Design Freeze commit changes exactly one path:
+The original D133 Design Freeze commit and this Rev 0.2 Design Amendment commit each change exactly one path:
 
 ```text
 docs/specs/D133_VERIFICATION_CRITIC_PUBLICATION_GATE_V1.md
 ```
 
-Exact commit subject:
+Original Rev 0.1 freeze subject:
 
 ```text
 docs: freeze D133 verification critic publication gate design
 ```
 
-Design Freeze does not authorize implementation.
+Rev 0.2 amendment subject:
 
-Design Freeze commit does not authorize push.
+```text
+docs: amend D133 citation projection boundary
+```
+
+The amendment authorization does not authorize push.
+Implementation remains paused until the amendment is independently remote verified.
 
 ## 39. Current Gate State
 
@@ -1469,23 +1554,29 @@ OWNER APPROVED
 D133 FINAL CONTRACT REVIEW:
 PASS
 
-D133 DESIGN FREEZE:
+D133 DESIGN FREEZE REV 0.1:
+PUSHED / INDEPENDENTLY REMOTE VERIFIED
+
+D133 DESIGN AMENDMENT REV 0.2:
 YES — OWNER AUTHORIZED
 
 D133 DESIGN SPEC:
-FROZEN DESIGN BASELINE
+REV 0.2 AMENDED FROZEN BASELINE
+
+D133 IMPLEMENTATION AUTHORIZATION:
+RECEIVED
 
 D133 IMPLEMENTATION:
-NOT AUTHORIZED / NOT STARTED
+PAUSED / NOT STARTED PENDING AMENDMENT REMOTE VERIFICATION
 
-CODE CHANGE:
+IMPLEMENTATION CODE CHANGE:
 NONE
 
 GIT COMMIT:
-DESIGN FREEZE COMMIT
+REV 0.2 DESIGN AMENDMENT COMMIT
 
 GIT PUSH:
 NOT AUTHORIZED / NOT PUSHED
 ```
 
-**End of D133 Verification / Critic & Publication Gate V1 — Rev 0.1 Frozen Design Baseline**
+**End of D133 Verification / Critic & Publication Gate V1 — Rev 0.2 Owner-Approved Amended Design Baseline**
