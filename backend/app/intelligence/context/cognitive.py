@@ -1,12 +1,12 @@
-"""D128-D132 canonical mutable cognitive working state.
+"""D128-D133 canonical mutable cognitive working state.
 
 The state extends the historical ExecutionContext so existing DomainStep and
 Pipeline behavior remains compatible. D128 identity references are immutable;
 D129 adds one frozen Brain-facing Context truth and Memory Retrieval projection.
 D130 adds frozen Reasoning / Prediction metadata. D131 adds frozen Cognitive
 Planning and Decision / Goal metadata. D132 adds frozen Metacognition /
-Uncertainty metadata. Nested legacy working containers intentionally remain
-mutable.
+Uncertainty metadata. D133 adds frozen Draft / Verification / Publication Gate
+metadata. Nested legacy working containers intentionally remain mutable.
 """
 
 from __future__ import annotations
@@ -25,6 +25,12 @@ from app.contracts.cognitive_context_memory import (
     CognitiveMemoryRetrievalArtifact,
 )
 from app.contracts.cognitive_metacognition import CognitiveMetacognitionArtifact
+from app.contracts.cognitive_verification import (
+    CognitiveDraftResponseArtifact,
+    CognitivePublicationGateArtifact,
+    CognitiveVerificationArtifact,
+    compute_cognitive_draft_digest,
+)
 from app.contracts.cognitive_planning_decision_goal import (
     CognitiveDecisionGoalArtifact,
     CognitivePlanningArtifact,
@@ -492,8 +498,154 @@ def _validate_metacognition_attachment(
         )
 
 
+def _validate_draft_response_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    context: CognitiveContextArtifact | None,
+    metacognition: CognitiveMetacognitionArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if context is None:
+        raise ValueError("cognitive_working_state_draft_requires_context")
+    if metacognition is None:
+        raise ValueError(
+            "cognitive_working_state_draft_requires_metacognition"
+        )
+    if not isinstance(value, CognitiveDraftResponseArtifact):
+        raise ValueError("cognitive_working_state_draft_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError("cognitive_working_state_draft_turn_mismatch")
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError("cognitive_working_state_draft_workspace_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != metacognition.envelope.context_snapshot_digest
+    ):
+        raise ValueError("cognitive_working_state_draft_digest_mismatch")
+
+
+def _validate_verification_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    context: CognitiveContextArtifact | None,
+    metacognition: CognitiveMetacognitionArtifact | None,
+    draft_response: CognitiveDraftResponseArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if context is None:
+        raise ValueError(
+            "cognitive_working_state_verification_requires_context"
+        )
+    if metacognition is None:
+        raise ValueError(
+            "cognitive_working_state_verification_requires_metacognition"
+        )
+    if draft_response is None:
+        raise ValueError(
+            "cognitive_working_state_verification_requires_draft"
+        )
+    if not isinstance(value, CognitiveVerificationArtifact):
+        raise ValueError("cognitive_working_state_verification_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError(
+            "cognitive_working_state_verification_turn_mismatch"
+        )
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError(
+            "cognitive_working_state_verification_workspace_mismatch"
+        )
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != draft_response.envelope.context_snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != metacognition.envelope.context_snapshot_digest
+    ):
+        raise ValueError(
+            "cognitive_working_state_verification_digest_mismatch"
+        )
+    if (
+        value.response_mode != draft_response.response_mode
+        or value.draft_revision_count != draft_response.revision_count
+        or value.draft_digest
+        != compute_cognitive_draft_digest(draft_response)
+    ):
+        raise ValueError(
+            "cognitive_working_state_verification_draft_mismatch"
+        )
+    if (
+        metacognition.recommended_cognitive_action == "revise_reasoning"
+        and value.result != "invalid_cognition"
+    ):
+        raise ValueError(
+            "cognitive_working_state_verification_metacognition_mismatch"
+        )
+
+
+def _validate_publication_gate_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    context: CognitiveContextArtifact | None,
+    draft_response: CognitiveDraftResponseArtifact | None,
+    verification: CognitiveVerificationArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if context is None:
+        raise ValueError(
+            "cognitive_working_state_publication_gate_requires_context"
+        )
+    if draft_response is None:
+        raise ValueError(
+            "cognitive_working_state_publication_gate_requires_draft"
+        )
+    if verification is None:
+        raise ValueError(
+            "cognitive_working_state_publication_gate_requires_verification"
+        )
+    if not isinstance(value, CognitivePublicationGateArtifact):
+        raise ValueError("cognitive_working_state_publication_gate_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError(
+            "cognitive_working_state_publication_gate_turn_mismatch"
+        )
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError(
+            "cognitive_working_state_publication_gate_workspace_mismatch"
+        )
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != draft_response.envelope.context_snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != verification.envelope.context_snapshot_digest
+    ):
+        raise ValueError(
+            "cognitive_working_state_publication_gate_digest_mismatch"
+        )
+    if (
+        value.verification_result != verification.result
+        or value.draft_revision_count != draft_response.revision_count
+        or value.draft_digest
+        != compute_cognitive_draft_digest(draft_response)
+        or value.draft_digest != verification.draft_digest
+    ):
+        raise ValueError(
+            "cognitive_working_state_publication_gate_upstream_mismatch"
+        )
+
+
 class CognitiveWorkingState(ExecutionContext):
-    """Canonical D128-D132 Brain working state for one cognitive turn."""
+    """Canonical D128-D133 Brain working state for one cognitive turn."""
 
     model_config = ConfigDict(validate_assignment=True)
 
@@ -510,6 +662,9 @@ class CognitiveWorkingState(ExecutionContext):
     planning: CognitivePlanningArtifact | None = None
     decision_goal: CognitiveDecisionGoalArtifact | None = None
     metacognition: CognitiveMetacognitionArtifact | None = None
+    draft_response: CognitiveDraftResponseArtifact | None = None
+    verification: CognitiveVerificationArtifact | None = None
+    publication_gate: CognitivePublicationGateArtifact | None = None
 
     @model_validator(mode="after")
     def validate_cognitive_invariants(self) -> "CognitiveWorkingState":
@@ -580,6 +735,26 @@ class CognitiveWorkingState(ExecutionContext):
             planning=self.planning,
             decision_goal=self.decision_goal,
             context=self.context,
+        )
+        _validate_draft_response_attachment(
+            value=self.draft_response,
+            binding=self.binding,
+            context=self.context,
+            metacognition=self.metacognition,
+        )
+        _validate_verification_attachment(
+            value=self.verification,
+            binding=self.binding,
+            context=self.context,
+            metacognition=self.metacognition,
+            draft_response=self.draft_response,
+        )
+        _validate_publication_gate_attachment(
+            value=self.publication_gate,
+            binding=self.binding,
+            context=self.context,
+            draft_response=self.draft_response,
+            verification=self.verification,
         )
         return self
 
@@ -849,6 +1024,97 @@ class CognitiveWorkingState(ExecutionContext):
                 planning=self.planning,
                 decision_goal=self.decision_goal,
                 context=self.context,
+            )
+            proposed_metacognition = (
+                value
+                if isinstance(value, CognitiveMetacognitionArtifact)
+                else None
+            )
+            if getattr(self, "draft_response", None) is not None:
+                _validate_draft_response_attachment(
+                    value=self.draft_response,
+                    binding=self.binding,
+                    context=self.context,
+                    metacognition=proposed_metacognition,
+                )
+            if getattr(self, "verification", None) is not None:
+                _validate_verification_attachment(
+                    value=self.verification,
+                    binding=self.binding,
+                    context=self.context,
+                    metacognition=proposed_metacognition,
+                    draft_response=self.draft_response,
+                )
+
+        if name == "draft_response" and hasattr(self, "binding"):
+            current = getattr(self, "draft_response", None)
+            if current is not None and value != current:
+                raise ValueError("cognitive_working_state_draft_frozen")
+            _validate_draft_response_attachment(
+                value=value,
+                binding=self.binding,
+                context=self.context,
+                metacognition=self.metacognition,
+            )
+            proposed_draft = (
+                value
+                if isinstance(value, CognitiveDraftResponseArtifact)
+                else None
+            )
+            if getattr(self, "verification", None) is not None:
+                _validate_verification_attachment(
+                    value=self.verification,
+                    binding=self.binding,
+                    context=self.context,
+                    metacognition=self.metacognition,
+                    draft_response=proposed_draft,
+                )
+            if getattr(self, "publication_gate", None) is not None:
+                _validate_publication_gate_attachment(
+                    value=self.publication_gate,
+                    binding=self.binding,
+                    context=self.context,
+                    draft_response=proposed_draft,
+                    verification=self.verification,
+                )
+
+        if name == "verification" and hasattr(self, "binding"):
+            current = getattr(self, "verification", None)
+            if current is not None and value != current:
+                raise ValueError("cognitive_working_state_verification_frozen")
+            _validate_verification_attachment(
+                value=value,
+                binding=self.binding,
+                context=self.context,
+                metacognition=self.metacognition,
+                draft_response=self.draft_response,
+            )
+            proposed_verification = (
+                value
+                if isinstance(value, CognitiveVerificationArtifact)
+                else None
+            )
+            if getattr(self, "publication_gate", None) is not None:
+                _validate_publication_gate_attachment(
+                    value=self.publication_gate,
+                    binding=self.binding,
+                    context=self.context,
+                    draft_response=self.draft_response,
+                    verification=proposed_verification,
+                )
+
+        if name == "publication_gate" and hasattr(self, "binding"):
+            current = getattr(self, "publication_gate", None)
+            if current is not None and value != current:
+                raise ValueError(
+                    "cognitive_working_state_publication_gate_frozen"
+                )
+            _validate_publication_gate_attachment(
+                value=value,
+                binding=self.binding,
+                context=self.context,
+                draft_response=self.draft_response,
+                verification=self.verification,
             )
 
         super().__setattr__(name, value)
