@@ -1,9 +1,11 @@
-"""D128/D129 canonical mutable cognitive working state.
+"""D128-D131 canonical mutable cognitive working state.
 
 The state extends the historical ExecutionContext so existing DomainStep and
 Pipeline behavior remains compatible. D128 identity references are immutable;
 D129 adds one frozen Brain-facing Context truth and Memory Retrieval projection.
-Nested legacy working containers intentionally remain mutable.
+D130 adds frozen Reasoning / Prediction metadata. D131 adds frozen Cognitive
+Planning and Decision / Goal metadata. Nested legacy working containers
+intentionally remain mutable.
 """
 
 from __future__ import annotations
@@ -20,6 +22,10 @@ from app.contracts.cognitive_brain import (
 from app.contracts.cognitive_context_memory import (
     CognitiveContextArtifact,
     CognitiveMemoryRetrievalArtifact,
+)
+from app.contracts.cognitive_planning_decision_goal import (
+    CognitiveDecisionGoalArtifact,
+    CognitivePlanningArtifact,
 )
 from app.contracts.cognitive_reasoning_prediction import (
     CognitivePredictionArtifact,
@@ -316,8 +322,115 @@ def _validate_prediction_attachment(
             )
 
 
+def _is_ordered_subset(
+    values: tuple[str, ...],
+    source: tuple[str, ...],
+) -> bool:
+    position = 0
+    for value in values:
+        try:
+            position = source.index(value, position) + 1
+        except ValueError:
+            return False
+    return True
+
+
+def _validate_planning_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    reasoning: CognitiveReasoningArtifact | None,
+    prediction: CognitivePredictionArtifact | None,
+    context: CognitiveContextArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if context is None:
+        raise ValueError("cognitive_working_state_planning_requires_context")
+    if reasoning is None:
+        raise ValueError("cognitive_working_state_planning_requires_reasoning")
+    if prediction is None:
+        raise ValueError("cognitive_working_state_planning_requires_prediction")
+    if not isinstance(value, CognitivePlanningArtifact):
+        raise ValueError("cognitive_working_state_planning_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError("cognitive_working_state_planning_turn_mismatch")
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError("cognitive_working_state_planning_workspace_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+    ):
+        raise ValueError("cognitive_working_state_planning_digest_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != reasoning.envelope.context_snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != prediction.envelope.context_snapshot_digest
+        or value.intent != reasoning.intent
+    ):
+        raise ValueError("cognitive_working_state_planning_upstream_mismatch")
+    if not _is_ordered_subset(
+        value.missing_information,
+        reasoning.information_gaps,
+    ):
+        raise ValueError("cognitive_working_state_planning_gaps_mismatch")
+
+
+def _validate_decision_goal_attachment(
+    *,
+    value: object,
+    binding: CognitiveWorkingStateBinding,
+    reasoning: CognitiveReasoningArtifact | None,
+    prediction: CognitivePredictionArtifact | None,
+    planning: CognitivePlanningArtifact | None,
+    context: CognitiveContextArtifact | None,
+) -> None:
+    if value is None:
+        return
+    if context is None:
+        raise ValueError("cognitive_working_state_decision_goal_requires_context")
+    if reasoning is None:
+        raise ValueError("cognitive_working_state_decision_goal_requires_reasoning")
+    if prediction is None:
+        raise ValueError("cognitive_working_state_decision_goal_requires_prediction")
+    if planning is None:
+        raise ValueError("cognitive_working_state_decision_goal_requires_planning")
+    if not isinstance(value, CognitiveDecisionGoalArtifact):
+        raise ValueError("cognitive_working_state_decision_goal_invalid")
+    if value.envelope.turn_id != binding.turn_id:
+        raise ValueError("cognitive_working_state_decision_goal_turn_mismatch")
+    if value.envelope.workspace_id is not binding.workspace_id:
+        raise ValueError("cognitive_working_state_decision_goal_workspace_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != context.snapshot.snapshot_digest
+    ):
+        raise ValueError("cognitive_working_state_decision_goal_digest_mismatch")
+    if (
+        value.envelope.context_snapshot_digest
+        != reasoning.envelope.context_snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != prediction.envelope.context_snapshot_digest
+        or value.envelope.context_snapshot_digest
+        != planning.envelope.context_snapshot_digest
+        or value.intent != reasoning.intent
+        or value.intent != planning.intent
+    ):
+        raise ValueError("cognitive_working_state_decision_goal_upstream_mismatch")
+    if value.missing_information != planning.missing_information:
+        raise ValueError("cognitive_working_state_decision_goal_gaps_mismatch")
+
+    evidence_ids = {item.evidence_id for item in reasoning.evidence}
+    if any(
+        evidence_id not in evidence_ids
+        for evidence_id in value.supporting_evidence_ids
+    ):
+        raise ValueError("cognitive_working_state_decision_goal_evidence_mismatch")
+
+
 class CognitiveWorkingState(ExecutionContext):
-    """Canonical D128-D130 Brain working state for one cognitive turn."""
+    """Canonical D128-D131 Brain working state for one cognitive turn."""
 
     model_config = ConfigDict(validate_assignment=True)
 
@@ -331,9 +444,11 @@ class CognitiveWorkingState(ExecutionContext):
     memory_retrieval: CognitiveMemoryRetrievalArtifact | None = None
     reasoning: CognitiveReasoningArtifact | None = None
     prediction: CognitivePredictionArtifact | None = None
+    planning: CognitivePlanningArtifact | None = None
+    decision_goal: CognitiveDecisionGoalArtifact | None = None
 
     @model_validator(mode="after")
-    def validate_d128_d129_invariants(self) -> "CognitiveWorkingState":
+    def validate_cognitive_invariants(self) -> "CognitiveWorkingState":
         if not isinstance(self.binding, CognitiveWorkingStateBinding):
             raise ValueError("cognitive_working_state_binding_invalid")
         _validate_working_memory_envelope(
@@ -376,6 +491,21 @@ class CognitiveWorkingState(ExecutionContext):
             value=self.prediction,
             binding=self.binding,
             reasoning=self.reasoning,
+            context=self.context,
+        )
+        _validate_planning_attachment(
+            value=self.planning,
+            binding=self.binding,
+            reasoning=self.reasoning,
+            prediction=self.prediction,
+            context=self.context,
+        )
+        _validate_decision_goal_attachment(
+            value=self.decision_goal,
+            binding=self.binding,
+            reasoning=self.reasoning,
+            prediction=self.prediction,
+            planning=self.planning,
             context=self.context,
         )
         return self
@@ -445,6 +575,23 @@ class CognitiveWorkingState(ExecutionContext):
                     reasoning=self.reasoning,
                     context=proposed_context,
                 )
+            if getattr(self, "planning", None) is not None:
+                _validate_planning_attachment(
+                    value=self.planning,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=self.prediction,
+                    context=proposed_context,
+                )
+            if getattr(self, "decision_goal", None) is not None:
+                _validate_decision_goal_attachment(
+                    value=self.decision_goal,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=self.prediction,
+                    planning=self.planning,
+                    context=proposed_context,
+                )
 
         if name == "memory_retrieval" and hasattr(self, "binding"):
             current = getattr(self, "memory_retrieval", None)
@@ -466,13 +613,31 @@ class CognitiveWorkingState(ExecutionContext):
                 task=self.task,
                 context=self.context,
             )
+            proposed_reasoning = (
+                value if isinstance(value, CognitiveReasoningArtifact) else None
+            )
             if getattr(self, "prediction", None) is not None:
                 _validate_prediction_attachment(
                     value=self.prediction,
                     binding=self.binding,
-                    reasoning=value
-                    if isinstance(value, CognitiveReasoningArtifact)
-                    else None,
+                    reasoning=proposed_reasoning,
+                    context=self.context,
+                )
+            if getattr(self, "planning", None) is not None:
+                _validate_planning_attachment(
+                    value=self.planning,
+                    binding=self.binding,
+                    reasoning=proposed_reasoning,
+                    prediction=self.prediction,
+                    context=self.context,
+                )
+            if getattr(self, "decision_goal", None) is not None:
+                _validate_decision_goal_attachment(
+                    value=self.decision_goal,
+                    binding=self.binding,
+                    reasoning=proposed_reasoning,
+                    prediction=self.prediction,
+                    planning=self.planning,
                     context=self.context,
                 )
 
@@ -484,6 +649,63 @@ class CognitiveWorkingState(ExecutionContext):
                 value=value,
                 binding=self.binding,
                 reasoning=self.reasoning,
+                context=self.context,
+            )
+            proposed_prediction = (
+                value if isinstance(value, CognitivePredictionArtifact) else None
+            )
+            if getattr(self, "planning", None) is not None:
+                _validate_planning_attachment(
+                    value=self.planning,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=proposed_prediction,
+                    context=self.context,
+                )
+            if getattr(self, "decision_goal", None) is not None:
+                _validate_decision_goal_attachment(
+                    value=self.decision_goal,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=proposed_prediction,
+                    planning=self.planning,
+                    context=self.context,
+                )
+
+        if name == "planning" and hasattr(self, "binding"):
+            current = getattr(self, "planning", None)
+            if current is not None and value != current:
+                raise ValueError("cognitive_working_state_planning_frozen")
+            _validate_planning_attachment(
+                value=value,
+                binding=self.binding,
+                reasoning=self.reasoning,
+                prediction=self.prediction,
+                context=self.context,
+            )
+            proposed_planning = (
+                value if isinstance(value, CognitivePlanningArtifact) else None
+            )
+            if getattr(self, "decision_goal", None) is not None:
+                _validate_decision_goal_attachment(
+                    value=self.decision_goal,
+                    binding=self.binding,
+                    reasoning=self.reasoning,
+                    prediction=self.prediction,
+                    planning=proposed_planning,
+                    context=self.context,
+                )
+
+        if name == "decision_goal" and hasattr(self, "binding"):
+            current = getattr(self, "decision_goal", None)
+            if current is not None and value != current:
+                raise ValueError("cognitive_working_state_decision_goal_frozen")
+            _validate_decision_goal_attachment(
+                value=value,
+                binding=self.binding,
+                reasoning=self.reasoning,
+                prediction=self.prediction,
+                planning=self.planning,
                 context=self.context,
             )
 
