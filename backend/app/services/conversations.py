@@ -10,6 +10,8 @@ from app.schemas.conversations import ConversationDetailResponse, ConversationSu
 from app.schemas.context_usage import ContextUsageResponse
 from app.services.chat import ChatContextMessage, ChatService
 from app.contracts.ai import AIAdapter
+from app.contracts.cognitive_context_memory import CognitiveContextFreezeResult
+from app.contracts.cognitive_working_state import CognitiveWorkingStateBinding
 from app.contracts.context_provenance import ContextSnapshot
 from app.contracts.context_resolution import ContextResolveRequest
 from app.contracts.context_usage import ContextUsage
@@ -82,6 +84,24 @@ class ChatTurnResult:
     context_usage: ContextUsage | None = None
 
 
+@dataclass(frozen=True)
+class PreparedContextTurn:
+    """D136 live-turn values prepared by the existing conversation boundary."""
+
+    binding: CognitiveWorkingStateBinding
+    freeze_result: CognitiveContextFreezeResult
+    memories_used: tuple[ResolvedMemory | ContextMemoryUsage, ...]
+    reasoning_plan: ReasoningPlan
+    planning_plan: PlanningPlan
+    decision_analysis: DecisionAnalysis
+    goal_analysis: GoalAnalysis
+    project_context: ProjectContext | None
+    project_action_analysis: ProjectActionAnalysis | None
+    project_action_plan: ProjectActionPlan | None
+    project_action_execution_proposal: ProjectActionExecutionProposal | None
+    context_usage: ContextUsage
+
+
 class ConversationService:
     """Coordinates local conversation persistence with provider-neutral chat."""
 
@@ -140,6 +160,180 @@ class ConversationService:
 
     def default_ai_adapter(self) -> AIAdapter:
         return self._chat_service.default_ai_adapter()
+
+    def reserve_cognitive_turn(
+        self,
+        message: str,
+        conversation_id: UUID | None,
+        project_id: UUID | None,
+        *,
+        turn_id: str,
+    ) -> CognitiveWorkingStateBinding:
+        """Reserve one conversation identity before D136 mutates turn state."""
+
+        try:
+            conversation = self._get_or_create_conversation(
+                message,
+                conversation_id,
+                project_id,
+            )
+            workspace_id = parse_workspace_id(self._repository.workspace_id)
+            return CognitiveWorkingStateBinding(
+                turn_id=turn_id,
+                workspace_id=workspace_id,
+                conversation_id=UUID(conversation.id),
+                project_id=(
+                    UUID(conversation.project_id)
+                    if conversation.project_id
+                    else None
+                ),
+            )
+        except Exception:
+            self._repository.rollback()
+            raise
+
+    def abort_cognitive_turn(self) -> None:
+        """Rollback only pending D136 reservation work; never undo committed turns."""
+
+        self._repository.rollback()
+
+    def prepare_cognitive_turn(
+        self,
+        message: str,
+        binding: CognitiveWorkingStateBinding,
+        freeze_result: CognitiveContextFreezeResult,
+    ) -> PreparedContextTurn:
+        """Persist the user turn only after D136 owns the valid turn lease."""
+
+        if not isinstance(binding, CognitiveWorkingStateBinding):
+            raise ValueError("cognitive_turn_binding_invalid")
+        if not isinstance(freeze_result, CognitiveContextFreezeResult):
+            raise ValueError("cognitive_context_freeze_result_invalid")
+        if binding.workspace_id is not parse_workspace_id(
+            self._repository.workspace_id
+        ):
+            raise ValueError("workspace_mismatch")
+
+        snapshot = freeze_result.snapshot
+        if snapshot.workspace_scope.workspace_id is not binding.workspace_id:
+            raise ValueError("cognitive_context_workspace_mismatch")
+
+        conversation = self._require_conversation(binding.conversation_id)
+        conversation_project_id = (
+            UUID(conversation.project_id)
+            if conversation.project_id
+            else None
+        )
+        if conversation_project_id != binding.project_id:
+            raise ValueError("cognitive_working_state_project_mismatch")
+
+        try:
+            context_usage = context_usage_from_snapshot(snapshot)
+            project_context = project_context_from_snapshot(snapshot)
+            memories = memory_usage_from_snapshot(snapshot)
+            evidence_map = reasoning_evidence_from_snapshot(snapshot)
+            reasoning_plan = self._reasoning_service.plan_from_evidence_map(
+                message,
+                evidence_map,
+            )
+            planning_plan = self._planning_service.plan(reasoning_plan)
+            decision_analysis = self._decision_service.analyze(
+                reasoning_plan,
+                planning_plan,
+            )
+            goal_analysis = self._goal_service.analyze(
+                reasoning_plan,
+                planning_plan,
+                decision_analysis,
+            )
+
+            project_action_analysis = (
+                self._project_action_service.analyze(project_context)
+                if project_context is not None
+                else None
+            )
+            project_action_plan = (
+                self._project_action_planning_service.plan(
+                    project_action_analysis
+                )
+                if project_action_analysis is not None
+                else None
+            )
+            project_action_execution_proposal = (
+                self._project_action_execution_proposal_service.propose(
+                    project_action_plan
+                )
+                if project_action_plan is not None
+                else None
+            )
+
+            self._repository.add_message(conversation, "user", message)
+            self._repository.commit()
+        except Exception:
+            self._repository.rollback()
+            raise
+
+        if (
+            project_action_execution_proposal is not None
+            and self._project_action_execution_persistence_service is not None
+        ):
+            self._project_action_execution_persistence_service.persist(
+                project_action_execution_proposal,
+                project_id=conversation.project_id,
+                conversation_id=conversation.id,
+            )
+
+        return PreparedContextTurn(
+            binding=binding,
+            freeze_result=freeze_result,
+            memories_used=memories,
+            reasoning_plan=reasoning_plan,
+            planning_plan=planning_plan,
+            decision_analysis=decision_analysis,
+            goal_analysis=goal_analysis,
+            project_context=project_context,
+            project_action_analysis=project_action_analysis,
+            project_action_plan=project_action_plan,
+            project_action_execution_proposal=(
+                project_action_execution_proposal
+            ),
+            context_usage=context_usage,
+        )
+
+    def complete_cognitive_turn(
+        self,
+        prepared: PreparedContextTurn,
+        reply: str,
+    ) -> ChatTurnResult:
+        """Complete one accepted D136 publication through existing persistence."""
+
+        if not isinstance(prepared, PreparedContextTurn):
+            raise ValueError("cognitive_prepared_turn_invalid")
+        if type(reply) is not str or not reply:
+            raise ValueError("cognitive_reply_invalid")
+
+        self.complete_context_turn(
+            str(prepared.binding.conversation_id),
+            reply,
+            prepared.freeze_result.snapshot,
+        )
+        return ChatTurnResult(
+            reply=reply,
+            conversation_id=prepared.binding.conversation_id,
+            project_id=prepared.binding.project_id,
+            memories_used=prepared.memories_used,
+            reasoning_plan=prepared.reasoning_plan,
+            planning_plan=prepared.planning_plan,
+            decision_analysis=prepared.decision_analysis,
+            goal_analysis=prepared.goal_analysis,
+            project_context=prepared.project_context,
+            project_action_analysis=prepared.project_action_analysis,
+            project_action_plan=prepared.project_action_plan,
+            project_action_execution_proposal=(
+                prepared.project_action_execution_proposal
+            ),
+            context_usage=prepared.context_usage,
+        )
 
     def send_context_message(
         self,

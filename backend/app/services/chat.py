@@ -73,6 +73,29 @@ class ChatService:
             ).content
         return self._provider.generate_reply(formatted)
 
+    def render_context_message(
+        self,
+        *,
+        message: str,
+        snapshot: ContextSnapshot,
+        reasoning_plan: ReasoningPlan | None,
+        planning_plan: PlanningPlan | None,
+        decision_analysis: DecisionAnalysis | None,
+        goal_analysis: GoalAnalysis | None,
+    ) -> str:
+        """Render the exact D97 provider input without invoking a provider."""
+
+        if not isinstance(snapshot, ContextSnapshot):
+            raise ValueError("context_chat_snapshot_invalid")
+        return self._format_context_provider_input(
+            message=message,
+            snapshot=snapshot,
+            reasoning_plan=reasoning_plan,
+            planning_plan=planning_plan,
+            decision_analysis=decision_analysis,
+            goal_analysis=goal_analysis,
+        )
+
     def send_context_message(
         self,
         *,
@@ -86,12 +109,9 @@ class ChatService:
     ) -> str:
         """Invoke one already-authorized adapter with D96 Context exactly once."""
 
-        if not isinstance(snapshot, ContextSnapshot):
-            raise ValueError("context_chat_snapshot_invalid")
         if ai_adapter is None:
             raise ValueError("context_chat_ai_adapter_required")
-
-        formatted = self._format_context_provider_input(
+        formatted = self.render_context_message(
             message=message,
             snapshot=snapshot,
             reasoning_plan=reasoning_plan,

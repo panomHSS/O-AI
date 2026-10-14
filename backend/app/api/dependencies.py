@@ -271,6 +271,10 @@ from app.services.ai_discovery_sources import (
     LocalAIModelDiscoverySource,
 )
 from app.services.local_ai_profile import LocalAIProfileResolver, LocalAIProfileAvailability
+from app.services.cognitive_context_memory import CognitiveContextStabilizer
+from app.services.cognitive_executive import CognitiveExecutive
+from app.services.cognitive_invocation import CognitiveInvocationCoordinator
+from app.services.cognitive_working_state import CognitiveTurnGuard
 from app.services.local_ai_config import LocalAIAdapterConfig
 from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
 from app.services.local_ai_visibility import LocalAIRuntimeVisibilityService
@@ -512,7 +516,7 @@ def get_conversation_service(
         )
     )
 
-    return ConversationService(
+    service = ConversationService(
         repository=ConversationRepository(
             database_session,
             workspace_scope,
@@ -552,6 +556,8 @@ def get_conversation_service(
         context_snapshot_service=context_snapshot_service,
         context_snapshot_repository=context_snapshot_repository,
     )
+    setattr(service, "_d136_live_runtime_enabled", True)
+    return service
 
 
 def get_command_decision_engine() -> CommandDecisionEngine:
@@ -2070,6 +2076,68 @@ def get_chat_plugin_action_completion_service(
     )
 
 
+@lru_cache
+def get_cognitive_turn_guard() -> CognitiveTurnGuard:
+    """Share the D128 one-active-turn guard across request-scoped executives."""
+
+    return CognitiveTurnGuard()
+
+
+def get_cognitive_invocation_coordinator(
+    planner: ExecutionPlanner = Depends(get_execution_planner),
+    guard: ExecutionGuard = Depends(get_execution_guard),
+    ai_runtime: AIRuntime = Depends(get_ai_runtime),
+    local_ai_profiles: LocalAIProfileResolver = Depends(get_local_ai_profiles),
+) -> CognitiveInvocationCoordinator:
+    """Compose D136 fresh Planner/Guard/AIRuntime invocation coordination."""
+
+    settings = get_settings()
+    return CognitiveInvocationCoordinator(
+        planner=planner,
+        guard=guard,
+        ai_runtime=ai_runtime,
+        local_ai_profiles=local_ai_profiles,
+        cloud_timeout_seconds=settings.oai_cloud_ai_timeout_seconds,
+    )
+
+
+def get_cognitive_executive(
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    chat_service: ChatService = Depends(get_chat_service),
+    context_resolver: ContextResolver = Depends(get_context_resolver),
+    context_snapshot_service: ContextSnapshotService = Depends(
+        get_context_snapshot_service
+    ),
+    invocation_coordinator: CognitiveInvocationCoordinator = Depends(
+        get_cognitive_invocation_coordinator
+    ),
+    turn_guard: CognitiveTurnGuard = Depends(get_cognitive_turn_guard),
+    local_ai_profiles: LocalAIProfileResolver = Depends(get_local_ai_profiles),
+) -> CognitiveExecutive:
+    """Compose D136 Integrated Brain Runtime without performing model I/O."""
+
+    settings = get_settings()
+    max_runtime_timeout = max(
+        float(settings.oai_cloud_ai_timeout_seconds),
+        float(local_ai_profiles.general_chat.timeout_seconds),
+        float(local_ai_profiles.software_engineering.timeout_seconds),
+    )
+    turn_timeout_seconds = (
+        1.0 + 4.0 * max_runtime_timeout
+    )
+    return CognitiveExecutive(
+        conversation_service=conversation_service,
+        chat_service=chat_service,
+        context_stabilizer=CognitiveContextStabilizer(
+            context_resolver,
+            context_snapshot_service,
+        ),
+        invocation_coordinator=invocation_coordinator,
+        turn_guard=turn_guard,
+        turn_timeout_seconds=turn_timeout_seconds,
+    )
+
+
 def get_cross_connector_chat_service(
     conversation_service: ConversationService = Depends(get_conversation_service),
     context_store: CrossConnectorContextStore = Depends(get_cross_connector_context_store),
@@ -2096,7 +2164,54 @@ def get_command_orchestrator(
     response_composer: ResponseComposer = Depends(get_response_composer),
     tool_runtime: ToolRuntime = Depends(get_tool_runtime),
 ) -> CommandOrchestrator:
-    """Compose D49 normal chat through Planner, Guard and AIRuntime."""
+    """Compose normal Chat with D136 only for the canonical server service."""
+
+    cognitive_executive = None
+    if getattr(
+        conversation_service,
+        "_d136_live_runtime_enabled",
+        False,
+    ):
+        chat_service = getattr(conversation_service, "_chat_service", None)
+        context_resolver = getattr(
+            conversation_service,
+            "_context_resolver",
+            None,
+        )
+        context_snapshot_service = getattr(
+            conversation_service,
+            "_context_snapshot_service",
+            None,
+        )
+        if (
+            not isinstance(chat_service, ChatService)
+            or not isinstance(context_resolver, ContextResolver)
+            or not isinstance(
+                context_snapshot_service,
+                ContextSnapshotService,
+            )
+        ):
+            raise RuntimeError(
+                "cognitive_runtime_dependencies_invalid"
+            )
+
+        local_ai_profiles = get_local_ai_profiles()
+        invocation_coordinator = get_cognitive_invocation_coordinator(
+            planner=planner,
+            guard=guard,
+            ai_runtime=ai_runtime,
+            local_ai_profiles=local_ai_profiles,
+        )
+        cognitive_executive = get_cognitive_executive(
+            conversation_service=conversation_service,
+            chat_service=chat_service,
+            context_resolver=context_resolver,
+            context_snapshot_service=context_snapshot_service,
+            invocation_coordinator=invocation_coordinator,
+            turn_guard=get_cognitive_turn_guard(),
+            local_ai_profiles=local_ai_profiles,
+        )
+
     return CommandOrchestrator(
         conversation_service=conversation_service,
         planner=planner,
@@ -2105,6 +2220,7 @@ def get_command_orchestrator(
         error_normalizer=error_normalizer,
         response_composer=response_composer,
         tool_runtime=tool_runtime,
+        cognitive_executive=cognitive_executive,
     )
 
 

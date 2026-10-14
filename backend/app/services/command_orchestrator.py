@@ -10,6 +10,7 @@ from app.contracts.command import CommandRequest, Response
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
 from app.services.ai_runtime import AIRuntime
+from app.services.cognitive_executive import CognitiveExecutive
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ChatTurnResult, ConversationService
 from app.services.execution_guard import ExecutionGuard
@@ -44,6 +45,7 @@ class CommandOrchestrator:
         error_normalizer: OrchestrationErrorNormalizer,
         response_composer: ResponseComposer,
         tool_runtime: ToolRuntime,
+        cognitive_executive: CognitiveExecutive | None = None,
     ) -> None:
         self._conversation_service = conversation_service
         self._planner = planner
@@ -52,6 +54,7 @@ class CommandOrchestrator:
         self._error_normalizer = error_normalizer
         self._response_composer = response_composer
         self._tool_runtime = tool_runtime
+        self._cognitive_executive = cognitive_executive
 
     def process_chat(
         self,
@@ -65,6 +68,19 @@ class CommandOrchestrator:
             )
             if command.command != "chat.message":
                 return self._error("AI_ROUTE_REJECTED", command.request_id)
+
+            if self._cognitive_executive is not None:
+                turn = self._cognitive_executive.process_chat(
+                    command,
+                    ai_mode=ai_mode,
+                ).chat_turn
+                return CommandOrchestrationOutcome(
+                    response=self._response_composer.compose_ai_success(
+                        command.request_id,
+                        AIResult(content=turn.reply),
+                    ),
+                    chat_turn=turn,
+                )
 
             planning = (
                 self._planner.plan(command)
