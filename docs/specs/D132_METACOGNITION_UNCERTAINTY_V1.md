@@ -1,13 +1,14 @@
 # D132 — Metacognition & Uncertainty V1
 
-**Document status:** DESIGN FROZEN — OWNER APPROVED
-**Design revision:** Rev 0.1a — FROZEN DESIGN BASELINE
+**Document status:** DESIGN AMENDED — OWNER APPROVED
+**Design revision:** Rev 0.2 — OWNER-APPROVED AMENDMENT TO REV 0.1a
 **Architecture:** O-AI Cognitive Brain Architecture V1
 **Milestone:** D132 — Metacognition & Uncertainty V1
 **Baseline commit:** `de9503bb770e34d76a19a7eede5c7b129954d072`
 **Baseline state:** D131 COMPLETE / PUSHED / INDEPENDENTLY REMOTE VERIFIED
 **Owner Design Reconciliation A–N:** PASS
 **Owner Exact Contract Proposal Rev 0.1 approval:** YES
+**Owner Design Amendment Rev 0.2 approval:** YES
 **Design Freeze:** YES — OWNER AUTHORIZED
 **Implementation:** NOT AUTHORIZED / NOT STARTED
 **Code change:** NONE
@@ -524,6 +525,76 @@ respond_with_uncertainty with no bounded uncertainty signal
 ask_owner when Owner decision is not required
 ```
 
+### 19.1 Rev 0.2 — `ask_owner` Enforcement-Location Amendment
+
+Rev 0.2 resolves one enforcement-location contradiction without changing the
+artifact field set, vocabulary, epistemic precedence, authority boundary, or
+D133 boundary.
+
+The final example above:
+
+```text
+ask_owner when Owner decision is not required
+```
+
+remains a mandatory D132 rejection rule, but it is **not independently
+enforceable by `CognitiveMetacognitionArtifact` construction** because that
+artifact intentionally carries no duplicate D131
+`decision_goal.recommendation_status` field.
+
+The exact enforcement split is:
+
+```text
+CognitiveMetacognitionArtifact constructor
+→ enforces only self-consistency derivable from its own fields
+→ enforces READY/INSUFFICIENT + confidence/action matrix
+→ enforces revise_reasoning requires hypotheses
+→ enforces respond_with_uncertainty requires a bounded uncertainty signal
+→ does not infer or duplicate D131 owner-decision state
+
+CognitiveMetacognitionProjector
+→ possesses the D131 CognitiveDecisionGoalArtifact
+→ may emit ask_owner only when:
+   decision_goal.recommendation_status == "owner_decision_required"
+   AND the Section 17 / Section 18 action precedence selects ask_owner
+
+CognitiveWorkingState
+→ possesses the attached D131 Decision/Goal artifact
+→ revalidates the same ask_owner upstream trigger
+→ rejects an attached metacognition artifact whose ask_owner action is not
+   coherent with the attached D131 Decision/Goal artifact
+```
+
+Therefore the frozen exact upstream trigger for `ask_owner` is:
+
+```text
+decision_goal.recommendation_status
+== "owner_decision_required"
+```
+
+This trigger is **necessary but not always sufficient** to emit `ask_owner`:
+under Section 17, a non-empty hypothesis still gives `revise_reasoning`
+precedence over `ask_owner`.
+
+Any projector result or Working State attachment containing `ask_owner`
+without the exact D131 owner-decision trigger fails closed as:
+
+```text
+CONTRACT_VIOLATION
+```
+
+No new artifact field is added. In particular, D132 must not add a duplicate:
+
+```text
+owner_decision_required
+owner_decision_status
+recommendation_status
+```
+
+to `CognitiveMetacognitionArtifact`.
+
+All other Rev 0.1a rules remain unchanged.
+
 ## 20. Working State Integration
 
 Add:
@@ -846,4 +917,4 @@ GIT PUSH:
 NOT PUSHED
 ```
 
-**End of D132 Metacognition & Uncertainty V1 — Rev 0.1a Frozen Design Baseline**
+**End of D132 Metacognition & Uncertainty V1 — Rev 0.2 Owner-Approved Amended Design Baseline**
