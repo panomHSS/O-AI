@@ -1,18 +1,20 @@
 # D135 — Model Intelligence & Capability Knowledge V1
 
-**Document status:** DESIGN FROZEN — OWNER APPROVED
-**Design revision:** Rev 0.2
+**Document status:** DESIGN AMENDED — OWNER APPROVED
+**Design revision:** Rev 0.3
 **Architecture phase:** Brain Formation
 **Baseline:** D134 COMPLETE / CLOSED / PUSHED / INDEPENDENTLY REMOTE VERIFIED
 **Baseline commit:** `601ead6e1d17b3efffa28354d85d7b041992fca0`
+**Rev 0.2 freeze commit:** `7d7d81b4add2e17a0d1a6834af5ce8e9b3d64a60`
 **Owner Design Reconciliation A–P:** APPROVED
 **Exact Contract Proposal Rev 0.1:** APPROVED / SUPERSEDED
-**Exact Contract Proposal Rev 0.2:** APPROVED
-**Final Contract Review Rev 0.2:** PASS
-**Design Freeze authorization:** YES
+**Exact Contract Proposal Rev 0.2:** APPROVED / SUPERSEDED BY REV 0.3 RECONCILIATION
+**Design Amendment Rev 0.3 Exact Reconciliation Proposal:** APPROVED
+**Final Contract Review Rev 0.3:** PASS
+**Design Amendment Rev 0.3 authorization:** YES
 **Implementation status:** NOT AUTHORIZED / NOT STARTED
 **Implementation code change:** NONE
-**Push authorization:** NO
+**Amendment push authorization:** NO
 
 ---
 
@@ -307,10 +309,6 @@ class CognitiveModelCapabilityKnowledgeArtifact:
 
     evaluation_evidence: tuple[ModelCapabilityEvaluationEvidence, ...]
 
-    discovery_input_digest: str
-    profile_input_digest: str | None
-    evaluation_source_digests: tuple[str, ...]
-
     knowledge_fingerprint: str
 ```
 
@@ -414,22 +412,26 @@ Violation is fail-closed. D135 performs no truncation, union, dropping, or repai
 
 ## 16. Exact D34 Reason-Code Boundary
 
-Accepted D34 reason codes are exactly:
+`discovery_reason_code` preserves `discovery.reason_code` exactly.
+
+D135 must not hard-code the current D34 reason constants as a closed allow-list.
+
+Before projection, D135 additionally requires the D34 reason code to be:
 
 ```text
-models_discovered
-configured_model
-adapter_disabled
-runtime_unavailable
-configured_model_unavailable
-discovery_source_missing
-model_discovery_unsupported
-configured_model_missing
-cloud_ai_disabled
-cloud_ai_credential_missing
+type = str
+non-empty
+already trimmed
+valid UTF-8
+no Unicode Cc control characters
+UTF-8 byte length <= D126 COGNITIVE_ID_MAX_BYTES
 ```
 
-No arbitrary discovery reason string is projected.
+A future or currently unknown D34 reason code satisfying those rules is valid.
+
+D135 performs no normalization, rewriting, aliasing, fallback, or vocabulary inference.
+
+The preserved exact value is used in the discovery input digest and in the output `discovery_reason_code`.
 
 ---
 
@@ -457,6 +459,8 @@ Adapter discovery status remains separate from target model discovery.
 ---
 
 ## 18. Discovery Input Digest
+
+D135 computes a coordinator-local `discovery_input_digest`.
 
 Canonical digest payload:
 
@@ -552,7 +556,7 @@ When a profile is supplied, digest only the D135-consumed facts:
 }
 ```
 
-When absent: `profile_input_digest = None`.
+When absent, the coordinator-local `profile_input_digest = None`.
 
 ---
 
@@ -646,7 +650,7 @@ Caller cannot supply or reorder these codes.
 
 ## 29. Evaluation Source Digests
 
-`evaluation_source_digests` is the unique set of evidence source digests sorted ascending.
+The coordinator-local `evaluation_source_digests` value is the unique set of evidence source digests sorted ascending.
 
 Multiple evidence records may reference one trusted source digest.
 
@@ -762,17 +766,21 @@ D135 must not mutate task, discovery, model descriptors, profile, or evidence ob
 
 ---
 
-## 35. Contract Error
+## 35. Contract Rejection
+
+Malformed or incoherent D135 inputs fail deterministically.
+
+Coordinator contract rejection may raise:
 
 ```python
-class CognitiveModelIntelligenceContractError(Exception):
-    code = "contract_violation"
-    failure_code = CognitiveFailureCode.CONTRACT_VIOLATION
+ValueError("cognitive_model_intelligence_contract_violation")
 ```
 
-Malformed/incoherent coordinator input yields no fabricated knowledge artifact.
+Direct invalid construction of D135 contract dataclasses may raise D135-specific `ValueError` codes.
 
-Direct invalid construction of D135 contract dataclasses may raise `ValueError`.
+D135 defines no public custom contract-error class in V1.
+
+D135 creates no Cognitive failure artifact, changes no `CognitiveTurnState`, mutates no Working State, and has no runtime failure-transition authority.
 
 ---
 
@@ -991,7 +999,7 @@ F41 fingerprint independent of turn/workspace/Context/time identity
 F42 fingerprint changes with discovery facts/digest
 F43 fingerprint changes with profile facts/digest
 F44 fingerprint changes with evaluation facts/source digests
-F45 artifact/evidence frozen + slots
+F45 artifact/evidence frozen + slots + exact public output field surface
 F46 exact repeated invocation idempotent
 F47 source objects remain unchanged
 F48 caller evidence ordering does not change canonical fingerprint
@@ -1029,8 +1037,8 @@ S15 model capabilities >32 rejected without truncation
 S16 model capability outside adapter set rejected
 S17 incoherence not silently unioned
 S18 incoherence not silently dropped
-S19 unknown D34 reason rejected
-S20 malformed D34 status/fact input rejected
+S19 future/unknown safe D34 reason accepted and preserved exactly
+S20 unsafe/control/oversized D34 reason rejected fail-closed
 S21 duplicate discovered model identity rejected at boundary/upstream
 S22 configured model mismatch alone cannot imply target absence/presence
 
@@ -1194,26 +1202,46 @@ P. D136 retains runtime/invocation/deadline/circuit-breaker ownership.
 
 ---
 
-## 50. Design Freeze Scope
+## 50. Design Freeze / Amendment Scope
 
-D135 Design Freeze changes exactly one path:
+The original D135 Rev 0.2 Design Freeze commit changed exactly one path:
 
 ```text
 docs/specs/D135_MODEL_INTELLIGENCE_CAPABILITY_KNOWLEDGE_V1.md
 ```
 
-Design Freeze commit subject:
+Original Rev 0.2 freeze commit:
+
+```text
+7d7d81b4add2e17a0d1a6834af5ce8e9b3d64a60
+```
+
+Original Rev 0.2 freeze subject:
 
 ```text
 docs: freeze D135 model intelligence capability knowledge design
 ```
 
-This authorization permits the local design-freeze spec commit only.
+The Rev 0.3 Design Amendment also changes exactly the same one existing path:
+
+```text
+docs/specs/D135_MODEL_INTELLIGENCE_CAPABILITY_KNOWLEDGE_V1.md
+```
+
+Rev 0.3 amendment subject:
+
+```text
+docs: amend D135 model intelligence contract reconciliation
+```
+
+Rev 0.2 remains preserved in Git history and is superseded only by this additive Rev 0.3 contract reconciliation. No history rewrite is permitted.
+
+This authorization permits the local Rev 0.3 amendment spec commit only.
 
 It does not authorize:
 
 ```text
-push
+amendment push
 implementation
 implementation commit
 implementation push
@@ -1225,7 +1253,7 @@ force-with-lease
 
 ---
 
-## 51. Current Gate State at Design Freeze
+## 51. Current Gate State at Design Amendment Rev 0.3
 
 ```text
 D134:
@@ -1234,6 +1262,10 @@ COMPLETE / CLOSED / PUSHED / INDEPENDENTLY REMOTE VERIFIED
 D135 BASELINE:
 601ead6e1d17b3efffa28354d85d7b041992fca0
 
+D135 REV 0.2 FREEZE:
+7d7d81b4add2e17a0d1a6834af5ce8e9b3d64a60
+PUSHED / GIT INTEGRITY VERIFIED / SEMANTIC CONTRACT SUPERSEDED BY REV 0.3
+
 D135 OWNER DESIGN RECONCILIATION A-P:
 APPROVED / CONSUMED
 
@@ -1241,13 +1273,16 @@ D135 EXACT CONTRACT PROPOSAL REV 0.1:
 APPROVED / SUPERSEDED
 
 D135 EXACT CONTRACT PROPOSAL REV 0.2:
+APPROVED / SUPERSEDED BY REV 0.3 RECONCILIATION
+
+D135 DESIGN AMENDMENT REV 0.3 EXACT RECONCILIATION PROPOSAL:
 APPROVED / CONSUMED
 
-D135 FINAL CONTRACT REVIEW REV 0.2:
+D135 FINAL CONTRACT REVIEW REV 0.3:
 PASS
 
-D135 DESIGN FREEZE:
-OWNER AUTHORIZED
+D135 DESIGN AMENDMENT REV 0.3:
+OWNER AUTHORIZED / LOCAL AMENDMENT COMMIT ONLY
 
 D135 IMPLEMENTATION:
 NOT AUTHORIZED / NOT STARTED
@@ -1255,10 +1290,10 @@ NOT AUTHORIZED / NOT STARTED
 IMPLEMENTATION CODE CHANGE:
 NONE
 
-GIT PUSH:
+REV 0.3 AMENDMENT PUSH:
 NOT AUTHORIZED / NOT PUSHED
 ```
 
 ---
 
-**End of D135 Model Intelligence & Capability Knowledge V1 — Rev 0.2 Frozen Design Baseline**
+**End of D135 Model Intelligence & Capability Knowledge V1 — Rev 0.3 Owner-Approved Amended Design Baseline**
