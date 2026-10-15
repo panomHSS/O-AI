@@ -1,6 +1,6 @@
 # D138 — Cognitive Brain Benchmark Baseline V1
 
-**Status:** DESIGN FREEZE CANDIDATE — Rev 0.1
+**Status:** DESIGN FROZEN — Rev 0.1
 **Architecture phase:** Learning & Development / Benchmark Baseline
 **Canonical implementation baseline:** `794bb7db142809d2b542639186d233eaf67275aa`
 **Design Reconciliation:** A–P APPROVED
@@ -798,7 +798,7 @@ Independent remote verification                         PASS
 
 ---
 
-## 35. Design Freeze Candidate Status
+## 35. Design Freeze Status
 
 ```text
 D138 COGNITIVE BRAIN BENCHMARK BASELINE V1
@@ -828,8 +828,8 @@ Historical test changes:         ZERO
 AUTONOMOUS LEARNING:             DISABLED
 HANDS / LEGS:                    NOT STARTED
 
-DESIGN FREEZE:                   NOT YET AUTHORIZED
+DESIGN FREEZE:                   FROZEN
 IMPLEMENTATION:                  NOT AUTHORIZED
-COMMIT:                          NOT AUTHORIZED
-PUSH:                            NOT AUTHORIZED
+IMPLEMENTATION COMMIT:           NOT AUTHORIZED
+IMPLEMENTATION PUSH:             NOT AUTHORIZED
 ```
