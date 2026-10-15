@@ -259,12 +259,15 @@ class CognitiveExecutive:
         command: CommandRequest,
         *,
         ai_mode: AIMode | None = None,
+        task_kind: AITaskKind = AITaskKind.GENERAL_CHAT,
     ) -> CognitiveExecutiveTurnResult:
         message, conversation_id, project_id = (
             CommandInputPipeline.validated_chat_arguments(command)
         )
         if command.command != "chat.message":
             raise ValueError("cognitive_executive_chat_command_invalid")
+        if not isinstance(task_kind, AITaskKind):
+            raise ValueError("cognitive_executive_task_kind_invalid")
 
         started = float(self._monotonic())
         deadline = CognitiveTurnDeadline(
@@ -357,6 +360,7 @@ class CognitiveExecutive:
                 message=message,
                 binding=binding,
                 prepared=prepared_turn,
+                task_kind=task_kind,
             )
             self._trace(trace, CognitiveTurnState.THINKING, "cognition_ready")
             self._require_budget(deadline)
@@ -534,6 +538,7 @@ class CognitiveExecutive:
         message: str,
         binding: CognitiveWorkingStateBinding,
         prepared: PreparedContextTurn,
+        task_kind: AITaskKind,
     ) -> CognitiveWorkingState:
         snapshot = prepared.freeze_result.snapshot
         digest = snapshot.snapshot_digest
@@ -584,7 +589,7 @@ class CognitiveExecutive:
             ),
             message,
             "chat",
-            AITaskKind.GENERAL_CHAT,
+            task_kind,
         )
 
         execution_context = ExecutionContext(
