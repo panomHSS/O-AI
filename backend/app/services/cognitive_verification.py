@@ -7,6 +7,7 @@ invocation, routing, persistence, or execution.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -56,6 +57,20 @@ _MODE_BY_ACTION = {
     "ask_owner": "owner_question",
     "insufficient_information": "insufficiency",
 }
+_PROJECT_CONTEXT_REQUIRED_FIELDS = frozenset(
+    {"title", "objective", "status", "current_revision"}
+)
+_PROJECT_CONTEXT_OPTIONAL_FIELDS = frozenset({"current_summary", "next_action"})
+_PROJECT_CLAIM_FIELDS = (
+    "objective",
+    "title",
+    "status",
+    "current_summary",
+    "next_action",
+)
+_PROJECT_CLAIM_COPULA = re.compile(r"(?:\bis\b|คือ|=|:)", re.IGNORECASE)
+_PROJECT_CLAIM_COPULA_WINDOW = 160
+_PROJECT_CLAIM_VALUE_WINDOW = 512
 
 
 class CognitiveVerificationContractError(Exception):
@@ -212,6 +227,113 @@ def _validate_grounding(
     return evidence
 
 
+def _project_context_fields(
+    context: CognitiveContextArtifact,
+) -> dict[str, str]:
+    project_items = tuple(
+        item
+        for item in context.snapshot.items
+        if item.item.source.layer is ContextLayer.PROJECT
+    )
+    if not project_items:
+        return {}
+    if len(project_items) != 1:
+        _contract_error()
+
+    try:
+        payload = json.loads(project_items[0].item.text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        _contract_error()
+    if type(payload) is not dict:
+        _contract_error()
+
+    keys = set(payload)
+    allowed = _PROJECT_CONTEXT_REQUIRED_FIELDS | _PROJECT_CONTEXT_OPTIONAL_FIELDS
+    if (
+        not _PROJECT_CONTEXT_REQUIRED_FIELDS.issubset(keys)
+        or not keys.issubset(allowed)
+    ):
+        _contract_error()
+
+    revision = payload.get("current_revision")
+    if type(revision) is not int or revision < 1:
+        _contract_error()
+
+    result: dict[str, str] = {}
+    for field in _PROJECT_CLAIM_FIELDS:
+        if field not in payload:
+            continue
+        value = payload[field]
+        if type(value) is not str:
+            _contract_error()
+        if field in {"title", "objective", "status"} and not value:
+            _contract_error()
+        result[field] = value
+    return result
+
+
+def _normalized_claim_text(value: str) -> str:
+    if type(value) is not str:
+        _contract_error()
+    return " ".join(value.casefold().split())
+
+
+def _field_claim_segments(text: str, field: str) -> tuple[str, ...]:
+    token = r"[\s_]+".join(re.escape(part) for part in field.split("_"))
+    pattern = re.compile(
+        rf"(?<![A-Za-z0-9_]){token}(?![A-Za-z0-9_])",
+        re.IGNORECASE,
+    )
+    segments: list[str] = []
+    for match in pattern.finditer(text):
+        tail = text[
+            match.end() : match.end() + _PROJECT_CLAIM_COPULA_WINDOW
+        ]
+        copula = _PROJECT_CLAIM_COPULA.search(tail)
+        if copula is None:
+            continue
+        value_start = match.end() + copula.end()
+        raw = text[value_start : value_start + _PROJECT_CLAIM_VALUE_WINDOW]
+        raw = raw.splitlines()[0] if raw else ""
+        raw = raw.lstrip(" \t:=*-\"'")
+        if raw:
+            segments.append(raw)
+    return tuple(segments)
+
+
+def _segment_starts_with_value(segment: str, authoritative_value: str) -> bool:
+    segment_normalized = _normalized_claim_text(segment)
+    value_normalized = _normalized_claim_text(authoritative_value)
+    if not value_normalized:
+        return not segment_normalized
+    if segment_normalized == value_normalized:
+        return True
+    if not segment_normalized.startswith(value_normalized):
+        return False
+    suffix = segment_normalized[len(value_normalized) :]
+    return bool(suffix) and suffix[0] in " .,;:!?)]}\"'"
+
+
+def _project_context_claim_mismatch(
+    draft: CognitiveDraftResponseArtifact,
+    context: CognitiveContextArtifact,
+) -> bool:
+    fields = _project_context_fields(context)
+    if not fields:
+        return False
+
+    for field, authoritative_value in fields.items():
+        segments = _field_claim_segments(draft.text, field)
+        if not segments:
+            continue
+        if not any(
+            _segment_starts_with_value(segment, authoritative_value)
+            for segment in segments
+        ):
+            return True
+    return False
+
+
 def _validate_advisory_pair(
     advisory_result: object,
     advisory_binding_reference: object,
@@ -361,6 +483,12 @@ class CognitiveVerificationCoordinator:
                 for citation_id in conflict.citation_ids
             ):
                 _append_issue(issues, "conflict_citation_missing")
+
+        if (
+            not invalid_cognition
+            and _project_context_claim_mismatch(draft, context)
+        ):
+            _append_issue(issues, "context_claim_mismatch")
 
         if invalid_cognition:
             deterministic_result: VerificationResult = "invalid_cognition"
