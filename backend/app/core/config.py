@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_model: str | None = None
     oai_cloud_ai_enabled: bool = False
+    oai_cognitive_runtime_enabled: bool = True
     oai_cloud_ai_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     oai_embedding_model: str | None = None
     oai_embedding_dimensions: int = Field(

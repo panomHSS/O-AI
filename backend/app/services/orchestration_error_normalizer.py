@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from app.adapters.local_ai import LocalAIResponseError, LocalAIUnavailableError
 from app.contracts.ai_route import AIRouteDecision, LOCAL_AI_ADAPTER_ID
+from app.contracts.cognitive_brain import (
+    CognitiveFailureCode,
+    CognitiveTurnState,
+)
+from app.contracts.cognitive_executive import CognitiveExecutiveOutcome
 from app.contracts.command import Result
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.execution_planning import ExecutionPlanningOutcome
@@ -13,7 +18,7 @@ from app.providers.base import ChatConfigurationError, ChatProviderError
 
 
 class OrchestrationErrorNormalizer:
-    """Classify known D24-D27 outcomes without retaining untrusted details."""
+    """Classify known orchestration outcomes without retaining untrusted details."""
 
     def normalize_ai_route(self, route: object) -> NormalizedError | None:
         """Normalize a terminal D24 route result, or return none when selected."""
@@ -60,6 +65,48 @@ class OrchestrationErrorNormalizer:
             )
         return self._internal(planning.request_id)
 
+    def normalize_cognitive_outcome(
+        self,
+        request_id: str,
+        outcome: object,
+    ) -> NormalizedError:
+        """Map one failed D136 outcome to a bounded D140 production error."""
+        if (
+            not isinstance(outcome, CognitiveExecutiveOutcome)
+            or outcome.terminal_state is not CognitiveTurnState.FAILED
+            or not isinstance(outcome.failure_code, CognitiveFailureCode)
+        ):
+            return self._internal(request_id)
+
+        code = {
+            CognitiveFailureCode.TURN_IN_PROGRESS: "COGNITIVE_RUNTIME_BUSY",
+            CognitiveFailureCode.TURN_DEADLINE_EXCEEDED: (
+                "COGNITIVE_RUNTIME_UNAVAILABLE"
+            ),
+            CognitiveFailureCode.CONTEXT_UNSTABLE: (
+                "COGNITIVE_RUNTIME_UNAVAILABLE"
+            ),
+            CognitiveFailureCode.CRITIC_UNAVAILABLE: (
+                "COGNITIVE_RUNTIME_UNAVAILABLE"
+            ),
+            CognitiveFailureCode.STALE_LATE_RESULT: (
+                "COGNITIVE_RUNTIME_UNAVAILABLE"
+            ),
+            CognitiveFailureCode.INVALID_COGNITION: (
+                "COGNITIVE_RESPONSE_BLOCKED"
+            ),
+            CognitiveFailureCode.CONTRACT_VIOLATION: (
+                "COGNITIVE_RESPONSE_BLOCKED"
+            ),
+        }.get(outcome.failure_code)
+        if code is None:
+            return self._internal(request_id)
+        return NormalizedError(
+            request_id=request_id,
+            code=code,  # type: ignore[arg-type]
+            status="failed",
+        )
+
     def normalize_tool_route(self, route: object) -> NormalizedError | None:
         """Normalize a terminal D27 route result, or return none when selected."""
         if not isinstance(route, ToolModuleRouteDecision):
@@ -78,7 +125,7 @@ class OrchestrationErrorNormalizer:
         self,
         authorization: object,
     ) -> NormalizedError | None:
-        'Normalize D36 authorization without exposing approval/plan details.'
+        """Normalize D36 authorization without exposing approval/plan details."""
         if not isinstance(authorization, ExecutionAuthorization):
             return self._internal(
                 getattr(authorization, "request_id", "")
@@ -95,14 +142,14 @@ class OrchestrationErrorNormalizer:
             if authorization.reason_code == "owner_approval_denied":
                 return NormalizedError(
                     authorization.request_id,
-                    "OWNER_APPROVAL_DENIED",
+                    "OWNER_APPROVAL_DENIED",  # type: ignore[arg-type]
                     "blocked",
                 )
             return self._internal(authorization.request_id)
         if authorization.status == "rejected":
             return NormalizedError(
                 authorization.request_id,
-                "EXECUTION_AUTHORIZATION_REJECTED",
+                "EXECUTION_AUTHORIZATION_REJECTED",  # type: ignore[arg-type]
                 "failed",
             )
         return self._internal(authorization.request_id)

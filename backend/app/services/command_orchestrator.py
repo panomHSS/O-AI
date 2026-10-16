@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from app.contracts.ai import AIResult
 from app.contracts.ai_brain_routing import AIMode
 from app.contracts.command import CommandRequest, Response
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
+from app.contracts.task_aware_ai_routing import AITaskKind
 from app.services.ai_runtime import AIRuntime
-from app.services.cognitive_executive import CognitiveExecutive
+from app.services.cognitive_executive import (
+    CognitiveExecutive,
+    CognitiveExecutiveFailure,
+)
+from app.services.cognitive_runtime_observability import (
+    CognitiveRuntimeObserver,
+)
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ChatTurnResult, ConversationService
 from app.services.execution_guard import ExecutionGuard
@@ -32,6 +40,30 @@ class CommandOrchestrationFailure(Exception):
         super().__init__(response.result.error or "INTERNAL_ERROR")
 
 
+class _GeneralChatExecutionPlanner:
+    """Bind normal Chat planning to server-owned GENERAL_CHAT semantics."""
+
+    def __init__(self, planner: ExecutionPlanner) -> None:
+        self._planner = _GeneralChatExecutionPlanner(planner)
+
+    def plan(
+        self,
+        command: CommandRequest,
+        *,
+        ai_mode: AIMode | None = None,
+    ):
+        if ai_mode is None:
+            return self._planner.plan(
+                command,
+                task_kind=AITaskKind.GENERAL_CHAT,
+            )
+        return self._planner.plan(
+            command,
+            task_kind=AITaskKind.GENERAL_CHAT,
+            ai_mode=ai_mode,
+        )
+
+
 class CommandOrchestrator:
     """Coordinate normal chat without owning AI routing or execution authority."""
 
@@ -46,6 +78,7 @@ class CommandOrchestrator:
         response_composer: ResponseComposer,
         tool_runtime: ToolRuntime,
         cognitive_executive: CognitiveExecutive | None = None,
+        cognitive_runtime_observer: CognitiveRuntimeObserver | None = None,
     ) -> None:
         self._conversation_service = conversation_service
         self._planner = planner
@@ -55,6 +88,7 @@ class CommandOrchestrator:
         self._response_composer = response_composer
         self._tool_runtime = tool_runtime
         self._cognitive_executive = cognitive_executive
+        self._cognitive_runtime_observer = cognitive_runtime_observer
 
     def process_chat(
         self,
@@ -69,11 +103,45 @@ class CommandOrchestrator:
             if command.command != "chat.message":
                 return self._error("AI_ROUTE_REJECTED", command.request_id)
 
+            task_kind = AITaskKind.GENERAL_CHAT
+
             if self._cognitive_executive is not None:
-                turn = self._cognitive_executive.process_chat(
-                    command,
-                    ai_mode=ai_mode,
-                ).chat_turn
+                self._observe_selection(
+                    command=command,
+                    conversation_id=conversation_id,
+                    project_id=project_id,
+                    selected_lane="cognitive",
+                    task_kind=task_kind,
+                )
+                try:
+                    cognitive_result = self._cognitive_executive.process_chat(
+                        command,
+                        ai_mode=ai_mode,
+                        task_kind=task_kind,
+                    )
+                except CognitiveExecutiveFailure as error:
+                    self._observe_cognitive_outcome(
+                        command=command,
+                        conversation_id=conversation_id,
+                        project_id=project_id,
+                        task_kind=task_kind,
+                        outcome=error.outcome,
+                    )
+                    return self._normalized(
+                        self._error_normalizer.normalize_cognitive_outcome(
+                            command.request_id,
+                            error.outcome,
+                        )
+                    )
+
+                turn = cognitive_result.chat_turn
+                self._observe_cognitive_outcome(
+                    command=command,
+                    conversation_id=turn.conversation_id,
+                    project_id=turn.project_id,
+                    task_kind=task_kind,
+                    outcome=cognitive_result.outcome,
+                )
                 return CommandOrchestrationOutcome(
                     response=self._response_composer.compose_ai_success(
                         command.request_id,
@@ -82,6 +150,13 @@ class CommandOrchestrator:
                     chat_turn=turn,
                 )
 
+            self._observe_selection(
+                command=command,
+                conversation_id=conversation_id,
+                project_id=project_id,
+                selected_lane="legacy",
+                task_kind=task_kind,
+            )
             planning = (
                 self._planner.plan(command)
                 if ai_mode is None
@@ -144,6 +219,52 @@ class CommandOrchestrator:
 
         result = self._tool_runtime.execute(request, authorization)
         return self._response_composer.compose_tool_result(result)
+
+    def _observe_selection(
+        self,
+        *,
+        command: CommandRequest,
+        conversation_id: UUID | None,
+        project_id: UUID | None,
+        selected_lane: str,
+        task_kind: AITaskKind,
+    ) -> None:
+        observer = self._cognitive_runtime_observer
+        if observer is None:
+            return
+        try:
+            observer.try_record_selection(
+                request_id=command.request_id,
+                conversation_id=conversation_id,
+                project_id=project_id,
+                selected_lane=selected_lane,  # type: ignore[arg-type]
+                task_kind=task_kind,
+            )
+        except Exception:
+            pass
+
+    def _observe_cognitive_outcome(
+        self,
+        *,
+        command: CommandRequest,
+        conversation_id: UUID | None,
+        project_id: UUID | None,
+        task_kind: AITaskKind,
+        outcome: object,
+    ) -> None:
+        observer = self._cognitive_runtime_observer
+        if observer is None:
+            return
+        try:
+            observer.try_record_cognitive_outcome(
+                request_id=command.request_id,
+                conversation_id=conversation_id,
+                project_id=project_id,
+                task_kind=task_kind,
+                outcome=outcome,  # type: ignore[arg-type]
+            )
+        except Exception:
+            pass
 
     def _normalized(
         self,

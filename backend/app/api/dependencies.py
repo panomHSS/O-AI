@@ -6,7 +6,7 @@ from app.services.skill_invocation_bridge import SkillInvocationBridge
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from app.api.workspace_scope import get_workspace_scope
 from app.contracts.workspace import WorkspaceScope
@@ -274,6 +274,7 @@ from app.services.local_ai_profile import LocalAIProfileResolver, LocalAIProfile
 from app.services.cognitive_context_memory import CognitiveContextStabilizer
 from app.services.cognitive_executive import CognitiveExecutive
 from app.services.cognitive_invocation import CognitiveInvocationCoordinator
+from app.services.cognitive_runtime_observability import CognitiveRuntimeObserver
 from app.services.cognitive_working_state import CognitiveTurnGuard
 from app.services.local_ai_config import LocalAIAdapterConfig
 from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
@@ -556,7 +557,6 @@ def get_conversation_service(
         context_snapshot_service=context_snapshot_service,
         context_snapshot_repository=context_snapshot_repository,
     )
-    setattr(service, "_d136_live_runtime_enabled", True)
     return service
 
 
@@ -2083,6 +2083,16 @@ def get_cognitive_turn_guard() -> CognitiveTurnGuard:
     return CognitiveTurnGuard()
 
 
+def get_cognitive_runtime_observer(
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> CognitiveRuntimeObserver:
+    """Compose D140 metadata-only production adoption observation."""
+
+    return CognitiveRuntimeObserver(
+        workspace_id=workspace_scope.workspace_id,
+    )
+
+
 def get_cognitive_invocation_coordinator(
     planner: ExecutionPlanner = Depends(get_execution_planner),
     guard: ExecutionGuard = Depends(get_execution_guard),
@@ -2154,6 +2164,7 @@ def get_cross_connector_chat_service(
 
 
 def get_command_orchestrator(
+    request: Request,
     conversation_service: ConversationService = Depends(get_conversation_service),
     planner: ExecutionPlanner = Depends(get_execution_planner),
     guard: ExecutionGuard = Depends(get_execution_guard),
@@ -2163,38 +2174,26 @@ def get_command_orchestrator(
     ),
     response_composer: ResponseComposer = Depends(get_response_composer),
     tool_runtime: ToolRuntime = Depends(get_tool_runtime),
+    chat_service: ChatService = Depends(get_chat_service),
+    context_resolver: ContextResolver = Depends(get_context_resolver),
+    context_snapshot_service: ContextSnapshotService = Depends(
+        get_context_snapshot_service
+    ),
+    cognitive_runtime_observer: CognitiveRuntimeObserver = Depends(
+        get_cognitive_runtime_observer
+    ),
 ) -> CommandOrchestrator:
-    """Compose normal Chat with D136 only for the canonical server service."""
+    """Compose D140 controlled Cognitive Runtime production adoption."""
 
+    settings = get_settings()
+    canonical_server_composition = (
+        get_conversation_service not in request.app.dependency_overrides
+    )
     cognitive_executive = None
-    if getattr(
-        conversation_service,
-        "_d136_live_runtime_enabled",
-        False,
+    if (
+        settings.oai_cognitive_runtime_enabled
+        and canonical_server_composition
     ):
-        chat_service = getattr(conversation_service, "_chat_service", None)
-        context_resolver = getattr(
-            conversation_service,
-            "_context_resolver",
-            None,
-        )
-        context_snapshot_service = getattr(
-            conversation_service,
-            "_context_snapshot_service",
-            None,
-        )
-        if (
-            not isinstance(chat_service, ChatService)
-            or not isinstance(context_resolver, ContextResolver)
-            or not isinstance(
-                context_snapshot_service,
-                ContextSnapshotService,
-            )
-        ):
-            raise RuntimeError(
-                "cognitive_runtime_dependencies_invalid"
-            )
-
         local_ai_profiles = get_local_ai_profiles()
         invocation_coordinator = get_cognitive_invocation_coordinator(
             planner=planner,
@@ -2221,6 +2220,7 @@ def get_command_orchestrator(
         response_composer=response_composer,
         tool_runtime=tool_runtime,
         cognitive_executive=cognitive_executive,
+        cognitive_runtime_observer=cognitive_runtime_observer,
     )
 
 
