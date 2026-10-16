@@ -4,6 +4,7 @@ import unittest
 from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
+    CognitiveRuntimeDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
     GoogleCalendarDiagnostics,
@@ -27,6 +28,10 @@ def snapshot() -> RuntimeDiagnosticsResponse:
             implemented=True,
             status_chat_routable=False,
             execution_authority=False,
+        ),
+        cognitive_runtime=CognitiveRuntimeDiagnostics(
+            enabled=False,
+            status="disabled",
         ),
         google_calendar=GoogleCalendarDiagnostics(
             status="connected",

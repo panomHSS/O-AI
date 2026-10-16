@@ -98,6 +98,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "database_revision",
                 "execution_audit",
                 "runtime",
+                "cognitive_runtime",
                 "google_calendar",
                 "gmail",
                 "cross_connector_ai",
@@ -105,6 +106,54 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
             },
         )
         self.assertEqual(set(rendered["execution_audit"]), {"status"})
+        self.assertEqual(
+            set(rendered["cognitive_runtime"]),
+            {
+                "implemented",
+                "enabled",
+                "status",
+                "reference_baseline",
+                "sample_scope",
+                "reset_on_restart",
+                "cognitive_selected",
+                "legacy_selected",
+                "completed",
+                "insufficient",
+                "failed",
+                "runtime_busy",
+                "runtime_unavailable",
+                "response_blocked",
+                "execution_authority",
+                "automatic_promotion",
+                "automatic_rollback",
+            },
+        )
+        self.assertTrue(rendered["cognitive_runtime"]["implemented"])
+        self.assertFalse(rendered["cognitive_runtime"]["enabled"])
+        self.assertEqual(rendered["cognitive_runtime"]["status"], "disabled")
+        self.assertEqual(
+            rendered["cognitive_runtime"]["reference_baseline"],
+            "71e6af0bd01ab06a3fd22ee6f472db3a206b059a",
+        )
+        self.assertEqual(
+            rendered["cognitive_runtime"]["sample_scope"],
+            "process_lifetime",
+        )
+        self.assertTrue(rendered["cognitive_runtime"]["reset_on_restart"])
+        for counter in (
+            "cognitive_selected",
+            "legacy_selected",
+            "completed",
+            "insufficient",
+            "failed",
+            "runtime_busy",
+            "runtime_unavailable",
+            "response_blocked",
+        ):
+            self.assertIsNone(rendered["cognitive_runtime"][counter])
+        self.assertFalse(rendered["cognitive_runtime"]["execution_authority"])
+        self.assertFalse(rendered["cognitive_runtime"]["automatic_promotion"])
+        self.assertFalse(rendered["cognitive_runtime"]["automatic_rollback"])
         self.assertEqual(
             set(rendered["google_calendar"]),
             {

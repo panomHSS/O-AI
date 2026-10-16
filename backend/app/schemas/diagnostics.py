@@ -1,40 +1,63 @@
-from typing import Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
+from app.contracts.cognitive_runtime_assurance import D141_COUNTER_MAX
 from app.contracts.runtime_capability import RuntimeCapabilityConnectionStatus
-
 
 ExecutionAuditDiagnosticStatus: TypeAlias = Literal["ok", "unavailable"]
 GoogleCalendarDiagnosticStatus: TypeAlias = RuntimeCapabilityConnectionStatus
 GmailDiagnosticStatus: TypeAlias = RuntimeCapabilityConnectionStatus
+CognitiveRuntimeDiagnosticStatus: TypeAlias = Literal[
+    "disabled", "idle", "observing", "unavailable"
+]
+CognitiveRuntimeDiagnosticCounter: TypeAlias = Annotated[
+    StrictInt, Field(ge=0, le=D141_COUNTER_MAX)
+]
 
 
 class ExecutionAuditDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     status: ExecutionAuditDiagnosticStatus
 
 
 class RuntimeCapabilityDiagnostics(BaseModel):
     """D81 status-query capability; never an execution grant."""
-
     model_config = ConfigDict(extra="forbid")
-
     implemented: Literal[True] = True
     status_chat_routable: StrictBool = False
     execution_authority: Literal[False] = False
 
 
+class CognitiveRuntimeDiagnostics(BaseModel):
+    """D141 aggregate process-local operational assurance only."""
+    model_config = ConfigDict(extra="forbid")
+    implemented: Literal[True] = True
+    enabled: StrictBool
+    status: CognitiveRuntimeDiagnosticStatus
+    reference_baseline: Literal[
+        "71e6af0bd01ab06a3fd22ee6f472db3a206b059a"
+    ] = "71e6af0bd01ab06a3fd22ee6f472db3a206b059a"
+    sample_scope: Literal["process_lifetime"] = "process_lifetime"
+    reset_on_restart: Literal[True] = True
+    cognitive_selected: CognitiveRuntimeDiagnosticCounter | None = None
+    legacy_selected: CognitiveRuntimeDiagnosticCounter | None = None
+    completed: CognitiveRuntimeDiagnosticCounter | None = None
+    insufficient: CognitiveRuntimeDiagnosticCounter | None = None
+    failed: CognitiveRuntimeDiagnosticCounter | None = None
+    runtime_busy: CognitiveRuntimeDiagnosticCounter | None = None
+    runtime_unavailable: CognitiveRuntimeDiagnosticCounter | None = None
+    response_blocked: CognitiveRuntimeDiagnosticCounter | None = None
+    execution_authority: Literal[False] = False
+    automatic_promotion: Literal[False] = False
+    automatic_rollback: Literal[False] = False
+
+
 class GoogleCalendarDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    # D70 compatibility fields.
     status: GoogleCalendarDiagnosticStatus
     connector_enabled: bool
     configuration_present: bool
-
-    # D81 additive truth fields.
     read_implemented: Literal[True] = True
     read_chat_routable: StrictBool = False
     write_backend_implemented: Literal[True] = True
@@ -44,7 +67,6 @@ class GoogleCalendarDiagnostics(BaseModel):
 
 class GmailDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     status: GmailDiagnosticStatus
     connector_enabled: bool
     configuration_present: bool
@@ -60,7 +82,6 @@ class GmailDiagnostics(BaseModel):
 
 class CrossConnectorAIDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     enabled: StrictBool
     implemented: Literal[True] = True
     chat_routable: StrictBool
@@ -69,7 +90,6 @@ class CrossConnectorAIDiagnostics(BaseModel):
 
 class AutomationDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     enabled: StrictBool
     local_reminder_implemented: Literal[True] = True
     local_reminder_delivery_ui_implemented: Literal[True] = True
@@ -81,14 +101,13 @@ class AutomationDiagnostics(BaseModel):
 
 class RuntimeDiagnosticsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    # Keep D70 contract version stable: D81 is additive.
     contract_version: Literal["1"] = "1"
     service: str
     environment: str
     database_revision: str
     execution_audit: ExecutionAuditDiagnostics
     runtime: RuntimeCapabilityDiagnostics
+    cognitive_runtime: CognitiveRuntimeDiagnostics
     google_calendar: GoogleCalendarDiagnostics
     gmail: GmailDiagnostics
     cross_connector_ai: CrossConnectorAIDiagnostics

@@ -13,6 +13,7 @@ from app.schemas.chat import ChatRequest
 from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
+    CognitiveRuntimeDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
     GoogleCalendarDiagnostics,
@@ -35,6 +36,10 @@ def capability_snapshot() -> RuntimeDiagnosticsResponse:
             implemented=True,
             status_chat_routable=True,
             execution_authority=False,
+        ),
+        cognitive_runtime=CognitiveRuntimeDiagnostics(
+            enabled=False,
+            status="disabled",
         ),
         google_calendar=GoogleCalendarDiagnostics(
             status="connected",
