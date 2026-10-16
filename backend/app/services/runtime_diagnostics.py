@@ -10,6 +10,12 @@ from app.contracts.cognitive_runtime_assurance import (
     D141_REFERENCE_BASELINE,
     CognitiveRuntimeAssuranceSnapshot,
 )
+from app.contracts.cognitive_runtime_promotion_advisory import (
+    CognitiveRuntimePromotionAdvisory,
+)
+from app.contracts.cognitive_runtime_readiness import (
+    CognitiveRuntimeReadinessAssessment,
+)
 from app.core.config import Settings
 from app.core.logging import (
     EXECUTION_AUDIT_LOGGER_NAME,
@@ -19,6 +25,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveRuntimeDiagnostics,
+    CognitiveRuntimePromotionAdvisoryDiagnostics,
     CognitiveRuntimeReadinessDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
@@ -34,6 +41,9 @@ from app.services.google_oauth_connection_status import (
     GoogleOAuthConnectionStatusReader,
 )
 from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
+from app.services.cognitive_runtime_promotion_advisory import (
+    CognitiveRuntimePromotionGovernanceEvaluator,
+)
 from app.services.cognitive_runtime_readiness import (
     CognitiveRuntimeReadinessEvaluator,
 )
@@ -78,6 +88,15 @@ class RuntimeDiagnosticsService:
             getattr(self._settings, "oai_cognitive_runtime_enabled", False)
         )
         cognitive_snapshot = self._cognitive_runtime_assurance_snapshot()
+        readiness_assessment = CognitiveRuntimeReadinessEvaluator.evaluate(
+            enabled=cognitive_enabled,
+            snapshot=cognitive_snapshot,
+        )
+        promotion_advisory = (
+            CognitiveRuntimePromotionGovernanceEvaluator.evaluate(
+                readiness=readiness_assessment,
+            )
+        )
         return RuntimeDiagnosticsResponse(
             service=self._settings.app_name,
             environment=self._settings.environment,
@@ -94,8 +113,12 @@ class RuntimeDiagnosticsService:
                 snapshot=cognitive_snapshot,
             ),
             cognitive_runtime_readiness=self._cognitive_runtime_readiness_diagnostics(
-                enabled=cognitive_enabled,
-                snapshot=cognitive_snapshot,
+                assessment=readiness_assessment,
+            ),
+            cognitive_runtime_promotion_advisory=(
+                self._cognitive_runtime_promotion_advisory_diagnostics(
+                    advisory=promotion_advisory,
+                )
             ),
             google_calendar=self._google_calendar_diagnostics(),
             gmail=self._gmail_diagnostics(),
@@ -160,13 +183,8 @@ class RuntimeDiagnosticsService:
     @staticmethod
     def _cognitive_runtime_readiness_diagnostics(
         *,
-        enabled: bool,
-        snapshot: CognitiveRuntimeAssuranceSnapshot | None,
+        assessment: CognitiveRuntimeReadinessAssessment,
     ) -> CognitiveRuntimeReadinessDiagnostics:
-        assessment = CognitiveRuntimeReadinessEvaluator.evaluate(
-            enabled=enabled,
-            snapshot=snapshot,
-        )
         return CognitiveRuntimeReadinessDiagnostics(
             status=assessment.status,
             reference_baseline=assessment.reference_baseline,
@@ -189,6 +207,26 @@ class RuntimeDiagnosticsService:
             routing_authority=False,
             promotion_authority=False,
             rollback_authority=False,
+            automatic_promotion=False,
+            automatic_rollback=False,
+        )
+
+    @staticmethod
+    def _cognitive_runtime_promotion_advisory_diagnostics(
+        *,
+        advisory: CognitiveRuntimePromotionAdvisory,
+    ) -> CognitiveRuntimePromotionAdvisoryDiagnostics:
+        return CognitiveRuntimePromotionAdvisoryDiagnostics(
+            reference_baseline=advisory.reference_baseline,
+            recommendation=advisory.recommendation,
+            reason_code=advisory.reason_code,
+            source_readiness_status=advisory.source_readiness_status,
+            owner_decision_required=advisory.owner_decision_required,
+            promotion_authority=False,
+            rollback_authority=False,
+            execution_authority=False,
+            routing_authority=False,
+            configuration_authority=False,
             automatic_promotion=False,
             automatic_rollback=False,
         )

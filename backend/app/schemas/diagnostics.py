@@ -3,6 +3,11 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from app.contracts.cognitive_runtime_assurance import D141_COUNTER_MAX
+from app.contracts.cognitive_runtime_promotion_advisory import (
+    D143_REFERENCE_BASELINE,
+    CognitiveRuntimePromotionReasonCode,
+    CognitiveRuntimePromotionRecommendation,
+)
 from app.contracts.cognitive_runtime_readiness import (
     D142_MAX_FAILED_RATE_BPS,
     D142_MAX_RESPONSE_BLOCKED_RATE_BPS,
@@ -100,6 +105,25 @@ class CognitiveRuntimeReadinessDiagnostics(BaseModel):
     automatic_rollback: Literal[False] = False
 
 
+class CognitiveRuntimePromotionAdvisoryDiagnostics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    implemented: Literal[True] = True
+    reference_baseline: Literal[
+        "1b24f231a09bf6f03ad6fb796aeecffa484ed9f0"
+    ] = D143_REFERENCE_BASELINE
+    recommendation: CognitiveRuntimePromotionRecommendation
+    reason_code: CognitiveRuntimePromotionReasonCode
+    source_readiness_status: CognitiveRuntimeReadinessDiagnosticStatus | None
+    owner_decision_required: StrictBool
+    promotion_authority: Literal[False] = False
+    rollback_authority: Literal[False] = False
+    execution_authority: Literal[False] = False
+    routing_authority: Literal[False] = False
+    configuration_authority: Literal[False] = False
+    automatic_promotion: Literal[False] = False
+    automatic_rollback: Literal[False] = False
+
+
 class GoogleCalendarDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: GoogleCalendarDiagnosticStatus
@@ -156,6 +180,7 @@ class RuntimeDiagnosticsResponse(BaseModel):
     runtime: RuntimeCapabilityDiagnostics
     cognitive_runtime: CognitiveRuntimeDiagnostics
     cognitive_runtime_readiness: CognitiveRuntimeReadinessDiagnostics
+    cognitive_runtime_promotion_advisory: CognitiveRuntimePromotionAdvisoryDiagnostics
     google_calendar: GoogleCalendarDiagnostics
     gmail: GmailDiagnostics
     cross_connector_ai: CrossConnectorAIDiagnostics

@@ -5,6 +5,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveRuntimeDiagnostics,
+    CognitiveRuntimePromotionAdvisoryDiagnostics,
     CognitiveRuntimeReadinessDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
@@ -36,6 +37,14 @@ def snapshot() -> RuntimeDiagnosticsResponse:
         ),
         cognitive_runtime_readiness=CognitiveRuntimeReadinessDiagnostics(
             status="disabled",
+        ),
+        cognitive_runtime_promotion_advisory=(
+            CognitiveRuntimePromotionAdvisoryDiagnostics(
+                recommendation="no_action",
+                reason_code="runtime_disabled",
+                source_readiness_status="disabled",
+                owner_decision_required=False,
+            )
         ),
         google_calendar=GoogleCalendarDiagnostics(
             status="connected",

@@ -100,6 +100,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "runtime",
                 "cognitive_runtime",
                 "cognitive_runtime_readiness",
+                "cognitive_runtime_promotion_advisory",
                 "google_calendar",
                 "gmail",
                 "cross_connector_ai",
@@ -211,6 +212,46 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         self.assertFalse(readiness["rollback_authority"])
         self.assertFalse(readiness["automatic_promotion"])
         self.assertFalse(readiness["automatic_rollback"])
+
+        promotion = rendered["cognitive_runtime_promotion_advisory"]
+        self.assertEqual(
+            set(promotion),
+            {
+                "implemented",
+                "reference_baseline",
+                "recommendation",
+                "reason_code",
+                "source_readiness_status",
+                "owner_decision_required",
+                "promotion_authority",
+                "rollback_authority",
+                "execution_authority",
+                "routing_authority",
+                "configuration_authority",
+                "automatic_promotion",
+                "automatic_rollback",
+            },
+        )
+        self.assertTrue(promotion["implemented"])
+        self.assertEqual(
+            promotion["reference_baseline"],
+            "1b24f231a09bf6f03ad6fb796aeecffa484ed9f0",
+        )
+        self.assertEqual(promotion["recommendation"], "no_action")
+        self.assertEqual(promotion["reason_code"], "runtime_disabled")
+        self.assertEqual(promotion["source_readiness_status"], "disabled")
+        self.assertFalse(promotion["owner_decision_required"])
+        for field in (
+            "promotion_authority",
+            "rollback_authority",
+            "execution_authority",
+            "routing_authority",
+            "configuration_authority",
+            "automatic_promotion",
+            "automatic_rollback",
+        ):
+            self.assertFalse(promotion[field])
+
         self.assertEqual(
             set(rendered["google_calendar"]),
             {
