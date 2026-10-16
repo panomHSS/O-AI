@@ -1,0 +1,44 @@
+{
+  "accepted_baselines": [
+    {
+      "authorized_route_bindings": [
+        {
+          "adapter_id": "chatgpt.default",
+          "invoked_trial_count": 72,
+          "lane_trial_count": 72,
+          "model_id": "gpt-5.5",
+          "profile_id": null,
+          "task_kind": "general_chat"
+        },
+        {
+          "adapter_id": "local_ai.default",
+          "invoked_trial_count": 72,
+          "lane_trial_count": 72,
+          "model_id": "qwen2.5-coder:7b",
+          "profile_id": "local_ai.software_engineering.v1",
+          "task_kind": "software_engineering"
+        }
+      ],
+      "baseline_id": "d138-official-v1a-20261016T002928226759Z-b3d9c197",
+      "deterministic_result_digest": "6da7b96e355666b3af706f67a42f17326c2c7a2419928967fd2a2be85eb47cd9",
+      "live_result_digest": "0c12e346a53cac068f7d477ccd8e00126227740755bb388475e38d1ecd52d276",
+      "measurement_commit": "6ba1b761712dc1d099781d0ac689a2fee80b3922",
+      "measurement_identity": {
+        "benchmark_contract_version": "o-ai.d138.benchmark.v1a",
+        "benchmark_seed": 138001,
+        "corpus_sha256": "b585352ed4ec4d347736ae843ced66e0a74689a7ed28ec6960f5dfaf12b0fe4d",
+        "corpus_version": "o-ai.d138.corpus.v1a",
+        "evaluator_source_sha256": "0085a38f36e812d38ee04d2bcaef8674791f5d021e6b51f13300fbaa9cb5f5f3",
+        "evaluator_version": "o-ai.d138.evaluator.v1",
+        "live_executor_source_sha256": "b28a8b673ceaf3e55664f8d5148b8a134889a46ef74dfb95790a67a0a8517c24",
+        "live_executor_version": "o-ai.d138.live-executor.v1",
+        "python_version": "3.14.6",
+        "runner_version": "o-ai.d138.runner.v1a",
+        "scoring_version": "o-ai.d138.scoring.v1a"
+      },
+      "normalized_observation_count": 144,
+      "report_payload_digest": "3169c228c298955a8c5a0be47b3748bc0b158352942a18c8dc59f7adf57efcc7"
+    }
+  ],
+  "registry_version": "o-ai.d139.accepted-baselines.v1"
+}
