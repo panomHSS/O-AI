@@ -14,6 +14,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveRuntimeDiagnostics,
+    CognitiveRuntimeReadinessDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
     GoogleCalendarDiagnostics,
@@ -39,6 +40,9 @@ def capability_snapshot() -> RuntimeDiagnosticsResponse:
         ),
         cognitive_runtime=CognitiveRuntimeDiagnostics(
             enabled=False,
+            status="disabled",
+        ),
+        cognitive_runtime_readiness=CognitiveRuntimeReadinessDiagnostics(
             status="disabled",
         ),
         google_calendar=GoogleCalendarDiagnostics(

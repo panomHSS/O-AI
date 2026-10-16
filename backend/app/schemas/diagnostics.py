@@ -3,6 +3,14 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from app.contracts.cognitive_runtime_assurance import D141_COUNTER_MAX
+from app.contracts.cognitive_runtime_readiness import (
+    D142_MAX_FAILED_RATE_BPS,
+    D142_MAX_RESPONSE_BLOCKED_RATE_BPS,
+    D142_MAX_RUNTIME_BUSY_RATE_BPS,
+    D142_MAX_RUNTIME_UNAVAILABLE_RATE_BPS,
+    D142_MIN_TERMINAL_SAMPLES,
+    D142_RATE_SCALE_BPS,
+)
 from app.contracts.runtime_capability import RuntimeCapabilityConnectionStatus
 
 ExecutionAuditDiagnosticStatus: TypeAlias = Literal["ok", "unavailable"]
@@ -13,6 +21,12 @@ CognitiveRuntimeDiagnosticStatus: TypeAlias = Literal[
 ]
 CognitiveRuntimeDiagnosticCounter: TypeAlias = Annotated[
     StrictInt, Field(ge=0, le=D141_COUNTER_MAX)
+]
+CognitiveRuntimeReadinessDiagnosticStatus: TypeAlias = Literal[
+    "disabled", "collecting", "ready", "degraded", "unavailable"
+]
+CognitiveRuntimeReadinessDiagnosticRate: TypeAlias = Annotated[
+    StrictInt, Field(ge=0, le=D142_RATE_SCALE_BPS)
 ]
 
 
@@ -49,6 +63,39 @@ class CognitiveRuntimeDiagnostics(BaseModel):
     runtime_unavailable: CognitiveRuntimeDiagnosticCounter | None = None
     response_blocked: CognitiveRuntimeDiagnosticCounter | None = None
     execution_authority: Literal[False] = False
+    automatic_promotion: Literal[False] = False
+    automatic_rollback: Literal[False] = False
+
+
+class CognitiveRuntimeReadinessDiagnostics(BaseModel):
+    """D142 deterministic production-readiness advisory; never control authority."""
+    model_config = ConfigDict(extra="forbid")
+    implemented: Literal[True] = True
+    status: CognitiveRuntimeReadinessDiagnosticStatus
+    reference_baseline: Literal[
+        "6f8e803da9e77d43e1eeb06a8ae3d5e69fb80299"
+    ] = "6f8e803da9e77d43e1eeb06a8ae3d5e69fb80299"
+    sample_scope: Literal["process_lifetime"] = "process_lifetime"
+    reset_on_restart: Literal[True] = True
+    terminal_samples: CognitiveRuntimeDiagnosticCounter | None = None
+    failed_rate_bps: CognitiveRuntimeReadinessDiagnosticRate | None = None
+    insufficient_rate_bps: CognitiveRuntimeReadinessDiagnosticRate | None = None
+    runtime_busy_rate_bps: CognitiveRuntimeReadinessDiagnosticRate | None = None
+    runtime_unavailable_rate_bps: CognitiveRuntimeReadinessDiagnosticRate | None = None
+    response_blocked_rate_bps: CognitiveRuntimeReadinessDiagnosticRate | None = None
+    minimum_terminal_samples: Literal[100] = D142_MIN_TERMINAL_SAMPLES
+    max_failed_rate_bps: Literal[100] = D142_MAX_FAILED_RATE_BPS
+    max_runtime_busy_rate_bps: Literal[100] = D142_MAX_RUNTIME_BUSY_RATE_BPS
+    max_runtime_unavailable_rate_bps: Literal[50] = (
+        D142_MAX_RUNTIME_UNAVAILABLE_RATE_BPS
+    )
+    max_response_blocked_rate_bps: Literal[100] = (
+        D142_MAX_RESPONSE_BLOCKED_RATE_BPS
+    )
+    execution_authority: Literal[False] = False
+    routing_authority: Literal[False] = False
+    promotion_authority: Literal[False] = False
+    rollback_authority: Literal[False] = False
     automatic_promotion: Literal[False] = False
     automatic_rollback: Literal[False] = False
 
@@ -108,6 +155,7 @@ class RuntimeDiagnosticsResponse(BaseModel):
     execution_audit: ExecutionAuditDiagnostics
     runtime: RuntimeCapabilityDiagnostics
     cognitive_runtime: CognitiveRuntimeDiagnostics
+    cognitive_runtime_readiness: CognitiveRuntimeReadinessDiagnostics
     google_calendar: GoogleCalendarDiagnostics
     gmail: GmailDiagnostics
     cross_connector_ai: CrossConnectorAIDiagnostics

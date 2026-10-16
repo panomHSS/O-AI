@@ -6,7 +6,10 @@ import logging
 from collections.abc import Callable
 
 from app.contracts.runtime_capability import ConnectorReadCapabilityTruth
-from app.contracts.cognitive_runtime_assurance import D141_REFERENCE_BASELINE
+from app.contracts.cognitive_runtime_assurance import (
+    D141_REFERENCE_BASELINE,
+    CognitiveRuntimeAssuranceSnapshot,
+)
 from app.core.config import Settings
 from app.core.logging import (
     EXECUTION_AUDIT_LOGGER_NAME,
@@ -16,6 +19,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveRuntimeDiagnostics,
+    CognitiveRuntimeReadinessDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
     GoogleCalendarDiagnostics,
@@ -30,6 +34,9 @@ from app.services.google_oauth_connection_status import (
     GoogleOAuthConnectionStatusReader,
 )
 from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
+from app.services.cognitive_runtime_readiness import (
+    CognitiveRuntimeReadinessEvaluator,
+)
 
 
 class RuntimeDiagnosticsService:
@@ -67,6 +74,10 @@ class RuntimeDiagnosticsService:
         self._cognitive_runtime_assurance = cognitive_runtime_assurance
 
     def snapshot(self, *, database_revision: str) -> RuntimeDiagnosticsResponse:
+        cognitive_enabled = bool(
+            getattr(self._settings, "oai_cognitive_runtime_enabled", False)
+        )
+        cognitive_snapshot = self._cognitive_runtime_assurance_snapshot()
         return RuntimeDiagnosticsResponse(
             service=self._settings.app_name,
             environment=self._settings.environment,
@@ -78,27 +89,43 @@ class RuntimeDiagnosticsService:
                 status_chat_routable=True,
                 execution_authority=False,
             ),
-            cognitive_runtime=self._cognitive_runtime_diagnostics(),
+            cognitive_runtime=self._cognitive_runtime_diagnostics(
+                enabled=cognitive_enabled,
+                snapshot=cognitive_snapshot,
+            ),
+            cognitive_runtime_readiness=self._cognitive_runtime_readiness_diagnostics(
+                enabled=cognitive_enabled,
+                snapshot=cognitive_snapshot,
+            ),
             google_calendar=self._google_calendar_diagnostics(),
             gmail=self._gmail_diagnostics(),
             cross_connector_ai=self._cross_connector_ai_diagnostics(),
             automation=self._automation_diagnostics(),
         )
 
-    def _cognitive_runtime_diagnostics(self) -> CognitiveRuntimeDiagnostics:
-        enabled = bool(
-            getattr(self._settings, "oai_cognitive_runtime_enabled", False)
-        )
+    def _cognitive_runtime_assurance_snapshot(
+        self,
+    ) -> CognitiveRuntimeAssuranceSnapshot | None:
         assurance = self._cognitive_runtime_assurance
         if assurance is None:
-            return CognitiveRuntimeDiagnostics(
-                enabled=enabled,
-                status=("unavailable" if enabled else "disabled"),
-                reference_baseline=D141_REFERENCE_BASELINE,
-            )
+            return None
         try:
             snapshot = assurance.snapshot()
         except Exception:
+            return None
+        return (
+            snapshot
+            if isinstance(snapshot, CognitiveRuntimeAssuranceSnapshot)
+            else None
+        )
+
+    @staticmethod
+    def _cognitive_runtime_diagnostics(
+        *,
+        enabled: bool,
+        snapshot: CognitiveRuntimeAssuranceSnapshot | None,
+    ) -> CognitiveRuntimeDiagnostics:
+        if snapshot is None:
             return CognitiveRuntimeDiagnostics(
                 enabled=enabled,
                 status=("unavailable" if enabled else "disabled"),
@@ -126,6 +153,42 @@ class RuntimeDiagnosticsService:
             runtime_unavailable=snapshot.runtime_unavailable,
             response_blocked=snapshot.response_blocked,
             execution_authority=False,
+            automatic_promotion=False,
+            automatic_rollback=False,
+        )
+
+    @staticmethod
+    def _cognitive_runtime_readiness_diagnostics(
+        *,
+        enabled: bool,
+        snapshot: CognitiveRuntimeAssuranceSnapshot | None,
+    ) -> CognitiveRuntimeReadinessDiagnostics:
+        assessment = CognitiveRuntimeReadinessEvaluator.evaluate(
+            enabled=enabled,
+            snapshot=snapshot,
+        )
+        return CognitiveRuntimeReadinessDiagnostics(
+            status=assessment.status,
+            reference_baseline=assessment.reference_baseline,
+            sample_scope=assessment.sample_scope,
+            reset_on_restart=assessment.reset_on_restart,
+            terminal_samples=assessment.terminal_samples,
+            failed_rate_bps=assessment.failed_rate_bps,
+            insufficient_rate_bps=assessment.insufficient_rate_bps,
+            runtime_busy_rate_bps=assessment.runtime_busy_rate_bps,
+            runtime_unavailable_rate_bps=assessment.runtime_unavailable_rate_bps,
+            response_blocked_rate_bps=assessment.response_blocked_rate_bps,
+            minimum_terminal_samples=assessment.minimum_terminal_samples,
+            max_failed_rate_bps=assessment.max_failed_rate_bps,
+            max_runtime_busy_rate_bps=assessment.max_runtime_busy_rate_bps,
+            max_runtime_unavailable_rate_bps=(
+                assessment.max_runtime_unavailable_rate_bps
+            ),
+            max_response_blocked_rate_bps=assessment.max_response_blocked_rate_bps,
+            execution_authority=False,
+            routing_authority=False,
+            promotion_authority=False,
+            rollback_authority=False,
             automatic_promotion=False,
             automatic_rollback=False,
         )

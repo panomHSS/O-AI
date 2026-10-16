@@ -99,6 +99,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "execution_audit",
                 "runtime",
                 "cognitive_runtime",
+                "cognitive_runtime_readiness",
                 "google_calendar",
                 "gmail",
                 "cross_connector_ai",
@@ -154,6 +155,62 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         self.assertFalse(rendered["cognitive_runtime"]["execution_authority"])
         self.assertFalse(rendered["cognitive_runtime"]["automatic_promotion"])
         self.assertFalse(rendered["cognitive_runtime"]["automatic_rollback"])
+        self.assertEqual(
+            set(rendered["cognitive_runtime_readiness"]),
+            {
+                "implemented",
+                "status",
+                "reference_baseline",
+                "sample_scope",
+                "reset_on_restart",
+                "terminal_samples",
+                "failed_rate_bps",
+                "insufficient_rate_bps",
+                "runtime_busy_rate_bps",
+                "runtime_unavailable_rate_bps",
+                "response_blocked_rate_bps",
+                "minimum_terminal_samples",
+                "max_failed_rate_bps",
+                "max_runtime_busy_rate_bps",
+                "max_runtime_unavailable_rate_bps",
+                "max_response_blocked_rate_bps",
+                "execution_authority",
+                "routing_authority",
+                "promotion_authority",
+                "rollback_authority",
+                "automatic_promotion",
+                "automatic_rollback",
+            },
+        )
+        readiness = rendered["cognitive_runtime_readiness"]
+        self.assertTrue(readiness["implemented"])
+        self.assertEqual(readiness["status"], "disabled")
+        self.assertEqual(
+            readiness["reference_baseline"],
+            "6f8e803da9e77d43e1eeb06a8ae3d5e69fb80299",
+        )
+        self.assertEqual(readiness["sample_scope"], "process_lifetime")
+        self.assertTrue(readiness["reset_on_restart"])
+        for field in (
+            "terminal_samples",
+            "failed_rate_bps",
+            "insufficient_rate_bps",
+            "runtime_busy_rate_bps",
+            "runtime_unavailable_rate_bps",
+            "response_blocked_rate_bps",
+        ):
+            self.assertIsNone(readiness[field])
+        self.assertEqual(readiness["minimum_terminal_samples"], 100)
+        self.assertEqual(readiness["max_failed_rate_bps"], 100)
+        self.assertEqual(readiness["max_runtime_busy_rate_bps"], 100)
+        self.assertEqual(readiness["max_runtime_unavailable_rate_bps"], 50)
+        self.assertEqual(readiness["max_response_blocked_rate_bps"], 100)
+        self.assertFalse(readiness["execution_authority"])
+        self.assertFalse(readiness["routing_authority"])
+        self.assertFalse(readiness["promotion_authority"])
+        self.assertFalse(readiness["rollback_authority"])
+        self.assertFalse(readiness["automatic_promotion"])
+        self.assertFalse(readiness["automatic_rollback"])
         self.assertEqual(
             set(rendered["google_calendar"]),
             {
