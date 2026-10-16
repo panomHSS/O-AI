@@ -11,6 +11,9 @@ from app.contracts.command import CommandRequest, Response
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
 from app.contracts.task_aware_ai_routing import AITaskKind
+from app.core.cognitive_runtime_rollout_config import (
+    get_cognitive_runtime_rollout_settings,
+)
 from app.services.ai_runtime import AIRuntime
 from app.services.cognitive_executive import (
     CognitiveExecutive,
@@ -18,6 +21,9 @@ from app.services.cognitive_executive import (
 )
 from app.services.cognitive_runtime_observability import (
     CognitiveRuntimeObserver,
+)
+from app.services.cognitive_runtime_rollout import (
+    CognitiveRuntimeRolloutSelector,
 )
 from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.conversations import ChatTurnResult, ConversationService
@@ -106,16 +112,43 @@ class CommandOrchestrator:
             task_kind = AITaskKind.GENERAL_CHAT
 
             if self._cognitive_executive is not None:
-                self._observe_selection(
-                    command=command,
+                cognitive_command = command
+                cognitive_conversation_id = conversation_id
+                cognitive_project_id = project_id
+                rollout = self._d144_rollout_binding(
+                    message=message,
                     conversation_id=conversation_id,
                     project_id=project_id,
+                    turn_id=command.request_id,
+                )
+                if rollout is not None:
+                    binding, decision = rollout
+                    if decision.disposition == "control":
+                        return self._d144_control_turn(
+                            command=command,
+                            message=message,
+                            binding=binding,
+                            ai_mode=ai_mode,
+                            task_kind=task_kind,
+                        )
+                    cognitive_command = self._d144_server_bound_cognitive_command(
+                        command=command,
+                        message=message,
+                        binding=binding,
+                    )
+                    cognitive_conversation_id = binding.conversation_id
+                    cognitive_project_id = binding.project_id
+
+                self._observe_selection(
+                    command=command,
+                    conversation_id=cognitive_conversation_id,
+                    project_id=cognitive_project_id,
                     selected_lane="cognitive",
                     task_kind=task_kind,
                 )
                 try:
                     cognitive_result = self._cognitive_executive.process_chat(
-                        command,
+                        cognitive_command,
                         ai_mode=ai_mode,
                         task_kind=task_kind,
                     )
@@ -219,6 +252,125 @@ class CommandOrchestrator:
 
         result = self._tool_runtime.execute(request, authorization)
         return self._response_composer.compose_tool_result(result)
+
+    def _d144_rollout_binding(
+        self,
+        *,
+        message: str,
+        conversation_id: UUID | None,
+        project_id: UUID | None,
+        turn_id: str,
+    ):
+        if type(self._conversation_service) is not ConversationService:
+            return None
+
+        conversation_service = self._conversation_service
+        try:
+            binding = conversation_service.reserve_cognitive_turn(
+                message,
+                conversation_id,
+                project_id,
+                turn_id=turn_id,
+            )
+            stage = (
+                get_cognitive_runtime_rollout_settings()
+                .oai_cognitive_runtime_rollout_stage
+            )
+            decision = CognitiveRuntimeRolloutSelector.evaluate(
+                enabled=True,
+                cognitive_eligible=True,
+                stage=stage,
+                conversation_id=binding.conversation_id,
+            )
+        except Exception:
+            conversation_service.abort_cognitive_turn()
+            raise
+
+        if decision.disposition in {"control", "cognitive"}:
+            return binding, decision
+
+        conversation_service.abort_cognitive_turn()
+        raise RuntimeError("cognitive_rollout_decision_invalid")
+
+    @staticmethod
+    def _d144_server_bound_cognitive_command(
+        *,
+        command: CommandRequest,
+        message: str,
+        binding,
+    ) -> CommandRequest:
+        return CommandRequest(
+            request_id=command.request_id,
+            command=command.command,
+            arguments={
+                "message": message,
+                "conversation_id": binding.conversation_id,
+                "project_id": None,
+            },
+        )
+
+    def _d144_control_turn(
+        self,
+        *,
+        command: CommandRequest,
+        message: str,
+        binding,
+        ai_mode: AIMode | None,
+        task_kind: AITaskKind,
+    ) -> CommandOrchestrationOutcome:
+        conversation_service = self._conversation_service
+        self._observe_selection(
+            command=command,
+            conversation_id=binding.conversation_id,
+            project_id=binding.project_id,
+            selected_lane="legacy",
+            task_kind=task_kind,
+        )
+
+        planning = (
+            self._planner.plan(command)
+            if ai_mode is None
+            else self._planner.plan(command, ai_mode=ai_mode)
+        )
+        planning_error = self._error_normalizer.normalize_execution_planning(
+            planning
+        )
+        if planning_error is not None:
+            conversation_service.abort_cognitive_turn()
+            return self._normalized(planning_error)
+
+        authorization = self._guard.authorize(command, planning)
+        authorization_error = (
+            self._error_normalizer.normalize_execution_authorization(
+                authorization
+            )
+        )
+        if authorization_error is not None:
+            conversation_service.abort_cognitive_turn()
+            return self._normalized(authorization_error)
+
+        try:
+            authorized_adapter = self._ai_runtime.bind(
+                command,
+                authorization,
+            )
+        except Exception:
+            conversation_service.abort_cognitive_turn()
+            raise
+
+        turn = conversation_service.send_context_message(
+            message,
+            binding.conversation_id,
+            project_id=None,
+            ai_adapter=authorized_adapter,
+        )
+        return CommandOrchestrationOutcome(
+            response=self._response_composer.compose_ai_success(
+                command.request_id,
+                AIResult(content=turn.reply),
+            ),
+            chat_turn=turn,
+        )
 
     def _observe_selection(
         self,

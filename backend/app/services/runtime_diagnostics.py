@@ -13,10 +13,16 @@ from app.contracts.cognitive_runtime_assurance import (
 from app.contracts.cognitive_runtime_promotion_advisory import (
     CognitiveRuntimePromotionAdvisory,
 )
+from app.contracts.cognitive_runtime_rollout import (
+    CognitiveRuntimeRolloutStage,
+)
 from app.contracts.cognitive_runtime_readiness import (
     CognitiveRuntimeReadinessAssessment,
 )
 from app.core.config import Settings
+from app.core.cognitive_runtime_rollout_config import (
+    get_cognitive_runtime_rollout_settings,
+)
 from app.core.logging import (
     EXECUTION_AUDIT_LOGGER_NAME,
     SafeExecutionAuditFormatter,
@@ -27,6 +33,7 @@ from app.schemas.diagnostics import (
     CognitiveRuntimeDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
     CognitiveRuntimeReadinessDiagnostics,
+    CognitiveRuntimeRolloutDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
     GoogleCalendarDiagnostics,
@@ -46,6 +53,9 @@ from app.services.cognitive_runtime_promotion_advisory import (
 )
 from app.services.cognitive_runtime_readiness import (
     CognitiveRuntimeReadinessEvaluator,
+)
+from app.services.cognitive_runtime_rollout import (
+    CognitiveRuntimeRolloutSelector,
 )
 
 
@@ -97,6 +107,16 @@ class RuntimeDiagnosticsService:
                 readiness=readiness_assessment,
             )
         )
+        rollout_stage = (
+            get_cognitive_runtime_rollout_settings()
+            .oai_cognitive_runtime_rollout_stage
+        )
+        rollout_bps = CognitiveRuntimeRolloutSelector.rollout_bps_for_stage(
+            rollout_stage
+        )
+        if rollout_bps is None:
+            raise RuntimeError("cognitive_runtime_rollout_stage_invalid")
+
         return RuntimeDiagnosticsResponse(
             service=self._settings.app_name,
             environment=self._settings.environment,
@@ -117,6 +137,13 @@ class RuntimeDiagnosticsService:
             ),
             cognitive_runtime_promotion_advisory=(
                 self._cognitive_runtime_promotion_advisory_diagnostics(
+                    advisory=promotion_advisory,
+                )
+            ),
+            cognitive_runtime_rollout=(
+                self._cognitive_runtime_rollout_diagnostics(
+                    stage=rollout_stage,
+                    rollout_bps=rollout_bps,
                     advisory=promotion_advisory,
                 )
             ),
@@ -229,6 +256,25 @@ class RuntimeDiagnosticsService:
             configuration_authority=False,
             automatic_promotion=False,
             automatic_rollback=False,
+        )
+
+    @staticmethod
+    def _cognitive_runtime_rollout_diagnostics(
+        *,
+        stage: CognitiveRuntimeRolloutStage,
+        rollout_bps: int,
+        advisory: CognitiveRuntimePromotionAdvisory,
+    ) -> CognitiveRuntimeRolloutDiagnostics:
+        return CognitiveRuntimeRolloutDiagnostics(
+            stage=stage,
+            rollout_bps=rollout_bps,
+            source_promotion_recommendation=advisory.recommendation,
+            source_promotion_reason_code=advisory.reason_code,
+            automatic_stage_increase=False,
+            automatic_stage_decrease=False,
+            execution_authority=False,
+            routing_authority=False,
+            configuration_authority=False,
         )
 
     @staticmethod

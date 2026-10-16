@@ -101,6 +101,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "cognitive_runtime",
                 "cognitive_runtime_readiness",
                 "cognitive_runtime_promotion_advisory",
+                "cognitive_runtime_rollout",
                 "google_calendar",
                 "gmail",
                 "cross_connector_ai",
@@ -251,6 +252,51 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
             "automatic_rollback",
         ):
             self.assertFalse(promotion[field])
+
+        rollout = rendered["cognitive_runtime_rollout"]
+        self.assertEqual(
+            set(rollout),
+            {
+                "implemented",
+                "reference_baseline",
+                "stage",
+                "rollout_bps",
+                "bucket_count",
+                "selection_scope",
+                "selection_strategy",
+                "sticky_by_conversation",
+                "owner_controlled",
+                "source_promotion_recommendation",
+                "source_promotion_reason_code",
+                "automatic_stage_increase",
+                "automatic_stage_decrease",
+                "execution_authority",
+                "routing_authority",
+                "configuration_authority",
+            },
+        )
+        self.assertTrue(rollout["implemented"])
+        self.assertEqual(
+            rollout["reference_baseline"],
+            "9f6fa3557e3c9b91a3549c1175b8273c24fad20c",
+        )
+        self.assertEqual(rollout["stage"], "full")
+        self.assertEqual(rollout["rollout_bps"], 10_000)
+        self.assertEqual(rollout["bucket_count"], 10_000)
+        self.assertEqual(rollout["selection_scope"], "d140_cognitive_eligible_turns")
+        self.assertEqual(
+            rollout["selection_strategy"],
+            "sha256_server_bound_conversation_uuid_v1",
+        )
+        self.assertTrue(rollout["sticky_by_conversation"])
+        self.assertTrue(rollout["owner_controlled"])
+        self.assertEqual(rollout["source_promotion_recommendation"], "no_action")
+        self.assertEqual(rollout["source_promotion_reason_code"], "runtime_disabled")
+        self.assertFalse(rollout["automatic_stage_increase"])
+        self.assertFalse(rollout["automatic_stage_decrease"])
+        self.assertFalse(rollout["execution_authority"])
+        self.assertFalse(rollout["routing_authority"])
+        self.assertFalse(rollout["configuration_authority"])
 
         self.assertEqual(
             set(rendered["google_calendar"]),

@@ -16,6 +16,7 @@ from app.schemas.diagnostics import (
     CognitiveRuntimeDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
     CognitiveRuntimeReadinessDiagnostics,
+    CognitiveRuntimeRolloutDiagnostics,
     ExecutionAuditDiagnostics,
     GmailDiagnostics,
     GoogleCalendarDiagnostics,
@@ -53,6 +54,12 @@ def capability_snapshot() -> RuntimeDiagnosticsResponse:
                 source_readiness_status="disabled",
                 owner_decision_required=False,
             )
+        ),
+        cognitive_runtime_rollout=CognitiveRuntimeRolloutDiagnostics(
+            stage="full",
+            rollout_bps=10_000,
+            source_promotion_recommendation="no_action",
+            source_promotion_reason_code="runtime_disabled",
         ),
         google_calendar=GoogleCalendarDiagnostics(
             status="connected",

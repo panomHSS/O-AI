@@ -8,6 +8,11 @@ from app.contracts.cognitive_runtime_promotion_advisory import (
     CognitiveRuntimePromotionReasonCode,
     CognitiveRuntimePromotionRecommendation,
 )
+from app.contracts.cognitive_runtime_rollout import (
+    D144_REFERENCE_BASELINE,
+    D144_ROLLOUT_BUCKET_COUNT,
+    CognitiveRuntimeRolloutStage,
+)
 from app.contracts.cognitive_runtime_readiness import (
     D142_MAX_FAILED_RATE_BPS,
     D142_MAX_RESPONSE_BLOCKED_RATE_BPS,
@@ -124,6 +129,32 @@ class CognitiveRuntimePromotionAdvisoryDiagnostics(BaseModel):
     automatic_rollback: Literal[False] = False
 
 
+class CognitiveRuntimeRolloutDiagnostics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    implemented: Literal[True] = True
+    reference_baseline: Literal[
+        "9f6fa3557e3c9b91a3549c1175b8273c24fad20c"
+    ] = D144_REFERENCE_BASELINE
+    stage: CognitiveRuntimeRolloutStage
+    rollout_bps: Annotated[StrictInt, Field(ge=0, le=10_000)]
+    bucket_count: Literal[10000] = D144_ROLLOUT_BUCKET_COUNT
+    selection_scope: Literal[
+        "d140_cognitive_eligible_turns"
+    ] = "d140_cognitive_eligible_turns"
+    selection_strategy: Literal[
+        "sha256_server_bound_conversation_uuid_v1"
+    ] = "sha256_server_bound_conversation_uuid_v1"
+    sticky_by_conversation: Literal[True] = True
+    owner_controlled: Literal[True] = True
+    source_promotion_recommendation: CognitiveRuntimePromotionRecommendation
+    source_promotion_reason_code: CognitiveRuntimePromotionReasonCode
+    automatic_stage_increase: Literal[False] = False
+    automatic_stage_decrease: Literal[False] = False
+    execution_authority: Literal[False] = False
+    routing_authority: Literal[False] = False
+    configuration_authority: Literal[False] = False
+
+
 class GoogleCalendarDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: GoogleCalendarDiagnosticStatus
@@ -181,6 +212,7 @@ class RuntimeDiagnosticsResponse(BaseModel):
     cognitive_runtime: CognitiveRuntimeDiagnostics
     cognitive_runtime_readiness: CognitiveRuntimeReadinessDiagnostics
     cognitive_runtime_promotion_advisory: CognitiveRuntimePromotionAdvisoryDiagnostics
+    cognitive_runtime_rollout: CognitiveRuntimeRolloutDiagnostics
     google_calendar: GoogleCalendarDiagnostics
     gmail: GmailDiagnostics
     cross_connector_ai: CrossConnectorAIDiagnostics
