@@ -12,6 +12,10 @@ from app.models.message import Message
 from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 from app.models.memory_version import MemoryVersion
+from app.models.trusted_experience import (
+    TrustedExperienceEventRecord,
+    TrustedExperienceRecord,
+)
 from app.models.oauth_credential import OAuthCredentialRecord
 from app.models.project import Project
 from app.models.project_revision import ProjectRevision
@@ -29,6 +33,8 @@ __all__ = [
     "ExecutionAuditEventRecord",
     "Memory",
     "MemoryVersion",
+    "TrustedExperienceEventRecord",
+    "TrustedExperienceRecord",
     "Message",
     "MessageCitation",
     "OAuthCredentialRecord",

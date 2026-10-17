@@ -16,6 +16,9 @@ from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
 from app.services.cognitive_outcome_quality_feedback import (
     CognitiveOutcomeQualityFeedbackMonitor,
 )
+from app.services.trusted_experience_lifecycle import (
+    TrustedExperienceLifecycleService,
+)
 
 
 class CognitiveRuntimeObserver:
@@ -28,6 +31,7 @@ class CognitiveRuntimeObserver:
         logger: logging.Logger | None = None,
         assurance: CognitiveRuntimeAssurance | None = None,
         outcome_quality_feedback: CognitiveOutcomeQualityFeedbackMonitor | None = None,
+        trusted_experience_lifecycle: TrustedExperienceLifecycleService | None = None,
     ) -> None:
         if not isinstance(workspace_id, WorkspaceId):
             raise ValueError("cognitive_runtime_observer_workspace_invalid")
@@ -35,6 +39,7 @@ class CognitiveRuntimeObserver:
         self._logger = logger or logging.getLogger("oai.cognitive_runtime")
         self._assurance = assurance
         self._outcome_quality_feedback = outcome_quality_feedback
+        self._trusted_experience_lifecycle = trusted_experience_lifecycle
 
     def try_record_selection(
         self,
@@ -112,6 +117,17 @@ class CognitiveRuntimeObserver:
             return False
         try:
             return bool(monitor.try_record(candidate))
+        except Exception:
+            return False
+
+    def try_capture_trusted_experience(self, candidate: object) -> bool:
+        """Best-effort D147 capture; never changes the primary turn."""
+        lifecycle = self._trusted_experience_lifecycle
+        if lifecycle is None:
+            return False
+        try:
+            lifecycle.capture_candidate(candidate)
+            return True
         except Exception:
             return False
 

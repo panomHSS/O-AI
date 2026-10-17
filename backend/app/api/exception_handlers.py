@@ -13,6 +13,11 @@ from app.services.knowledge import (
     KnowledgeSearchValidationError,
 )
 from app.services.memories import MemoryConflictError, MemoryNotFoundError, MemoryValidationError
+from app.services.trusted_experience_lifecycle import (
+    TrustedExperienceConflictError,
+    TrustedExperienceNotFoundError,
+    TrustedExperienceValidationError,
+)
 from app.services.projects import ProjectConflictError, ProjectNotFoundError, ProjectValidationError
 from app.services.project_update_proposals import (
     ProjectUpdateProposalConflictError,
@@ -170,6 +175,39 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProjectContextUnavailableError)
     async def handle_project_context_unavailable(_: Request, error: ProjectContextUnavailableError) -> JSONResponse:
         return error_response(status.HTTP_409_CONFLICT, "PROJECT_CONTEXT_UNAVAILABLE", str(error))
+
+    @app.exception_handler(TrustedExperienceNotFoundError)
+    async def handle_trusted_experience_not_found(
+        _: Request,
+        error: TrustedExperienceNotFoundError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_404_NOT_FOUND,
+            "TRUSTED_EXPERIENCE_NOT_FOUND",
+            str(error),
+        )
+
+    @app.exception_handler(TrustedExperienceConflictError)
+    async def handle_trusted_experience_conflict(
+        _: Request,
+        error: TrustedExperienceConflictError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_409_CONFLICT,
+            "TRUSTED_EXPERIENCE_CONFLICT",
+            str(error),
+        )
+
+    @app.exception_handler(TrustedExperienceValidationError)
+    async def handle_trusted_experience_validation(
+        _: Request,
+        error: TrustedExperienceValidationError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "TRUSTED_EXPERIENCE_VALIDATION_ERROR",
+            str(error),
+        )
 
     @app.exception_handler(MemoryNotFoundError)
     async def handle_memory_not_found(_: Request, error: MemoryNotFoundError) -> JSONResponse:

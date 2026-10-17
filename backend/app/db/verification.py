@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0013_context_snapshot_persistence"
+TARGET_REVISION = "0014_trusted_experience_lifecycle"
 EXPECTED_TABLES = {
     "alembic_version",
     "context_snapshots",
@@ -31,6 +31,8 @@ EXPECTED_TABLES = {
     "oauth_credentials",
     "automation_definitions",
     "automation_runs",
+    "trusted_experiences",
+    "trusted_experience_events",
 }
 EXPECTED_COLUMNS = {
     "context_snapshots": [("id", "VARCHAR(36)", 1), ("message_id", "VARCHAR(36)", 0), ("contract_version", "VARCHAR(16)", 0), ("captured_at", "DATETIME", 0), ("snapshot_digest", "VARCHAR(64)", 0), ("created_at", "DATETIME", 0)],
@@ -126,6 +128,40 @@ EXPECTED_COLUMNS = {
         ("created_at", "DATETIME", 0),
         ("updated_at", "DATETIME", 0),
     ],
+    "trusted_experiences": [
+        ("id", "VARCHAR(36)", 1),
+        ("workspace_id", "VARCHAR(16)", 0),
+        ("contract_version", "VARCHAR(16)", 0),
+        ("source_candidate_fingerprint", "VARCHAR(64)", 0),
+        ("source_feedback_fingerprint", "VARCHAR(64)", 0),
+        ("proposal_fingerprint", "VARCHAR(64)", 0),
+        ("quality_classification", "VARCHAR(32)", 0),
+        ("quality_reason_code", "VARCHAR(32)", 0),
+        ("lesson_code", "VARCHAR(32)", 0),
+        ("interaction_intent", "VARCHAR(64)", 0),
+        ("cognitive_intent", "VARCHAR(64)", 0),
+        ("authoritative_ai_task_kind", "VARCHAR(64)", 0),
+        ("observed_confidence_class", "VARCHAR(32)", 0),
+        ("authorized_adapter_id", "VARCHAR(512)", 0),
+        ("authorized_model_id", "VARCHAR(512)", 0),
+        ("authorized_profile_id", "VARCHAR(512)", 0),
+        ("source_revision_count", "INTEGER", 0),
+        ("state", "VARCHAR(32)", 0),
+        ("current_revision", "INTEGER", 0),
+        ("created_at", "DATETIME", 0),
+        ("updated_at", "DATETIME", 0),
+    ],
+    "trusted_experience_events": [
+        ("id", "VARCHAR(36)", 1),
+        ("trusted_experience_id", "VARCHAR(36)", 0),
+        ("sequence", "INTEGER", 0),
+        ("event_type", "VARCHAR(16)", 0),
+        ("from_state", "VARCHAR(32)", 0),
+        ("to_state", "VARCHAR(32)", 0),
+        ("actor", "VARCHAR(16)", 0),
+        ("decision_comment", "TEXT", 0),
+        ("created_at", "DATETIME", 0),
+    ],
 }
 EXPECTED_INDEXES = {
     "context_snapshots": {},
@@ -159,6 +195,13 @@ EXPECTED_INDEXES = {
     "automation_runs": {
         "ix_automation_runs_automation_due": (["automation_id", "due_at_utc"], False),
     },
+    "trusted_experiences": {
+        "ix_trusted_experiences_workspace_state": (["workspace_id", "state"], False),
+        "ix_trusted_experiences_updated_at": (["updated_at"], False),
+    },
+    "trusted_experience_events": {
+        "ix_trusted_experience_events_experience_id": (["trusted_experience_id"], False),
+    },
 }
 EXPECTED_FOREIGN_KEYS = {
     "context_snapshots": {("message_id", "messages", "id", "CASCADE")},
@@ -178,6 +221,10 @@ EXPECTED_FOREIGN_KEYS = {
     "automation_definitions": set(),
     "automation_runs": {
         ("automation_id", "automation_definitions", "id", "RESTRICT")
+    },
+    "trusted_experiences": set(),
+    "trusted_experience_events": {
+        ("trusted_experience_id", "trusted_experiences", "id", "CASCADE")
     },
 }
 NULLABLE_COLUMNS = {
@@ -218,6 +265,15 @@ NULLABLE_COLUMNS = {
     "automation_runs": {
         "claimed_at",
         "delivered_at",
+    },
+    "trusted_experiences": {
+        "authorized_adapter_id",
+        "authorized_model_id",
+        "authorized_profile_id",
+    },
+    "trusted_experience_events": {
+        "from_state",
+        "decision_comment",
     },
 }
 
@@ -420,6 +476,53 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
         raise DatabaseVerificationError(
             "Configured database is missing automation due-slot uniqueness."
         )
+
+    trusted_root_sql = connection.execute(
+        "SELECT sql FROM sqlite_schema WHERE type = 'table' "
+        "AND name = 'trusted_experiences'"
+    ).fetchone()[0].upper()
+    normalized_trusted_root = " ".join(trusted_root_sql.split())
+    for required in (
+        "WORKSPACE_ID IN ('PERSONAL', 'COMPANY')",
+        "CONTRACT_VERSION = '1'",
+        "QUALITY_CLASSIFICATION = 'VERIFIED_SUCCESS'",
+        "QUALITY_REASON_CODE = 'VERIFIED_SUCCESS'",
+        "LESSON_CODE = 'VERIFIED_SUCCESS'",
+        "STATE IN ('PENDING_REVIEW', 'TRUSTED', 'REJECTED', 'REVOKED')",
+    ):
+        if required not in normalized_trusted_root:
+            raise DatabaseVerificationError(
+                "Configured database is missing Trusted Experience constraints."
+            )
+
+    trusted_event_sql = connection.execute(
+        "SELECT sql FROM sqlite_schema WHERE type = 'table' "
+        "AND name = 'trusted_experience_events'"
+    ).fetchone()[0].upper()
+    normalized_trusted_event = " ".join(trusted_event_sql.split())
+    for required in (
+        "EVENT_TYPE IN ('PROPOSED', 'APPROVED', 'REJECTED', 'REVOKED')",
+        "ACTOR IN ('SYSTEM', 'OWNER')",
+        "SEQUENCE >= 1",
+    ):
+        if required not in normalized_trusted_event:
+            raise DatabaseVerificationError(
+                "Configured database is missing Trusted Experience event constraints."
+            )
+
+    for trigger_name in (
+        "trg_trusted_experiences_transition_guard",
+        "trg_trusted_experience_events_immutable_update",
+        "trg_trusted_experience_events_immutable_delete",
+        "trg_trusted_experiences_no_delete",
+    ):
+        if connection.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND name = ?",
+            (trigger_name,),
+        ).fetchone() is None:
+            raise DatabaseVerificationError(
+                "Configured database is missing Trusted Experience immutability protection."
+            )
 
     workspace_constraint = (
         "WORKSPACE_ID IS NULL OR WORKSPACE_ID IN ('PERSONAL', 'COMPANY')"

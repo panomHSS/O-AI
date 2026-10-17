@@ -37,6 +37,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveOutcomeQualityFeedbackDiagnostics,
+    CognitiveTrustedExperienceLifecycleDiagnostics,
     CognitiveRuntimeDiagnostics,
     CognitiveRuntimeIncidentGovernanceDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
@@ -61,6 +62,9 @@ from app.services.google_oauth_connection_status import (
 from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
 from app.services.cognitive_outcome_quality_feedback import (
     CognitiveOutcomeQualityFeedbackMonitor,
+)
+from app.services.trusted_experience_lifecycle import (
+    TrustedExperienceLifecycleService,
 )
 from app.services.cognitive_runtime_promotion_advisory import (
     CognitiveRuntimePromotionGovernanceEvaluator,
@@ -96,6 +100,9 @@ class RuntimeDiagnosticsService:
         cognitive_outcome_quality_feedback: (
             CognitiveOutcomeQualityFeedbackMonitor | None
         ) = None,
+        trusted_experience_lifecycle: (
+            TrustedExperienceLifecycleService | None
+        ) = None,
     ) -> None:
         self._settings = settings
         self._google_oauth_status_reader = google_oauth_status_reader
@@ -112,6 +119,7 @@ class RuntimeDiagnosticsService:
         self._cognitive_outcome_quality_feedback = (
             cognitive_outcome_quality_feedback
         )
+        self._trusted_experience_lifecycle = trusted_experience_lifecycle
 
     def snapshot(self, *, database_revision: str) -> RuntimeDiagnosticsResponse:
         cognitive_enabled = bool(
@@ -119,6 +127,7 @@ class RuntimeDiagnosticsService:
         )
         cognitive_snapshot = self._cognitive_runtime_assurance_snapshot()
         feedback_snapshot = self._cognitive_outcome_quality_feedback_snapshot()
+        trusted_experience_counts = self._trusted_experience_counts()
         readiness_assessment = CognitiveRuntimeReadinessEvaluator.evaluate(
             enabled=cognitive_enabled,
             snapshot=cognitive_snapshot,
@@ -185,6 +194,11 @@ class RuntimeDiagnosticsService:
                     snapshot=feedback_snapshot,
                 )
             ),
+            cognitive_trusted_experience_lifecycle=(
+                self._cognitive_trusted_experience_lifecycle_diagnostics(
+                    counts=trusted_experience_counts,
+                )
+            ),
             google_calendar=self._google_calendar_diagnostics(),
             gmail=self._gmail_diagnostics(),
             cross_connector_ai=self._cross_connector_ai_diagnostics(),
@@ -222,6 +236,21 @@ class RuntimeDiagnosticsService:
             if isinstance(snapshot, CognitiveOutcomeQualityFeedbackSnapshot)
             else None
         )
+
+    def _trusted_experience_counts(self) -> dict[str, int] | None:
+        lifecycle = self._trusted_experience_lifecycle
+        if lifecycle is None:
+            return None
+        try:
+            counts = lifecycle.diagnostic_counts()
+        except Exception:
+            return None
+        expected = {"PENDING_REVIEW", "TRUSTED", "REJECTED", "REVOKED"}
+        if set(counts) != expected:
+            return None
+        if any(type(value) is not int or value < 0 for value in counts.values()):
+            return None
+        return counts
 
     @staticmethod
     def _cognitive_runtime_diagnostics(
@@ -395,6 +424,38 @@ class RuntimeDiagnosticsService:
             execution_authority=False,
             configuration_authority=False,
             rollout_authority=False,
+            automatic_learning=False,
+            automatic_promotion=False,
+        )
+
+    @staticmethod
+    def _cognitive_trusted_experience_lifecycle_diagnostics(
+        *,
+        counts: dict[str, int] | None,
+    ) -> CognitiveTrustedExperienceLifecycleDiagnostics:
+        if counts is None:
+            return CognitiveTrustedExperienceLifecycleDiagnostics(
+                status="unavailable",
+            )
+        total = sum(counts.values())
+        return CognitiveTrustedExperienceLifecycleDiagnostics(
+            status=("active" if total > 0 else "idle"),
+            pending_review=counts["PENDING_REVIEW"],
+            trusted=counts["TRUSTED"],
+            rejected=counts["REJECTED"],
+            revoked=counts["REVOKED"],
+            durable=True,
+            reset_on_restart=False,
+            owner_decision_required=True,
+            automatic_proposal_capture=True,
+            learning_authority=False,
+            memory_write_authority=False,
+            routing_authority=False,
+            model_selection_authority=False,
+            execution_authority=False,
+            configuration_authority=False,
+            rollout_authority=False,
+            automatic_trust=False,
             automatic_learning=False,
             automatic_promotion=False,
         )

@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0013_context_snapshot_persistence"
+REVISION = "0014_trusted_experience_lifecycle"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -41,6 +41,8 @@ EXPECTED_TABLES = {
     "oauth_credentials",
     "automation_definitions",
     "automation_runs",
+    "trusted_experiences",
+    "trusted_experience_events",
 }
 
 EXPECTED_INDEXES = {
@@ -64,6 +66,13 @@ EXPECTED_INDEXES = {
     },
     "automation_runs": {
         "ix_automation_runs_automation_due",
+    },
+    "trusted_experiences": {
+        "ix_trusted_experiences_workspace_state",
+        "ix_trusted_experiences_updated_at",
+    },
+    "trusted_experience_events": {
+        "ix_trusted_experience_events_experience_id",
     },
 }
 

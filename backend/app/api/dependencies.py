@@ -66,6 +66,7 @@ from app.readers import create_document_reader_registry
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.memories import MemoryRepository
+from app.repositories.trusted_experiences import TrustedExperienceRepository
 from app.repositories.automations import AutomationRepository
 from app.repositories.oauth_credentials import OAuthCredentialRepository
 from app.repositories.message_citations import MessageCitationRepository
@@ -80,6 +81,9 @@ from app.search.factory import create_knowledge_search
 from app.services.automation_approval import AutomationApprovalService
 from app.services.automation_delivery import AutomationDeliveryService
 from app.services.chat import ChatService
+from app.services.trusted_experience_lifecycle import (
+    TrustedExperienceLifecycleService,
+)
 from app.contracts.context_provenance import SystemContextSnapshotClock
 from app.contracts.context_resolution import Utf8ByteBudgetCounter
 from app.repositories.context_snapshots import ContextSnapshotRepository
@@ -946,6 +950,7 @@ def get_google_gmail_send_oauth_connection_status_reader(
 
 def get_runtime_diagnostics_service(
     database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> RuntimeDiagnosticsService:
     """Compose D70/D81 truth diagnostics without credentials or execution."""
     return RuntimeDiagnosticsService(
@@ -969,6 +974,15 @@ def get_runtime_diagnostics_service(
         cognitive_runtime_assurance=get_cognitive_runtime_assurance(),
         cognitive_outcome_quality_feedback=(
             get_cognitive_outcome_quality_feedback_monitor()
+        ),
+        trusted_experience_lifecycle=(
+            get_trusted_experience_lifecycle_service(
+                database_session,
+                workspace_scope,
+            )
+            if isinstance(database_session, Session)
+            and isinstance(workspace_scope, WorkspaceScope)
+            else None
         ),
     )
 
@@ -2108,13 +2122,24 @@ def get_cognitive_outcome_quality_feedback_monitor(
 
 def get_cognitive_runtime_observer(
     workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+    database_session: Session = Depends(get_db),
 ) -> CognitiveRuntimeObserver:
-    """Compose D140 observation with non-authoritative D141 assurance."""
+    """Compose D140 observation with isolated D141/D146/D147 sinks."""
 
+    trusted_experience_lifecycle = (
+        get_trusted_experience_lifecycle_service(
+            database_session,
+            workspace_scope,
+        )
+        if isinstance(database_session, Session)
+        and isinstance(workspace_scope, WorkspaceScope)
+        else None
+    )
     return CognitiveRuntimeObserver(
         workspace_id=workspace_scope.workspace_id,
         assurance=get_cognitive_runtime_assurance(),
         outcome_quality_feedback=get_cognitive_outcome_quality_feedback_monitor(),
+        trusted_experience_lifecycle=trusted_experience_lifecycle,
     )
 
 
@@ -2346,6 +2371,20 @@ def get_memory_service(
 ) -> MemoryService:
     return MemoryService(
         MemoryRepository(
+            database_session,
+            workspace_scope,
+        )
+    )
+
+
+def get_trusted_experience_lifecycle_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> TrustedExperienceLifecycleService:
+    """Compose the D147 workspace-scoped durable Owner lifecycle."""
+
+    return TrustedExperienceLifecycleService(
+        TrustedExperienceRepository(
             database_session,
             workspace_scope,
         )

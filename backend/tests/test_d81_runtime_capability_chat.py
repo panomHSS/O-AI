@@ -5,6 +5,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveOutcomeQualityFeedbackDiagnostics,
+    CognitiveTrustedExperienceLifecycleDiagnostics,
     CognitiveRuntimeDiagnostics,
     CognitiveRuntimeIncidentGovernanceDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
@@ -82,6 +83,15 @@ def snapshot() -> RuntimeDiagnosticsResponse:
                 lesson_critic_exhausted=0,
                 lesson_invalid_cognition=0,
                 lesson_terminal_failure=0,
+            )
+        ),
+        cognitive_trusted_experience_lifecycle=(
+            CognitiveTrustedExperienceLifecycleDiagnostics(
+                status="idle",
+                pending_review=0,
+                trusted=0,
+                rejected=0,
+                revoked=0,
             )
         ),
         google_calendar=GoogleCalendarDiagnostics(

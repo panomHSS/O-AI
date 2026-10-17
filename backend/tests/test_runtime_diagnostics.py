@@ -104,6 +104,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "cognitive_runtime_rollout",
                 "cognitive_runtime_incident_governance",
                 "cognitive_outcome_quality_feedback",
+                "cognitive_trusted_experience_lifecycle",
                 "google_calendar",
                 "gmail",
                 "cross_connector_ai",
@@ -435,6 +436,36 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
             "automatic_promotion",
         ):
             self.assertFalse(feedback[field])
+
+        trusted = rendered["cognitive_trusted_experience_lifecycle"]
+        self.assertEqual(
+            trusted["reference_baseline"],
+            "0415696cb3b5595514d2728a8f32f08dc751acc9",
+        )
+        self.assertEqual(trusted["status"], "unavailable")
+        self.assertEqual(
+            trusted["sample_scope"],
+            "trusted_experience_lifecycle_records",
+        )
+        self.assertTrue(trusted["durable"])
+        self.assertFalse(trusted["reset_on_restart"])
+        self.assertTrue(trusted["owner_decision_required"])
+        self.assertTrue(trusted["automatic_proposal_capture"])
+        for field in ("pending_review", "trusted", "rejected", "revoked"):
+            self.assertIsNone(trusted[field])
+        for field in (
+            "learning_authority",
+            "memory_write_authority",
+            "routing_authority",
+            "model_selection_authority",
+            "execution_authority",
+            "configuration_authority",
+            "rollout_authority",
+            "automatic_trust",
+            "automatic_learning",
+            "automatic_promotion",
+        ):
+            self.assertFalse(trusted[field])
 
         self.assertEqual(
             set(rendered["google_calendar"]),

@@ -16,6 +16,7 @@ from app.api.v1.calendar_write_executions import router as calendar_write_execut
 from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.knowledge_answer import router as knowledge_answer_router
 from app.api.v1.memories import router as memories_router
+from app.api.v1.trusted_experiences import router as trusted_experiences_router
 from app.api.v1.oauth import router as oauth_router
 from app.api.v1.gmail_oauth import router as gmail_oauth_router
 from app.api.v1.gmail_send_oauth import router as gmail_send_oauth_router
@@ -42,6 +43,7 @@ api_router.include_router(calendar_write_executions_router)
 api_router.include_router(knowledge_router)
 api_router.include_router(knowledge_answer_router)
 api_router.include_router(memories_router)
+api_router.include_router(trusted_experiences_router)
 api_router.include_router(oauth_router)
 api_router.include_router(gmail_oauth_router)
 api_router.include_router(gmail_send_oauth_router)

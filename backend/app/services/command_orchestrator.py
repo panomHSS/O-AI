@@ -184,6 +184,9 @@ class CommandOrchestrator:
                     self._observe_experience_feedback(
                         candidate=experience_candidate,
                     )
+                    self._capture_trusted_experience(
+                        candidate=experience_candidate,
+                    )
                 return CommandOrchestrationOutcome(
                     response=self._response_composer.compose_ai_success(
                         command.request_id,
@@ -433,6 +436,15 @@ class CommandOrchestrator:
             return
         try:
             observer.try_record_experience_feedback(candidate)
+        except Exception:
+            pass
+
+    def _capture_trusted_experience(self, *, candidate: object) -> None:
+        observer = self._cognitive_runtime_observer
+        if observer is None:
+            return
+        try:
+            observer.try_capture_trusted_experience(candidate)
         except Exception:
             pass
 

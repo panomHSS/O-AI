@@ -15,6 +15,11 @@ from app.contracts.cognitive_outcome_quality_feedback import (
     D146_REFERENCE_BASELINE,
     D146_SAMPLE_SCOPE,
 )
+from app.contracts.cognitive_trusted_experience import (
+    D147_COUNTER_MAX,
+    D147_REFERENCE_BASELINE,
+    D147_SAMPLE_SCOPE,
+)
 from app.contracts.cognitive_runtime_promotion_advisory import (
     D143_REFERENCE_BASELINE,
     CognitiveRuntimePromotionReasonCode,
@@ -55,6 +60,12 @@ CognitiveOutcomeQualityFeedbackDiagnosticStatus: TypeAlias = Literal[
 ]
 CognitiveOutcomeQualityFeedbackDiagnosticCounter: TypeAlias = Annotated[
     StrictInt, Field(ge=0, le=D146_COUNTER_MAX)
+]
+CognitiveTrustedExperienceLifecycleDiagnosticStatus: TypeAlias = Literal[
+    "idle", "active", "unavailable"
+]
+CognitiveTrustedExperienceLifecycleDiagnosticCounter: TypeAlias = Annotated[
+    StrictInt, Field(ge=0, le=D147_COUNTER_MAX)
 ]
 
 
@@ -246,6 +257,43 @@ class CognitiveOutcomeQualityFeedbackDiagnostics(BaseModel):
     automatic_promotion: Literal[False] = False
 
 
+class CognitiveTrustedExperienceLifecycleDiagnostics(BaseModel):
+    """D147 current-workspace durable lifecycle aggregate; never authority."""
+
+    model_config = ConfigDict(extra="forbid")
+    contract_version: Literal["1"] = "1"
+    implemented: Literal[True] = True
+    reference_baseline: Literal[
+        "0415696cb3b5595514d2728a8f32f08dc751acc9"
+    ] = D147_REFERENCE_BASELINE
+    status: CognitiveTrustedExperienceLifecycleDiagnosticStatus
+    sample_scope: Literal[
+        "trusted_experience_lifecycle_records"
+    ] = D147_SAMPLE_SCOPE
+    durable: Literal[True] = True
+    reset_on_restart: Literal[False] = False
+    owner_decision_required: Literal[True] = True
+
+    pending_review: CognitiveTrustedExperienceLifecycleDiagnosticCounter | None = None
+    trusted: CognitiveTrustedExperienceLifecycleDiagnosticCounter | None = None
+    rejected: CognitiveTrustedExperienceLifecycleDiagnosticCounter | None = None
+    revoked: CognitiveTrustedExperienceLifecycleDiagnosticCounter | None = None
+
+    automatic_proposal_capture: Literal[True] = True
+
+    learning_authority: Literal[False] = False
+    memory_write_authority: Literal[False] = False
+    routing_authority: Literal[False] = False
+    model_selection_authority: Literal[False] = False
+    execution_authority: Literal[False] = False
+    configuration_authority: Literal[False] = False
+    rollout_authority: Literal[False] = False
+
+    automatic_trust: Literal[False] = False
+    automatic_learning: Literal[False] = False
+    automatic_promotion: Literal[False] = False
+
+
 class GoogleCalendarDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: GoogleCalendarDiagnosticStatus
@@ -308,6 +356,13 @@ class RuntimeDiagnosticsResponse(BaseModel):
         CognitiveRuntimeIncidentGovernanceDiagnostics
     )
     cognitive_outcome_quality_feedback: CognitiveOutcomeQualityFeedbackDiagnostics
+    cognitive_trusted_experience_lifecycle: (
+        CognitiveTrustedExperienceLifecycleDiagnostics
+    ) = Field(
+        default_factory=lambda: CognitiveTrustedExperienceLifecycleDiagnostics(
+            status="unavailable"
+        )
+    )
     google_calendar: GoogleCalendarDiagnostics
     gmail: GmailDiagnostics
     cross_connector_ai: CrossConnectorAIDiagnostics
