@@ -102,6 +102,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "cognitive_runtime_readiness",
                 "cognitive_runtime_promotion_advisory",
                 "cognitive_runtime_rollout",
+                "cognitive_runtime_incident_governance",
                 "google_calendar",
                 "gmail",
                 "cross_connector_ai",
@@ -297,6 +298,69 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
         self.assertFalse(rollout["execution_authority"])
         self.assertFalse(rollout["routing_authority"])
         self.assertFalse(rollout["configuration_authority"])
+
+        incident = rendered["cognitive_runtime_incident_governance"]
+        self.assertEqual(
+            set(incident),
+            {
+                "contract_version",
+                "implemented",
+                "reference_baseline",
+                "status",
+                "severity",
+                "incident_active",
+                "blast_radius",
+                "recommended_owner_action",
+                "source_readiness_status",
+                "source_promotion_recommendation",
+                "source_promotion_reason_code",
+                "source_rollout_stage",
+                "source_rollout_bps",
+                "rollback_authority",
+                "rollout_stage_authority",
+                "runtime_disable_authority",
+                "promotion_authority",
+                "routing_authority",
+                "execution_authority",
+                "configuration_authority",
+                "automatic_containment",
+                "automatic_rollback",
+                "automatic_runtime_disable",
+            },
+        )
+        self.assertEqual(incident["contract_version"], "1")
+        self.assertTrue(incident["implemented"])
+        self.assertEqual(
+            incident["reference_baseline"],
+            "b30d15befe3a53ccab1946411c9cf4be3a0c147a",
+        )
+        self.assertEqual(incident["status"], "disabled")
+        self.assertEqual(incident["severity"], "none")
+        self.assertFalse(incident["incident_active"])
+        self.assertEqual(incident["blast_radius"], "full")
+        self.assertEqual(incident["recommended_owner_action"], "no_action")
+        self.assertEqual(incident["source_readiness_status"], "disabled")
+        self.assertEqual(
+            incident["source_promotion_recommendation"], "no_action"
+        )
+        self.assertEqual(
+            incident["source_promotion_reason_code"], "runtime_disabled"
+        )
+        self.assertEqual(incident["source_rollout_stage"], "full")
+        self.assertEqual(incident["source_rollout_bps"], 10_000)
+        for field in (
+            "rollback_authority",
+            "rollout_stage_authority",
+            "runtime_disable_authority",
+            "promotion_authority",
+            "routing_authority",
+            "execution_authority",
+            "configuration_authority",
+            "automatic_containment",
+            "automatic_rollback",
+            "automatic_runtime_disable",
+        ):
+            self.assertFalse(incident[field])
 
         self.assertEqual(
             set(rendered["google_calendar"]),

@@ -6,6 +6,9 @@ import logging
 from collections.abc import Callable
 
 from app.contracts.runtime_capability import ConnectorReadCapabilityTruth
+from app.contracts.cognitive_runtime_incident_governance import (
+    CognitiveRuntimeIncidentAssessment,
+)
 from app.contracts.cognitive_runtime_assurance import (
     D141_REFERENCE_BASELINE,
     CognitiveRuntimeAssuranceSnapshot,
@@ -31,6 +34,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveRuntimeDiagnostics,
+    CognitiveRuntimeIncidentGovernanceDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
     CognitiveRuntimeReadinessDiagnostics,
     CognitiveRuntimeRolloutDiagnostics,
@@ -39,6 +43,9 @@ from app.schemas.diagnostics import (
     GoogleCalendarDiagnostics,
     RuntimeCapabilityDiagnostics,
     RuntimeDiagnosticsResponse,
+)
+from app.services.cognitive_runtime_incident_governance import (
+    CognitiveRuntimeIncidentGovernanceEvaluator,
 )
 from app.services.google_oauth_config import (
     GoogleOAuthConfigError,
@@ -117,6 +124,19 @@ class RuntimeDiagnosticsService:
         if rollout_bps is None:
             raise RuntimeError("cognitive_runtime_rollout_stage_invalid")
 
+        rollout_diagnostics = self._cognitive_runtime_rollout_diagnostics(
+            stage=rollout_stage,
+            rollout_bps=rollout_bps,
+            advisory=promotion_advisory,
+        )
+        incident_assessment = (
+            CognitiveRuntimeIncidentGovernanceEvaluator.evaluate(
+                readiness=readiness_assessment,
+                advisory=promotion_advisory,
+                rollout=rollout_diagnostics,
+            )
+        )
+
         return RuntimeDiagnosticsResponse(
             service=self._settings.app_name,
             environment=self._settings.environment,
@@ -140,11 +160,10 @@ class RuntimeDiagnosticsService:
                     advisory=promotion_advisory,
                 )
             ),
-            cognitive_runtime_rollout=(
-                self._cognitive_runtime_rollout_diagnostics(
-                    stage=rollout_stage,
-                    rollout_bps=rollout_bps,
-                    advisory=promotion_advisory,
+            cognitive_runtime_rollout=rollout_diagnostics,
+            cognitive_runtime_incident_governance=(
+                self._cognitive_runtime_incident_governance_diagnostics(
+                    assessment=incident_assessment,
                 )
             ),
             google_calendar=self._google_calendar_diagnostics(),
@@ -275,6 +294,36 @@ class RuntimeDiagnosticsService:
             execution_authority=False,
             routing_authority=False,
             configuration_authority=False,
+        )
+
+    @staticmethod
+    def _cognitive_runtime_incident_governance_diagnostics(
+        *,
+        assessment: CognitiveRuntimeIncidentAssessment,
+    ) -> CognitiveRuntimeIncidentGovernanceDiagnostics:
+        return CognitiveRuntimeIncidentGovernanceDiagnostics(
+            status=assessment.status,
+            severity=assessment.severity,
+            incident_active=assessment.incident_active,
+            blast_radius=assessment.blast_radius,
+            recommended_owner_action=assessment.recommended_owner_action,
+            source_readiness_status=assessment.source_readiness_status,
+            source_promotion_recommendation=(
+                assessment.source_promotion_recommendation
+            ),
+            source_promotion_reason_code=assessment.source_promotion_reason_code,
+            source_rollout_stage=assessment.source_rollout_stage,
+            source_rollout_bps=assessment.source_rollout_bps,
+            rollback_authority=False,
+            rollout_stage_authority=False,
+            runtime_disable_authority=False,
+            promotion_authority=False,
+            routing_authority=False,
+            execution_authority=False,
+            configuration_authority=False,
+            automatic_containment=False,
+            automatic_rollback=False,
+            automatic_runtime_disable=False,
         )
 
     @staticmethod

@@ -5,6 +5,7 @@ from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
     CognitiveRuntimeDiagnostics,
+    CognitiveRuntimeIncidentGovernanceDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
     CognitiveRuntimeReadinessDiagnostics,
     CognitiveRuntimeRolloutDiagnostics,
@@ -52,6 +53,20 @@ def snapshot() -> RuntimeDiagnosticsResponse:
             rollout_bps=10_000,
             source_promotion_recommendation="no_action",
             source_promotion_reason_code="runtime_disabled",
+        ),
+        cognitive_runtime_incident_governance=(
+            CognitiveRuntimeIncidentGovernanceDiagnostics(
+                status="disabled",
+                severity="none",
+                incident_active=False,
+                blast_radius="full",
+                recommended_owner_action="no_action",
+                source_readiness_status="disabled",
+                source_promotion_recommendation="no_action",
+                source_promotion_reason_code="runtime_disabled",
+                source_rollout_stage="full",
+                source_rollout_bps=10_000,
+            )
         ),
         google_calendar=GoogleCalendarDiagnostics(
             status="connected",

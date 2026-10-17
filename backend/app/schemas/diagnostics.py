@@ -3,6 +3,13 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from app.contracts.cognitive_runtime_assurance import D141_COUNTER_MAX
+from app.contracts.cognitive_runtime_incident_governance import (
+    D145_REFERENCE_BASELINE,
+    CognitiveRuntimeIncidentBlastRadius,
+    CognitiveRuntimeIncidentOwnerAction,
+    CognitiveRuntimeIncidentSeverity,
+    CognitiveRuntimeIncidentStatus,
+)
 from app.contracts.cognitive_runtime_promotion_advisory import (
     D143_REFERENCE_BASELINE,
     CognitiveRuntimePromotionReasonCode,
@@ -155,6 +162,40 @@ class CognitiveRuntimeRolloutDiagnostics(BaseModel):
     configuration_authority: Literal[False] = False
 
 
+class CognitiveRuntimeIncidentGovernanceDiagnostics(BaseModel):
+    """D145 deterministic incident posture; never containment authority."""
+    model_config = ConfigDict(extra="forbid")
+    contract_version: Literal["1"] = "1"
+    implemented: Literal[True] = True
+    reference_baseline: Literal[
+        "b30d15befe3a53ccab1946411c9cf4be3a0c147a"
+    ] = D145_REFERENCE_BASELINE
+    status: CognitiveRuntimeIncidentStatus
+    severity: CognitiveRuntimeIncidentSeverity
+    incident_active: StrictBool
+    blast_radius: CognitiveRuntimeIncidentBlastRadius
+    recommended_owner_action: CognitiveRuntimeIncidentOwnerAction
+    source_readiness_status: CognitiveRuntimeReadinessDiagnosticStatus | None
+    source_promotion_recommendation: (
+        CognitiveRuntimePromotionRecommendation | None
+    )
+    source_promotion_reason_code: CognitiveRuntimePromotionReasonCode | None
+    source_rollout_stage: CognitiveRuntimeRolloutStage | None
+    source_rollout_bps: Annotated[StrictInt, Field(ge=0, le=10_000)] | None
+
+    rollback_authority: Literal[False] = False
+    rollout_stage_authority: Literal[False] = False
+    runtime_disable_authority: Literal[False] = False
+    promotion_authority: Literal[False] = False
+    routing_authority: Literal[False] = False
+    execution_authority: Literal[False] = False
+    configuration_authority: Literal[False] = False
+
+    automatic_containment: Literal[False] = False
+    automatic_rollback: Literal[False] = False
+    automatic_runtime_disable: Literal[False] = False
+
+
 class GoogleCalendarDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: GoogleCalendarDiagnosticStatus
@@ -213,6 +254,9 @@ class RuntimeDiagnosticsResponse(BaseModel):
     cognitive_runtime_readiness: CognitiveRuntimeReadinessDiagnostics
     cognitive_runtime_promotion_advisory: CognitiveRuntimePromotionAdvisoryDiagnostics
     cognitive_runtime_rollout: CognitiveRuntimeRolloutDiagnostics
+    cognitive_runtime_incident_governance: (
+        CognitiveRuntimeIncidentGovernanceDiagnostics
+    )
     google_calendar: GoogleCalendarDiagnostics
     gmail: GmailDiagnostics
     cross_connector_ai: CrossConnectorAIDiagnostics
