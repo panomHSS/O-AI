@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, case, func, select, update
 from sqlalchemy.orm import Session
 
 from app.contracts.cognitive_trusted_experience import CognitiveTrustedExperienceProposal
+from app.contracts.cognitive_trusted_experience_retrieval import (
+    D148_MAX_EVIDENCE,
+    CognitiveTrustedExperienceRetrievalQuery,
+)
 from app.contracts.workspace import WorkspaceScope
 from app.db.base import utc_now
 from app.models.trusted_experience import (
@@ -15,7 +19,7 @@ from app.models.trusted_experience import (
 
 
 class TrustedExperienceRepository:
-    """Workspace-scoped D147 durable lifecycle persistence boundary."""
+    """Workspace-scoped D147 lifecycle + D148 read-only retrieval boundary."""
 
     def __init__(self, session: Session, workspace_scope: WorkspaceScope) -> None:
         self._session = session
@@ -101,6 +105,58 @@ class TrustedExperienceRepository:
             or 0
         )
         return self._session.scalars(statement).all(), total
+
+    def retrieve_trusted_evidence(
+        self,
+        query: CognitiveTrustedExperienceRetrievalQuery,
+    ) -> tuple[Sequence[TrustedExperienceRecord], bool]:
+        """Read only current TRUSTED roots using frozen D148 deterministic tiers."""
+
+        if type(query) is not CognitiveTrustedExperienceRetrievalQuery:
+            raise ValueError("trusted_experience_retrieval_query_invalid")
+        if query.workspace_id.value != self._workspace_id:
+            raise ValueError("workspace_mismatch")
+
+        relevance_tier = case(
+            (
+                and_(
+                    TrustedExperienceRecord.cognitive_intent
+                    == query.cognitive_intent,
+                    TrustedExperienceRecord.interaction_intent
+                    == query.interaction_intent,
+                ),
+                0,
+            ),
+            (
+                TrustedExperienceRecord.cognitive_intent
+                == query.cognitive_intent,
+                1,
+            ),
+            (
+                TrustedExperienceRecord.interaction_intent
+                == query.interaction_intent,
+                2,
+            ),
+            else_=3,
+        )
+
+        statement = (
+            select(TrustedExperienceRecord)
+            .where(
+                TrustedExperienceRecord.workspace_id == self._workspace_id,
+                TrustedExperienceRecord.state == "TRUSTED",
+                TrustedExperienceRecord.authoritative_ai_task_kind
+                == query.authoritative_ai_task_kind.value,
+            )
+            .order_by(
+                relevance_tier.asc(),
+                TrustedExperienceRecord.updated_at.desc(),
+                TrustedExperienceRecord.id.asc(),
+            )
+            .limit(D148_MAX_EVIDENCE + 1)
+        )
+        rows = tuple(self._session.scalars(statement).all())
+        return rows[:D148_MAX_EVIDENCE], len(rows) > D148_MAX_EVIDENCE
 
     def history(
         self,
