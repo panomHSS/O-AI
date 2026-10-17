@@ -175,6 +175,15 @@ class CommandOrchestrator:
                     task_kind=task_kind,
                     outcome=cognitive_result.outcome,
                 )
+                experience_candidate = getattr(
+                    cognitive_result,
+                    "experience_candidate",
+                    None,
+                )
+                if experience_candidate is not None:
+                    self._observe_experience_feedback(
+                        candidate=experience_candidate,
+                    )
                 return CommandOrchestrationOutcome(
                     response=self._response_composer.compose_ai_success(
                         command.request_id,
@@ -415,6 +424,15 @@ class CommandOrchestrator:
                 task_kind=task_kind,
                 outcome=outcome,  # type: ignore[arg-type]
             )
+        except Exception:
+            pass
+
+    def _observe_experience_feedback(self, *, candidate: object) -> None:
+        observer = self._cognitive_runtime_observer
+        if observer is None:
+            return
+        try:
+            observer.try_record_experience_feedback(candidate)
         except Exception:
             pass
 

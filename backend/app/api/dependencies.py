@@ -276,6 +276,9 @@ from app.services.cognitive_executive import CognitiveExecutive
 from app.services.cognitive_invocation import CognitiveInvocationCoordinator
 from app.services.cognitive_runtime_observability import CognitiveRuntimeObserver
 from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
+from app.services.cognitive_outcome_quality_feedback import (
+    CognitiveOutcomeQualityFeedbackMonitor,
+)
 from app.services.cognitive_working_state import CognitiveTurnGuard
 from app.services.local_ai_config import LocalAIAdapterConfig
 from app.services.local_ai_runtime_factory import LocalAIRuntimeFactory
@@ -964,6 +967,9 @@ def get_runtime_diagnostics_service(
             get_google_gmail_send_oauth_runtime_config
         ),
         cognitive_runtime_assurance=get_cognitive_runtime_assurance(),
+        cognitive_outcome_quality_feedback=(
+            get_cognitive_outcome_quality_feedback_monitor()
+        ),
     )
 
 @lru_cache
@@ -2092,6 +2098,14 @@ def get_cognitive_runtime_assurance() -> CognitiveRuntimeAssurance:
     return CognitiveRuntimeAssurance()
 
 
+@lru_cache
+def get_cognitive_outcome_quality_feedback_monitor(
+) -> CognitiveOutcomeQualityFeedbackMonitor:
+    """Share one D146 process-local aggregate feedback monitor."""
+
+    return CognitiveOutcomeQualityFeedbackMonitor()
+
+
 def get_cognitive_runtime_observer(
     workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
 ) -> CognitiveRuntimeObserver:
@@ -2100,6 +2114,7 @@ def get_cognitive_runtime_observer(
     return CognitiveRuntimeObserver(
         workspace_id=workspace_scope.workspace_id,
         assurance=get_cognitive_runtime_assurance(),
+        outcome_quality_feedback=get_cognitive_outcome_quality_feedback_monitor(),
     )
 
 

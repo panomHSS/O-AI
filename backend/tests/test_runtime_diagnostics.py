@@ -103,6 +103,7 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
                 "cognitive_runtime_promotion_advisory",
                 "cognitive_runtime_rollout",
                 "cognitive_runtime_incident_governance",
+                "cognitive_outcome_quality_feedback",
                 "google_calendar",
                 "gmail",
                 "cross_connector_ai",
@@ -361,6 +362,79 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
             "automatic_runtime_disable",
         ):
             self.assertFalse(incident[field])
+
+        feedback = rendered["cognitive_outcome_quality_feedback"]
+        self.assertEqual(
+            set(feedback),
+            {
+                "contract_version",
+                "implemented",
+                "reference_baseline",
+                "status",
+                "sample_scope",
+                "reset_on_restart",
+                "observed",
+                "verified_success",
+                "bounded_insufficiency",
+                "adverse_outcome",
+                "invalid_evidence",
+                "lesson_verified_success",
+                "lesson_bounded_insufficiency",
+                "lesson_critic_exhausted",
+                "lesson_invalid_cognition",
+                "lesson_terminal_failure",
+                "learning_authority",
+                "retention_authority",
+                "experience_promotion_authority",
+                "memory_write_authority",
+                "routing_authority",
+                "model_selection_authority",
+                "execution_authority",
+                "configuration_authority",
+                "rollout_authority",
+                "automatic_learning",
+                "automatic_promotion",
+            },
+        )
+        self.assertEqual(feedback["contract_version"], "1")
+        self.assertTrue(feedback["implemented"])
+        self.assertEqual(
+            feedback["reference_baseline"],
+            "bd773c16b154b23bdd57381ca8f6b25def29adb4",
+        )
+        self.assertEqual(feedback["status"], "unavailable")
+        self.assertEqual(
+            feedback["sample_scope"],
+            "cognitive_experience_candidates",
+        )
+        self.assertTrue(feedback["reset_on_restart"])
+        for field in (
+            "observed",
+            "verified_success",
+            "bounded_insufficiency",
+            "adverse_outcome",
+            "invalid_evidence",
+            "lesson_verified_success",
+            "lesson_bounded_insufficiency",
+            "lesson_critic_exhausted",
+            "lesson_invalid_cognition",
+            "lesson_terminal_failure",
+        ):
+            self.assertIsNone(feedback[field])
+        for field in (
+            "learning_authority",
+            "retention_authority",
+            "experience_promotion_authority",
+            "memory_write_authority",
+            "routing_authority",
+            "model_selection_authority",
+            "execution_authority",
+            "configuration_authority",
+            "rollout_authority",
+            "automatic_learning",
+            "automatic_promotion",
+        ):
+            self.assertFalse(feedback[field])
 
         self.assertEqual(
             set(rendered["google_calendar"]),

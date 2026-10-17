@@ -4,6 +4,7 @@ import unittest
 from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
+    CognitiveOutcomeQualityFeedbackDiagnostics,
     CognitiveRuntimeDiagnostics,
     CognitiveRuntimeIncidentGovernanceDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
@@ -66,6 +67,21 @@ def snapshot() -> RuntimeDiagnosticsResponse:
                 source_promotion_reason_code="runtime_disabled",
                 source_rollout_stage="full",
                 source_rollout_bps=10_000,
+            )
+        ),
+        cognitive_outcome_quality_feedback=(
+            CognitiveOutcomeQualityFeedbackDiagnostics(
+                status="idle",
+                observed=0,
+                verified_success=0,
+                bounded_insufficiency=0,
+                adverse_outcome=0,
+                invalid_evidence=0,
+                lesson_verified_success=0,
+                lesson_bounded_insufficiency=0,
+                lesson_critic_exhausted=0,
+                lesson_invalid_cognition=0,
+                lesson_terminal_failure=0,
             )
         ),
         google_calendar=GoogleCalendarDiagnostics(

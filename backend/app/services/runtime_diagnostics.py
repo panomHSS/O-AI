@@ -13,6 +13,9 @@ from app.contracts.cognitive_runtime_assurance import (
     D141_REFERENCE_BASELINE,
     CognitiveRuntimeAssuranceSnapshot,
 )
+from app.contracts.cognitive_outcome_quality_feedback import (
+    CognitiveOutcomeQualityFeedbackSnapshot,
+)
 from app.contracts.cognitive_runtime_promotion_advisory import (
     CognitiveRuntimePromotionAdvisory,
 )
@@ -33,6 +36,7 @@ from app.core.logging import (
 from app.schemas.diagnostics import (
     AutomationDiagnostics,
     CrossConnectorAIDiagnostics,
+    CognitiveOutcomeQualityFeedbackDiagnostics,
     CognitiveRuntimeDiagnostics,
     CognitiveRuntimeIncidentGovernanceDiagnostics,
     CognitiveRuntimePromotionAdvisoryDiagnostics,
@@ -55,6 +59,9 @@ from app.services.google_oauth_connection_status import (
     GoogleOAuthConnectionStatusReader,
 )
 from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
+from app.services.cognitive_outcome_quality_feedback import (
+    CognitiveOutcomeQualityFeedbackMonitor,
+)
 from app.services.cognitive_runtime_promotion_advisory import (
     CognitiveRuntimePromotionGovernanceEvaluator,
 )
@@ -86,6 +93,9 @@ class RuntimeDiagnosticsService:
             Callable[[], GoogleOAuthRuntimeConfig] | None
         ) = None,
         cognitive_runtime_assurance: CognitiveRuntimeAssurance | None = None,
+        cognitive_outcome_quality_feedback: (
+            CognitiveOutcomeQualityFeedbackMonitor | None
+        ) = None,
     ) -> None:
         self._settings = settings
         self._google_oauth_status_reader = google_oauth_status_reader
@@ -99,12 +109,16 @@ class RuntimeDiagnosticsService:
             gmail_send_oauth_config_factory
         )
         self._cognitive_runtime_assurance = cognitive_runtime_assurance
+        self._cognitive_outcome_quality_feedback = (
+            cognitive_outcome_quality_feedback
+        )
 
     def snapshot(self, *, database_revision: str) -> RuntimeDiagnosticsResponse:
         cognitive_enabled = bool(
             getattr(self._settings, "oai_cognitive_runtime_enabled", False)
         )
         cognitive_snapshot = self._cognitive_runtime_assurance_snapshot()
+        feedback_snapshot = self._cognitive_outcome_quality_feedback_snapshot()
         readiness_assessment = CognitiveRuntimeReadinessEvaluator.evaluate(
             enabled=cognitive_enabled,
             snapshot=cognitive_snapshot,
@@ -166,6 +180,11 @@ class RuntimeDiagnosticsService:
                     assessment=incident_assessment,
                 )
             ),
+            cognitive_outcome_quality_feedback=(
+                self._cognitive_outcome_quality_feedback_diagnostics(
+                    snapshot=feedback_snapshot,
+                )
+            ),
             google_calendar=self._google_calendar_diagnostics(),
             gmail=self._gmail_diagnostics(),
             cross_connector_ai=self._cross_connector_ai_diagnostics(),
@@ -185,6 +204,22 @@ class RuntimeDiagnosticsService:
         return (
             snapshot
             if isinstance(snapshot, CognitiveRuntimeAssuranceSnapshot)
+            else None
+        )
+
+    def _cognitive_outcome_quality_feedback_snapshot(
+        self,
+    ) -> CognitiveOutcomeQualityFeedbackSnapshot | None:
+        monitor = self._cognitive_outcome_quality_feedback
+        if monitor is None:
+            return None
+        try:
+            snapshot = monitor.snapshot()
+        except Exception:
+            return None
+        return (
+            snapshot
+            if isinstance(snapshot, CognitiveOutcomeQualityFeedbackSnapshot)
             else None
         )
 
@@ -324,6 +359,44 @@ class RuntimeDiagnosticsService:
             automatic_containment=False,
             automatic_rollback=False,
             automatic_runtime_disable=False,
+        )
+
+    @staticmethod
+    def _cognitive_outcome_quality_feedback_diagnostics(
+        *,
+        snapshot: CognitiveOutcomeQualityFeedbackSnapshot | None,
+    ) -> CognitiveOutcomeQualityFeedbackDiagnostics:
+        if snapshot is None:
+            return CognitiveOutcomeQualityFeedbackDiagnostics(
+                status="unavailable",
+            )
+
+        return CognitiveOutcomeQualityFeedbackDiagnostics(
+            status=("observing" if snapshot.observed > 0 else "idle"),
+            reference_baseline=snapshot.reference_baseline,
+            sample_scope=snapshot.sample_scope,
+            reset_on_restart=snapshot.reset_on_restart,
+            observed=snapshot.observed,
+            verified_success=snapshot.verified_success,
+            bounded_insufficiency=snapshot.bounded_insufficiency,
+            adverse_outcome=snapshot.adverse_outcome,
+            invalid_evidence=snapshot.invalid_evidence,
+            lesson_verified_success=snapshot.lesson_verified_success,
+            lesson_bounded_insufficiency=snapshot.lesson_bounded_insufficiency,
+            lesson_critic_exhausted=snapshot.lesson_critic_exhausted,
+            lesson_invalid_cognition=snapshot.lesson_invalid_cognition,
+            lesson_terminal_failure=snapshot.lesson_terminal_failure,
+            learning_authority=False,
+            retention_authority=False,
+            experience_promotion_authority=False,
+            memory_write_authority=False,
+            routing_authority=False,
+            model_selection_authority=False,
+            execution_authority=False,
+            configuration_authority=False,
+            rollout_authority=False,
+            automatic_learning=False,
+            automatic_promotion=False,
         )
 
     @staticmethod

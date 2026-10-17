@@ -10,6 +10,11 @@ from app.contracts.cognitive_runtime_incident_governance import (
     CognitiveRuntimeIncidentSeverity,
     CognitiveRuntimeIncidentStatus,
 )
+from app.contracts.cognitive_outcome_quality_feedback import (
+    D146_COUNTER_MAX,
+    D146_REFERENCE_BASELINE,
+    D146_SAMPLE_SCOPE,
+)
 from app.contracts.cognitive_runtime_promotion_advisory import (
     D143_REFERENCE_BASELINE,
     CognitiveRuntimePromotionReasonCode,
@@ -44,6 +49,12 @@ CognitiveRuntimeReadinessDiagnosticStatus: TypeAlias = Literal[
 ]
 CognitiveRuntimeReadinessDiagnosticRate: TypeAlias = Annotated[
     StrictInt, Field(ge=0, le=D142_RATE_SCALE_BPS)
+]
+CognitiveOutcomeQualityFeedbackDiagnosticStatus: TypeAlias = Literal[
+    "idle", "observing", "unavailable"
+]
+CognitiveOutcomeQualityFeedbackDiagnosticCounter: TypeAlias = Annotated[
+    StrictInt, Field(ge=0, le=D146_COUNTER_MAX)
 ]
 
 
@@ -196,6 +207,45 @@ class CognitiveRuntimeIncidentGovernanceDiagnostics(BaseModel):
     automatic_runtime_disable: Literal[False] = False
 
 
+class CognitiveOutcomeQualityFeedbackDiagnostics(BaseModel):
+    """D146 process-local aggregate quality feedback; never learning authority."""
+    model_config = ConfigDict(extra="forbid")
+    contract_version: Literal["1"] = "1"
+    implemented: Literal[True] = True
+    reference_baseline: Literal[
+        "bd773c16b154b23bdd57381ca8f6b25def29adb4"
+    ] = D146_REFERENCE_BASELINE
+    status: CognitiveOutcomeQualityFeedbackDiagnosticStatus
+    sample_scope: Literal[
+        "cognitive_experience_candidates"
+    ] = D146_SAMPLE_SCOPE
+    reset_on_restart: Literal[True] = True
+
+    observed: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    verified_success: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    bounded_insufficiency: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    adverse_outcome: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    invalid_evidence: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+
+    lesson_verified_success: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    lesson_bounded_insufficiency: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    lesson_critic_exhausted: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    lesson_invalid_cognition: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+    lesson_terminal_failure: CognitiveOutcomeQualityFeedbackDiagnosticCounter | None = None
+
+    learning_authority: Literal[False] = False
+    retention_authority: Literal[False] = False
+    experience_promotion_authority: Literal[False] = False
+    memory_write_authority: Literal[False] = False
+    routing_authority: Literal[False] = False
+    model_selection_authority: Literal[False] = False
+    execution_authority: Literal[False] = False
+    configuration_authority: Literal[False] = False
+    rollout_authority: Literal[False] = False
+    automatic_learning: Literal[False] = False
+    automatic_promotion: Literal[False] = False
+
+
 class GoogleCalendarDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: GoogleCalendarDiagnosticStatus
@@ -257,6 +307,7 @@ class RuntimeDiagnosticsResponse(BaseModel):
     cognitive_runtime_incident_governance: (
         CognitiveRuntimeIncidentGovernanceDiagnostics
     )
+    cognitive_outcome_quality_feedback: CognitiveOutcomeQualityFeedbackDiagnostics
     google_calendar: GoogleCalendarDiagnostics
     gmail: GmailDiagnostics
     cross_connector_ai: CrossConnectorAIDiagnostics

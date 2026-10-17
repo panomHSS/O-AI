@@ -13,6 +13,9 @@ from app.contracts.cognitive_runtime_adoption import (
 from app.contracts.task_aware_ai_routing import AITaskKind
 from app.contracts.workspace import WorkspaceId
 from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
+from app.services.cognitive_outcome_quality_feedback import (
+    CognitiveOutcomeQualityFeedbackMonitor,
+)
 
 
 class CognitiveRuntimeObserver:
@@ -24,12 +27,14 @@ class CognitiveRuntimeObserver:
         workspace_id: WorkspaceId,
         logger: logging.Logger | None = None,
         assurance: CognitiveRuntimeAssurance | None = None,
+        outcome_quality_feedback: CognitiveOutcomeQualityFeedbackMonitor | None = None,
     ) -> None:
         if not isinstance(workspace_id, WorkspaceId):
             raise ValueError("cognitive_runtime_observer_workspace_invalid")
         self._workspace_id = workspace_id
         self._logger = logger or logging.getLogger("oai.cognitive_runtime")
         self._assurance = assurance
+        self._outcome_quality_feedback = outcome_quality_feedback
 
     def try_record_selection(
         self,
@@ -99,6 +104,16 @@ class CognitiveRuntimeObserver:
         except Exception:
             return False
         return self._record(event)
+
+    def try_record_experience_feedback(self, candidate: object) -> bool:
+        """Record D146 aggregate feedback without adding any per-turn log payload."""
+        monitor = self._outcome_quality_feedback
+        if monitor is None:
+            return False
+        try:
+            return bool(monitor.try_record(candidate))
+        except Exception:
+            return False
 
     def _record(self, event: CognitiveRuntimeObservation) -> bool:
         payload = {
