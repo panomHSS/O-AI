@@ -100,6 +100,12 @@ from app.services.cognitive_context_memory import (
     CognitiveContextUnstableError,
 )
 from app.services.cognitive_experience import CognitiveExperienceCoordinator
+from app.contracts.cognitive_trusted_experience_runtime_binding import (
+    CognitiveTrustedExperienceRuntimeBinding,
+)
+from app.services.cognitive_trusted_experience_runtime_binding import (
+    CognitiveTrustedExperienceRuntimeBinder,
+)
 from app.services.cognitive_input_semantics import (
     CognitivePerceptionAttentionProjector,
     CognitiveTaskUnderstandingService,
@@ -173,6 +179,7 @@ class CognitiveExecutiveTurnResult:
     chat_turn: ChatTurnResult
     outcome: CognitiveExecutiveOutcome
     experience_candidate: CognitiveExperienceCandidateArtifact | None = None
+    trusted_experience_binding: CognitiveTrustedExperienceRuntimeBinding | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.chat_turn, ChatTurnResult):
@@ -192,6 +199,14 @@ class CognitiveExecutiveTurnResult:
             )
         ):
             raise ValueError("cognitive_executive_experience_invalid")
+        if (
+            self.trusted_experience_binding is not None
+            and not isinstance(
+                self.trusted_experience_binding,
+                CognitiveTrustedExperienceRuntimeBinding,
+            )
+        ):
+            raise ValueError("cognitive_executive_trusted_experience_binding_invalid")
 
 
 class CognitiveExecutive:
@@ -214,6 +229,9 @@ class CognitiveExecutive:
         metacognition_projector: CognitiveMetacognitionProjector | None = None,
         verification_coordinator: CognitiveVerificationCoordinator | None = None,
         experience_coordinator: CognitiveExperienceCoordinator | None = None,
+        trusted_experience_runtime_binder: (
+            CognitiveTrustedExperienceRuntimeBinder | None
+        ) = None,
         monotonic_clock: Callable[[], float] = time.monotonic,
         utc_clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -251,6 +269,17 @@ class CognitiveExecutive:
             verification_coordinator or CognitiveVerificationCoordinator()
         )
         self._experience = experience_coordinator or CognitiveExperienceCoordinator()
+        if (
+            trusted_experience_runtime_binder is not None
+            and not isinstance(
+                trusted_experience_runtime_binder,
+                CognitiveTrustedExperienceRuntimeBinder,
+            )
+        ):
+            raise ValueError(
+                "cognitive_executive_trusted_experience_runtime_binder_invalid"
+            )
+        self._trusted_experience_runtime_binder = trusted_experience_runtime_binder
         self._monotonic = monotonic_clock
         self._utc = utc_clock or (lambda: datetime.now(timezone.utc))
 
@@ -365,6 +394,10 @@ class CognitiveExecutive:
             self._trace(trace, CognitiveTurnState.THINKING, "cognition_ready")
             self._require_budget(deadline)
 
+            trusted_experience_binding = self._trusted_experience_binding(
+                state.task
+            )
+
             session = self._invocation_coordinator.new_session(
                 command=command,
                 task_kind=state.task.authoritative_ai_task_kind,
@@ -467,6 +500,7 @@ class CognitiveExecutive:
                 chat_turn=chat_turn,
                 outcome=outcome,
                 experience_candidate=experience_candidate,
+                trusted_experience_binding=trusted_experience_binding,
             )
 
         except ProjectContextUnavailableError:
@@ -531,6 +565,27 @@ class CognitiveExecutive:
                 self._turn_guard.release(lease)
             except Exception:
                 pass
+
+    def _trusted_experience_binding(
+        self,
+        task,
+    ) -> CognitiveTrustedExperienceRuntimeBinding | None:
+        binder = self._trusted_experience_runtime_binder
+        if binder is None:
+            return None
+        try:
+            return binder.bind(task=task)
+        except Exception:
+            workspace_id = getattr(
+                getattr(task, "envelope", None),
+                "workspace_id",
+                None,
+            )
+            if workspace_id is None:
+                return None
+            return CognitiveTrustedExperienceRuntimeBinding.unavailable(
+                workspace_id
+            )
 
     def _build_cognitive_state(
         self,

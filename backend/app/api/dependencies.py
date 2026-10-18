@@ -84,6 +84,12 @@ from app.services.chat import ChatService
 from app.services.trusted_experience_lifecycle import (
     TrustedExperienceLifecycleService,
 )
+from app.services.trusted_experience_retrieval import (
+    TrustedExperienceRetrievalService,
+)
+from app.services.cognitive_trusted_experience_runtime_binding import (
+    CognitiveTrustedExperienceRuntimeBinder,
+)
 from app.contracts.context_provenance import SystemContextSnapshotClock
 from app.contracts.context_resolution import Utf8ByteBudgetCounter
 from app.repositories.context_snapshots import ContextSnapshotRepository
@@ -2161,6 +2167,22 @@ def get_cognitive_invocation_coordinator(
     )
 
 
+def get_cognitive_trusted_experience_runtime_binder(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> CognitiveTrustedExperienceRuntimeBinder:
+    """Compose D150 D148→D149 metadata binding with no behavioral authority."""
+
+    return CognitiveTrustedExperienceRuntimeBinder(
+        TrustedExperienceRetrievalService(
+            TrustedExperienceRepository(
+                database_session,
+                workspace_scope,
+            )
+        )
+    )
+
+
 def get_cognitive_executive(
     conversation_service: ConversationService = Depends(get_conversation_service),
     chat_service: ChatService = Depends(get_chat_service),
@@ -2173,6 +2195,9 @@ def get_cognitive_executive(
     ),
     turn_guard: CognitiveTurnGuard = Depends(get_cognitive_turn_guard),
     local_ai_profiles: LocalAIProfileResolver = Depends(get_local_ai_profiles),
+    trusted_experience_runtime_binder: (
+        CognitiveTrustedExperienceRuntimeBinder | None
+    ) = None,
 ) -> CognitiveExecutive:
     """Compose D136 Integrated Brain Runtime without performing model I/O."""
 
@@ -2195,6 +2220,7 @@ def get_cognitive_executive(
         invocation_coordinator=invocation_coordinator,
         turn_guard=turn_guard,
         turn_timeout_seconds=turn_timeout_seconds,
+        trusted_experience_runtime_binder=trusted_experience_runtime_binder,
     )
 
 
@@ -2232,6 +2258,9 @@ def get_command_orchestrator(
     cognitive_runtime_observer: CognitiveRuntimeObserver = Depends(
         get_cognitive_runtime_observer
     ),
+    trusted_experience_runtime_binder: CognitiveTrustedExperienceRuntimeBinder = Depends(
+        get_cognitive_trusted_experience_runtime_binder
+    ),
 ) -> CommandOrchestrator:
     """Compose D140 controlled Cognitive Runtime production adoption."""
 
@@ -2259,6 +2288,14 @@ def get_command_orchestrator(
             invocation_coordinator=invocation_coordinator,
             turn_guard=get_cognitive_turn_guard(),
             local_ai_profiles=local_ai_profiles,
+            trusted_experience_runtime_binder=(
+                trusted_experience_runtime_binder
+                if isinstance(
+                    trusted_experience_runtime_binder,
+                    CognitiveTrustedExperienceRuntimeBinder,
+                )
+                else None
+            ),
         )
 
     return CommandOrchestrator(
