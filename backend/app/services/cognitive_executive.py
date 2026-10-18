@@ -103,8 +103,14 @@ from app.services.cognitive_experience import CognitiveExperienceCoordinator
 from app.contracts.cognitive_trusted_experience_runtime_binding import (
     CognitiveTrustedExperienceRuntimeBinding,
 )
+from app.contracts.cognitive_trusted_experience_consumption import (
+    CognitiveTrustedExperienceConsumptionDecision,
+)
 from app.services.cognitive_trusted_experience_runtime_binding import (
     CognitiveTrustedExperienceRuntimeBinder,
+)
+from app.services.cognitive_trusted_experience_consumption import (
+    CognitiveTrustedExperienceConsumptionPolicyEvaluator,
 )
 from app.services.cognitive_input_semantics import (
     CognitivePerceptionAttentionProjector,
@@ -180,6 +186,9 @@ class CognitiveExecutiveTurnResult:
     outcome: CognitiveExecutiveOutcome
     experience_candidate: CognitiveExperienceCandidateArtifact | None = None
     trusted_experience_binding: CognitiveTrustedExperienceRuntimeBinding | None = None
+    trusted_experience_consumption_decision: (
+        CognitiveTrustedExperienceConsumptionDecision | None
+    ) = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.chat_turn, ChatTurnResult):
@@ -207,6 +216,16 @@ class CognitiveExecutiveTurnResult:
             )
         ):
             raise ValueError("cognitive_executive_trusted_experience_binding_invalid")
+        if (
+            self.trusted_experience_consumption_decision is not None
+            and not isinstance(
+                self.trusted_experience_consumption_decision,
+                CognitiveTrustedExperienceConsumptionDecision,
+            )
+        ):
+            raise ValueError(
+                "cognitive_executive_trusted_experience_consumption_decision_invalid"
+            )
 
 
 class CognitiveExecutive:
@@ -397,6 +416,11 @@ class CognitiveExecutive:
             trusted_experience_binding = self._trusted_experience_binding(
                 state.task
             )
+            trusted_experience_consumption_decision = (
+                self._trusted_experience_consumption_decision(
+                    trusted_experience_binding
+                )
+            )
 
             session = self._invocation_coordinator.new_session(
                 command=command,
@@ -501,6 +525,9 @@ class CognitiveExecutive:
                 outcome=outcome,
                 experience_candidate=experience_candidate,
                 trusted_experience_binding=trusted_experience_binding,
+                trusted_experience_consumption_decision=(
+                    trusted_experience_consumption_decision
+                ),
             )
 
         except ProjectContextUnavailableError:
@@ -586,6 +613,19 @@ class CognitiveExecutive:
             return CognitiveTrustedExperienceRuntimeBinding.unavailable(
                 workspace_id
             )
+
+    @staticmethod
+    def _trusted_experience_consumption_decision(
+        binding: CognitiveTrustedExperienceRuntimeBinding | None,
+    ) -> CognitiveTrustedExperienceConsumptionDecision | None:
+        if binding is None:
+            return None
+        try:
+            return CognitiveTrustedExperienceConsumptionPolicyEvaluator.evaluate(
+                binding=binding
+            )
+        except Exception:
+            return None
 
     def _build_cognitive_state(
         self,
