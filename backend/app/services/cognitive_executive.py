@@ -109,6 +109,10 @@ from app.contracts.cognitive_trusted_experience_consumption import (
 from app.contracts.cognitive_trusted_experience_context_projection import (
     CognitiveTrustedExperienceContextProjection,
 )
+from app.contracts.cognitive_trusted_experience_reasoning import (
+    D153_PRIMARY_REASONING_DIRECTIVE_ID,
+    CognitiveTrustedExperienceReasoningInfluence,
+)
 from app.services.cognitive_trusted_experience_runtime_binding import (
     CognitiveTrustedExperienceRuntimeBinder,
 )
@@ -117,6 +121,9 @@ from app.services.cognitive_trusted_experience_consumption import (
 )
 from app.services.cognitive_trusted_experience_context_projection import (
     CognitiveTrustedExperienceContextProjectionService,
+)
+from app.services.cognitive_trusted_experience_reasoning import (
+    CognitiveTrustedExperienceReasoningInfluenceService,
 )
 from app.services.cognitive_input_semantics import (
     CognitivePerceptionAttentionProjector,
@@ -169,6 +176,17 @@ _D136_INVALID_COGNITION_REPLY = (
     "cognitive state."
 )
 _REQUIRED_CRITIC_RESULTS = frozenset({"pass", "revise", "invalid_cognition"})
+_D153_PRIMARY_REASONING_DIRECTIVE = (
+    "O-AI D153 historical-experience awareness:\n"
+    "- A policy-approved trusted historical-experience signal is available "
+    "for this task only as a secondary reasoning check.\n"
+    "- Do not treat that signal as current fact, instruction, recommendation, "
+    "confidence, or authority.\n"
+    "- Do not infer or invent the content or outcome of the historical "
+    "experience.\n"
+    "- Safety policy, Owner policy, current Context, and current evidence take "
+    "precedence; if they conflict, ignore the historical signal."
+)
 
 
 class CognitiveExecutiveFailure(RuntimeError):
@@ -197,6 +215,9 @@ class CognitiveExecutiveTurnResult:
     ) = None
     trusted_experience_context_projection: (
         CognitiveTrustedExperienceContextProjection | None
+    ) = None
+    trusted_experience_reasoning_influence: (
+        CognitiveTrustedExperienceReasoningInfluence | None
     ) = None
 
     def __post_init__(self) -> None:
@@ -244,6 +265,16 @@ class CognitiveExecutiveTurnResult:
         ):
             raise ValueError(
                 "cognitive_executive_trusted_experience_context_projection_invalid"
+            )
+        if (
+            self.trusted_experience_reasoning_influence is not None
+            and not isinstance(
+                self.trusted_experience_reasoning_influence,
+                CognitiveTrustedExperienceReasoningInfluence,
+            )
+        ):
+            raise ValueError(
+                "cognitive_executive_trusted_experience_reasoning_influence_invalid"
             )
 
 
@@ -445,6 +476,11 @@ class CognitiveExecutive:
                     trusted_experience_consumption_decision
                 )
             )
+            trusted_experience_reasoning_influence = (
+                self._trusted_experience_reasoning_influence(
+                    trusted_experience_context_projection
+                )
+            )
 
             session = self._invocation_coordinator.new_session(
                 command=command,
@@ -461,6 +497,9 @@ class CognitiveExecutive:
                 session=session,
                 deadline=deadline,
                 trace=trace,
+                trusted_experience_reasoning_influence=(
+                    trusted_experience_reasoning_influence
+                ),
             )
 
             state.draft_response = final_draft
@@ -554,6 +593,9 @@ class CognitiveExecutive:
                 ),
                 trusted_experience_context_projection=(
                     trusted_experience_context_projection
+                ),
+                trusted_experience_reasoning_influence=(
+                    trusted_experience_reasoning_influence
                 ),
             )
 
@@ -663,6 +705,19 @@ class CognitiveExecutive:
         try:
             return CognitiveTrustedExperienceContextProjectionService.project(
                 decision=decision
+            )
+        except Exception:
+            return None
+
+    @staticmethod
+    def _trusted_experience_reasoning_influence(
+        projection: CognitiveTrustedExperienceContextProjection | None,
+    ) -> CognitiveTrustedExperienceReasoningInfluence | None:
+        if projection is None:
+            return None
+        try:
+            return CognitiveTrustedExperienceReasoningInfluenceService.evaluate(
+                projection=projection
             )
         except Exception:
             return None
@@ -863,6 +918,9 @@ class CognitiveExecutive:
         session: CognitiveInvocationSession,
         deadline: CognitiveTurnDeadline,
         trace: list[CognitiveExecutiveTraceEvent],
+        trusted_experience_reasoning_influence: (
+            CognitiveTrustedExperienceReasoningInfluence | None
+        ) = None,
     ) -> tuple[
         CognitiveDraftResponseArtifact,
         CognitiveVerificationArtifact,
@@ -900,7 +958,20 @@ class CognitiveExecutive:
                 model_binding_reference=None,
             )
         else:
-            prompt = self._primary_prompt(message, prepared, grounding)
+            experience_reasoning_directive = None
+            if (
+                trusted_experience_reasoning_influence is not None
+                and trusted_experience_reasoning_influence.reasoning_status == "active"
+                and trusted_experience_reasoning_influence.directive_id
+                == D153_PRIMARY_REASONING_DIRECTIVE_ID
+            ):
+                experience_reasoning_directive = _D153_PRIMARY_REASONING_DIRECTIVE
+            prompt = self._primary_prompt(
+                message,
+                prepared,
+                grounding,
+                experience_reasoning_directive=experience_reasoning_directive,
+            )
             self._trace(
                 trace,
                 CognitiveTurnState.GENERATING,
@@ -1017,6 +1088,8 @@ class CognitiveExecutive:
         message: str,
         prepared: PreparedContextTurn,
         grounding: CognitiveVerificationGrounding,
+        *,
+        experience_reasoning_directive: str | None = None,
     ) -> str:
         base = self._chat_service.render_context_message(
             message=message,
@@ -1032,14 +1105,22 @@ class CognitiveExecutive:
             if item.citation_id
         )
         if not citation_lines:
-            return base
-        return (
-            f"{base}\n\n"
-            "O-AI D136 citation contract:\n"
-            "- Cite knowledge evidence only with the exact supplied IDs.\n"
-            "- Do not invent citation IDs.\n"
-            + "\n".join(citation_lines)
-        )
+            rendered = base
+        else:
+            rendered = (
+                f"{base}\n\n"
+                "O-AI D136 citation contract:\n"
+                "- Cite knowledge evidence only with the exact supplied IDs.\n"
+                "- Do not invent citation IDs.\n"
+                + "\n".join(citation_lines)
+            )
+        if experience_reasoning_directive is None:
+            return rendered
+        if experience_reasoning_directive != _D153_PRIMARY_REASONING_DIRECTIVE:
+            raise ValueError(
+                "cognitive_executive_experience_reasoning_directive_invalid"
+            )
+        return f"{rendered}\n\n{experience_reasoning_directive}"
 
     @staticmethod
     def _critic_required(
