@@ -6,6 +6,7 @@ from unittest.mock import patch
 from app.api import dependencies
 from app.services.adapter_registry import AdapterRegistry
 from app.services.ai_runtime import AIRuntime
+from app.services.ai_usage_metering import AIUsageMeter
 from app.services.execution_audit import ExecutionAuditTrail, InMemoryAuditSink
 
 
@@ -22,26 +23,28 @@ class AIRuntimeDependencyWiringTests(unittest.TestCase):
         self.assertNotIn("ai_router", parameters)
         self.assertNotIn("ai_adapters", parameters)
 
-    def test_ai_runtime_composes_from_shared_registry_and_audit_seams(self) -> None:
+    def test_ai_runtime_composes_registry_audit_and_usage_meter(self) -> None:
         parameters = inspect.signature(
             dependencies.get_ai_runtime
         ).parameters
         self.assertEqual(
             tuple(parameters),
-            ("adapter_registry", "audit"),
+            ("adapter_registry", "audit", "usage_meter"),
         )
 
         registry = AdapterRegistry(())
         audit = ExecutionAuditTrail(sink=InMemoryAuditSink())
+        usage_meter = AIUsageMeter(session_factory=lambda: None)  # type: ignore[arg-type]
         runtime = dependencies.get_ai_runtime(
             adapter_registry=registry,
             audit=audit,
+            usage_meter=usage_meter,
         )
 
         self.assertIsInstance(runtime, AIRuntime)
         self.assertIs(runtime._registry, registry)
         self.assertIs(runtime._audit, audit)
-
+        self.assertIs(runtime._usage_meter, usage_meter)
 
     def test_injected_service_without_model_discovery_uses_opaque_binding(self) -> None:
         class InjectedConversationService:

@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import replace
-from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
-from app.contracts.local_ai_profile import GENERAL_CHAT_PROFILE_ID, SOFTWARE_ENGINEERING_PROFILE_ID, valid_model_id
-from app.contracts.local_ai_runtime import AUTHORIZED_LOCAL_AI_PROFILE_KEY, AUTHORIZED_LOCAL_AI_MODEL_KEY
 
 from app.contracts.ai import (
     AI_ADAPTER_CONTRACT_VERSION,
@@ -15,9 +12,20 @@ from app.contracts.ai import (
     AIResult,
 )
 from app.contracts.ai_discovery import AI_CAPABILITY_TEXT_GENERATION
+from app.contracts.ai_route import LOCAL_AI_ADAPTER_ID
 from app.contracts.command import CommandRequest, ExecutionPlan, ExecutionStep
 from app.contracts.execution_authorization import ExecutionAuthorization
+from app.contracts.local_ai_profile import (
+    GENERAL_CHAT_PROFILE_ID,
+    SOFTWARE_ENGINEERING_PROFILE_ID,
+    valid_model_id,
+)
+from app.contracts.local_ai_runtime import (
+    AUTHORIZED_LOCAL_AI_MODEL_KEY,
+    AUTHORIZED_LOCAL_AI_PROFILE_KEY,
+)
 from app.services.adapter_registry import AdapterRegistry
+from app.services.ai_usage_metering import AIUsageMeter
 from app.services.execution_audit import ExecutionAuditTrail
 from app.services.execution_guard import execution_plan_digest
 
@@ -72,9 +80,11 @@ class AIRuntime:
         *,
         registry: AdapterRegistry,
         audit: ExecutionAuditTrail | None = None,
+        usage_meter: AIUsageMeter | None = None,
     ) -> None:
         self._registry = registry
         self._audit = audit
+        self._usage_meter = usage_meter
 
     def bind(
         self,
@@ -109,14 +119,26 @@ class AIRuntime:
         )
         if not isinstance(ai_request.metadata, Mapping):
             raise AIExecutionRejectedError("invalid_ai_request")
-        if {AUTHORIZED_LOCAL_AI_PROFILE_KEY, AUTHORIZED_LOCAL_AI_MODEL_KEY}.intersection(ai_request.metadata):
-            raise AIExecutionRejectedError("reserved_local_ai_authorization_metadata")
+        if {
+            AUTHORIZED_LOCAL_AI_PROFILE_KEY,
+            AUTHORIZED_LOCAL_AI_MODEL_KEY,
+        }.intersection(ai_request.metadata):
+            raise AIExecutionRejectedError(
+                "reserved_local_ai_authorization_metadata"
+            )
         if plan.adapter_id == LOCAL_AI_ADAPTER_ID:
-            ai_request = replace(ai_request, metadata={
-                **ai_request.metadata,
-                AUTHORIZED_LOCAL_AI_PROFILE_KEY: plan.steps[0].parameters["local_ai_profile_id"],
-                AUTHORIZED_LOCAL_AI_MODEL_KEY: plan.steps[0].parameters["model_id"],
-            })
+            ai_request = replace(
+                ai_request,
+                metadata={
+                    **ai_request.metadata,
+                    AUTHORIZED_LOCAL_AI_PROFILE_KEY: plan.steps[0].parameters[
+                        "local_ai_profile_id"
+                    ],
+                    AUTHORIZED_LOCAL_AI_MODEL_KEY: plan.steps[0].parameters[
+                        "model_id"
+                    ],
+                },
+            )
         self._record(
             request_id=request.request_id,
             action="started",
@@ -150,6 +172,13 @@ class AIRuntime:
             adapter_id=plan.adapter_id,
             reason_code="ai_execution_succeeded",
             plan_digest=digest,
+        )
+        self._try_meter_success(
+            request_id=request.request_id,
+            plan_digest=digest,
+            adapter_id=plan.adapter_id,
+            authorized_model_id=plan.steps[0].parameters["model_id"],
+            result=result,
         )
         return result
 
@@ -190,15 +219,22 @@ class AIRuntime:
         if plan.adapter_id == LOCAL_AI_ADAPTER_ID:
             expected_parameters.add("local_ai_profile_id")
             profile_id = parameters.get("local_ai_profile_id")
-            if (type(profile_id) is not str or profile_id not in {
-                    GENERAL_CHAT_PROFILE_ID, SOFTWARE_ENGINEERING_PROFILE_ID,
-                } or not valid_model_id(parameters.get("model_id"))):
-                raise AIExecutionRejectedError("authorization_policy_violation")
+            if (
+                type(profile_id) is not str
+                or profile_id
+                not in {
+                    GENERAL_CHAT_PROFILE_ID,
+                    SOFTWARE_ENGINEERING_PROFILE_ID,
+                }
+                or not valid_model_id(parameters.get("model_id"))
+            ):
+                raise AIExecutionRejectedError(
+                    "authorization_policy_violation"
+                )
         if (
             step.operation != "ai.generate_text"
             or set(parameters) != expected_parameters
-            or parameters.get("capability_id")
-            != AI_CAPABILITY_TEXT_GENERATION
+            or parameters.get("capability_id") != AI_CAPABILITY_TEXT_GENERATION
             or not isinstance(parameters.get("model_id"), str)
             or not parameters["model_id"]
             or parameters["model_id"] != parameters["model_id"].strip()
@@ -216,6 +252,30 @@ class AIRuntime:
         if adapter is None:
             raise AIExecutionRejectedError("ai_adapter_unavailable")
         return plan, adapter, digest
+
+    def _try_meter_success(
+        self,
+        *,
+        request_id: str,
+        plan_digest: str,
+        adapter_id: str,
+        authorized_model_id: str,
+        result: AIResult,
+    ) -> None:
+        if self._usage_meter is None:
+            return
+        try:
+            self._usage_meter.try_record_success(
+                request_id=request_id,
+                plan_digest=plan_digest,
+                adapter_id=adapter_id,
+                authorized_model_id=authorized_model_id,
+                result=result,
+            )
+        except Exception:
+            # D155 is observability only. Metering must never turn a successful
+            # provider execution into a failed AI/chat result.
+            return
 
     def _record(
         self,

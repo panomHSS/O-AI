@@ -6,7 +6,8 @@ from app.contracts.ai import (
     AIResult,
 )
 from app.contracts.ai_route import CHATGPT_DEFAULT_ADAPTER_ID
-from app.providers.base import ChatProvider
+from app.contracts.ai_usage import AI_USAGE_METADATA_KEY
+from app.providers.base import ChatProvider, ChatProviderResult
 
 
 class ChatGPTAdapter:
@@ -19,7 +20,19 @@ class ChatGPTAdapter:
         self._provider = provider
 
     def generate(self, request: AIRequest) -> AIResult:
-        """Delegate once to the existing provider without translating errors."""
+        """Delegate once and preserve bounded provider usage when supported."""
+        generate_result = getattr(type(self._provider), "generate_result", None)
+        if callable(generate_result):
+            provider_result = self._provider.generate_result(request.content)
+            if not isinstance(provider_result, ChatProviderResult):
+                raise TypeError("Usage-aware chat provider returned an invalid result.")
+            metadata: dict[str, object] = {}
+            if provider_result.usage is not None:
+                metadata[AI_USAGE_METADATA_KEY] = provider_result.usage
+            return AIResult(
+                content=provider_result.content,
+                metadata=metadata,
+            )
         return AIResult(content=self._provider.generate_reply(request.content))
 
     def generate_reply(self, message: str) -> str:

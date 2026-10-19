@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0014_trusted_experience_lifecycle"
+TARGET_REVISION = "0015_ai_usage_observability"
 EXPECTED_TABLES = {
     "alembic_version",
     "context_snapshots",
@@ -28,6 +28,7 @@ EXPECTED_TABLES = {
     "project_update_proposals",
     "project_action_execution_proposals",
     "execution_audit_events",
+    "ai_usage_events",
     "oauth_credentials",
     "automation_definitions",
     "automation_runs",
@@ -82,6 +83,29 @@ EXPECTED_COLUMNS = {
         ("adapter_id", "TEXT", 0),
         ("reason_code", "TEXT", 0),
         ("plan_digest", "VARCHAR(64)", 0),
+    ],
+    "ai_usage_events": [
+        ("id", "INTEGER", 1),
+        ("contract_version", "VARCHAR(16)", 0),
+        ("invocation_digest", "VARCHAR(64)", 0),
+        ("request_digest", "VARCHAR(64)", 0),
+        ("plan_digest", "VARCHAR(64)", 0),
+        ("adapter_id", "TEXT", 0),
+        ("authorized_model_id", "TEXT", 0),
+        ("provider_id", "VARCHAR(32)", 0),
+        ("model_id", "TEXT", 0),
+        ("pricing_mode", "VARCHAR(32)", 0),
+        ("usage_status", "VARCHAR(32)", 0),
+        ("billing_status", "VARCHAR(32)", 0),
+        ("input_tokens", "BIGINT", 0),
+        ("cached_input_tokens", "BIGINT", 0),
+        ("cache_write_tokens", "BIGINT", 0),
+        ("output_tokens", "BIGINT", 0),
+        ("reasoning_tokens", "BIGINT", 0),
+        ("total_tokens", "BIGINT", 0),
+        ("pricing_version", "VARCHAR(64)", 0),
+        ("estimated_cost_nano_usd", "BIGINT", 0),
+        ("occurred_at", "DATETIME", 0),
     ],
     "oauth_credentials": [
         ("profile_id", "TEXT", 1),
@@ -188,6 +212,12 @@ EXPECTED_INDEXES = {
         "ix_execution_audit_events_request_id": (["request_id"], False),
         "ix_execution_audit_events_occurred_at": (["occurred_at"], False),
     },
+    "ai_usage_events": {
+        "uq_ai_usage_events_invocation_digest": (["invocation_digest"], True),
+        "ix_ai_usage_events_request_digest": (["request_digest"], False),
+        "ix_ai_usage_events_occurred_at": (["occurred_at"], False),
+        "ix_ai_usage_events_model_occurred_at": (["model_id", "occurred_at"], False),
+    },
     "oauth_credentials": {},
     "automation_definitions": {
         "ix_automation_definitions_status_due": (["status", "next_due_at_utc"], False),
@@ -217,6 +247,7 @@ EXPECTED_FOREIGN_KEYS = {
         ("conversation_id", "conversations", "id", "NO ACTION"),
     },
     "execution_audit_events": set(),
+    "ai_usage_events": set(),
     "oauth_credentials": set(),
     "automation_definitions": set(),
     "automation_runs": {
@@ -251,6 +282,16 @@ NULLABLE_COLUMNS = {
         "adapter_id",
         "reason_code",
         "plan_digest",
+    },
+    "ai_usage_events": {
+        "input_tokens",
+        "cached_input_tokens",
+        "cache_write_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "total_tokens",
+        "pricing_version",
+        "estimated_cost_nano_usd",
     },
     "oauth_credentials": {
         "refresh_token_expires_at",
@@ -433,6 +474,41 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
         raise DatabaseVerificationError(
             "Configured database is missing execution audit constraints."
         )
+
+    usage_sql = connection.execute(
+        "SELECT sql FROM sqlite_schema "
+        "WHERE type = 'table' AND name = 'ai_usage_events'"
+    ).fetchone()
+    normalized_usage = (
+        ""
+        if usage_sql is None or usage_sql[0] is None
+        else " ".join(usage_sql[0].upper().split())
+    )
+    for required in (
+        "CONTRACT_VERSION = '1'",
+        "USAGE_STATUS IN ('MEASURED', 'UNAVAILABLE', 'NOT_APPLICABLE')",
+        "BILLING_STATUS IN ('PRICED', 'UNKNOWN', 'NOT_APPLICABLE')",
+        "CACHED_INPUT_TOKENS + CACHE_WRITE_TOKENS <= INPUT_TOKENS",
+        "REASONING_TOKENS <= OUTPUT_TOKENS",
+        "TOTAL_TOKENS = INPUT_TOKENS + OUTPUT_TOKENS",
+        "PROVIDER_ID != 'LOCAL'",
+    ):
+        if required not in normalized_usage:
+            raise DatabaseVerificationError(
+                "Configured database is missing AI usage ledger constraints."
+            )
+
+    for trigger_name in (
+        "trg_ai_usage_events_immutable_update",
+        "trg_ai_usage_events_immutable_delete",
+    ):
+        if connection.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND name = ?",
+            (trigger_name,),
+        ).fetchone() is None:
+            raise DatabaseVerificationError(
+                "Configured database is missing AI usage append-only protection."
+            )
 
     automation_definition_sql = connection.execute(
         "SELECT sql FROM sqlite_schema "

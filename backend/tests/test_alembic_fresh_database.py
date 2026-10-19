@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0014_trusted_experience_lifecycle"
+REVISION = "0015_ai_usage_observability"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -38,6 +38,7 @@ EXPECTED_TABLES = {
     "project_revisions",
     "project_action_execution_proposals",
     "execution_audit_events",
+    "ai_usage_events",
     "oauth_credentials",
     "automation_definitions",
     "automation_runs",
@@ -57,6 +58,12 @@ EXPECTED_INDEXES = {
     "message_citations": {"ix_message_citations_message_id"},
     "project_action_execution_proposals": {"ix_project_action_execution_proposals_project_id", "ix_project_action_execution_proposals_conversation_id"},
     "execution_audit_events": {"ix_execution_audit_events_request_id", "ix_execution_audit_events_occurred_at"},
+    "ai_usage_events": {
+        "uq_ai_usage_events_invocation_digest",
+        "ix_ai_usage_events_request_digest",
+        "ix_ai_usage_events_occurred_at",
+        "ix_ai_usage_events_model_occurred_at",
+    },
     "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at", "ix_memories_workspace_id", "uq_memories_legacy_key", "uq_memories_workspace_key"},
     "memory_versions": {"ix_memory_versions_memory_id"},
     "projects": {"ix_projects_status", "ix_projects_updated_at", "ix_projects_workspace_id"},
@@ -180,6 +187,68 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
             {
                 "ix_execution_audit_events_request_id",
                 "ix_execution_audit_events_occurred_at",
+            },
+        )
+
+        usage_columns = {
+            column["name"]
+            for column in inspector.get_columns("ai_usage_events")
+        }
+        self.assertEqual(
+            usage_columns,
+            {
+                "id",
+                "contract_version",
+                "invocation_digest",
+                "request_digest",
+                "plan_digest",
+                "adapter_id",
+                "authorized_model_id",
+                "provider_id",
+                "model_id",
+                "pricing_mode",
+                "usage_status",
+                "billing_status",
+                "input_tokens",
+                "cached_input_tokens",
+                "cache_write_tokens",
+                "output_tokens",
+                "reasoning_tokens",
+                "total_tokens",
+                "pricing_version",
+                "estimated_cost_nano_usd",
+                "occurred_at",
+            },
+        )
+        usage_indexes = {
+            index["name"]
+            for index in inspector.get_indexes("ai_usage_events")
+        }
+        self.assertEqual(
+            usage_indexes,
+            {
+                "uq_ai_usage_events_invocation_digest",
+                "ix_ai_usage_events_request_digest",
+                "ix_ai_usage_events_occurred_at",
+                "ix_ai_usage_events_model_occurred_at",
+            },
+        )
+        with self.engine.connect() as connection:
+            usage_triggers = {
+                row[0]
+                for row in connection.execute(
+                    text(
+                        "SELECT name FROM sqlite_schema "
+                        "WHERE type = 'trigger' "
+                        "AND name LIKE 'trg_ai_usage_events_%'"
+                    )
+                ).all()
+            }
+        self.assertEqual(
+            usage_triggers,
+            {
+                "trg_ai_usage_events_immutable_update",
+                "trg_ai_usage_events_immutable_delete",
             },
         )
 
@@ -399,6 +468,38 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
         with self.engine.connect() as connection:
             self.assertIsNone(connection.scalar(text("SELECT project_id FROM conversations WHERE id = 'pre-project'")))
             self.assertEqual(connection.scalar(text("SELECT count(*) FROM projects")), 0)
+
+    def test_d155_upgrade_preserves_existing_data(self) -> None:
+        self._upgrade_to_head("0014_trusted_experience_lifecycle")
+        self.engine = create_database_engine(self.database_url)
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO conversations "
+                    "(id, title, created_at, updated_at) "
+                    "VALUES ('pre-d155', 'Existing', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                )
+            )
+        self.engine.dispose()
+        self.engine = None
+
+        self._upgrade_to_head()
+        self.engine = create_database_engine(self.database_url)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT count(*) FROM conversations WHERE id = 'pre-d155'")
+                ),
+                1,
+            )
+            self.assertEqual(
+                connection.scalar(text("SELECT count(*) FROM ai_usage_events")),
+                0,
+            )
+            self.assertEqual(
+                connection.scalar(text("SELECT version_num FROM alembic_version")),
+                REVISION,
+            )
 
     def _assert_foreign_key(self, inspector, table_name: str, column_name: str, target_table: str) -> None:
         foreign_keys = inspector.get_foreign_keys(table_name)

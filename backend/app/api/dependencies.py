@@ -63,6 +63,7 @@ from app.plugins.explicit_plugin_factory_loader import ExplicitPluginFactoryLoad
 from app.plugins.gmail import GmailPlugin
 from app.plugins.google_calendar import GoogleCalendarPlugin
 from app.readers import create_document_reader_registry
+from app.repositories.ai_usage_events import AIUsageEventRepository
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.memories import MemoryRepository
@@ -275,6 +276,9 @@ from app.services.execution_audit_persistence import (
 from app.services.module_runtime import ModuleRuntime
 from app.services.tool_runtime import ToolRuntime
 from app.services.ai_runtime import AIRuntime
+from app.services.ai_usage_metering import AIUsageMeter
+from app.services.ai_usage_pricing import AIUsagePricing
+from app.services.ai_usage_summary import AIUsageSummaryService
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -1479,14 +1483,48 @@ def get_module_runtime(
     return ModuleRuntime(registry=adapter_registry, audit=audit)
 
 
+def get_ai_usage_meter(
+    database_session: Session = Depends(get_db),
+) -> AIUsageMeter:
+    """Compose D155 best-effort metering over an isolated DB transaction."""
+    bind = database_session.get_bind()
+    usage_bind = getattr(bind, "engine", bind)
+    usage_session_factory = sessionmaker(
+        bind=usage_bind,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+    )
+    return AIUsageMeter(
+        session_factory=usage_session_factory,
+        pricing=AIUsagePricing(),
+    )
+
+
+def get_ai_usage_summary_service(
+    database_session: Session = Depends(get_db),
+) -> AIUsageSummaryService:
+    """Compose D155 read-only aggregate usage visibility."""
+    return AIUsageSummaryService(
+        AIUsageEventRepository(database_session)
+    )
+
+
 def get_ai_runtime(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
     audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
+    usage_meter: AIUsageMeter = Depends(get_ai_usage_meter),
 ) -> AIRuntime:
-    """Compose D49 AI runtime over the shared registry and D47 audit."""
+    """Compose D49 AI runtime plus non-authoritative D155 metering."""
+    resolved_usage_meter = (
+        usage_meter
+        if isinstance(usage_meter, AIUsageMeter)
+        else None
+    )
     return AIRuntime(
         registry=adapter_registry,
         audit=audit,
+        usage_meter=resolved_usage_meter,
     )
 
 
