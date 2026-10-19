@@ -106,11 +106,17 @@ from app.contracts.cognitive_trusted_experience_runtime_binding import (
 from app.contracts.cognitive_trusted_experience_consumption import (
     CognitiveTrustedExperienceConsumptionDecision,
 )
+from app.contracts.cognitive_trusted_experience_context_projection import (
+    CognitiveTrustedExperienceContextProjection,
+)
 from app.services.cognitive_trusted_experience_runtime_binding import (
     CognitiveTrustedExperienceRuntimeBinder,
 )
 from app.services.cognitive_trusted_experience_consumption import (
     CognitiveTrustedExperienceConsumptionPolicyEvaluator,
+)
+from app.services.cognitive_trusted_experience_context_projection import (
+    CognitiveTrustedExperienceContextProjectionService,
 )
 from app.services.cognitive_input_semantics import (
     CognitivePerceptionAttentionProjector,
@@ -189,6 +195,9 @@ class CognitiveExecutiveTurnResult:
     trusted_experience_consumption_decision: (
         CognitiveTrustedExperienceConsumptionDecision | None
     ) = None
+    trusted_experience_context_projection: (
+        CognitiveTrustedExperienceContextProjection | None
+    ) = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.chat_turn, ChatTurnResult):
@@ -225,6 +234,16 @@ class CognitiveExecutiveTurnResult:
         ):
             raise ValueError(
                 "cognitive_executive_trusted_experience_consumption_decision_invalid"
+            )
+        if (
+            self.trusted_experience_context_projection is not None
+            and not isinstance(
+                self.trusted_experience_context_projection,
+                CognitiveTrustedExperienceContextProjection,
+            )
+        ):
+            raise ValueError(
+                "cognitive_executive_trusted_experience_context_projection_invalid"
             )
 
 
@@ -421,6 +440,11 @@ class CognitiveExecutive:
                     trusted_experience_binding
                 )
             )
+            trusted_experience_context_projection = (
+                self._trusted_experience_context_projection(
+                    trusted_experience_consumption_decision
+                )
+            )
 
             session = self._invocation_coordinator.new_session(
                 command=command,
@@ -528,6 +552,9 @@ class CognitiveExecutive:
                 trusted_experience_consumption_decision=(
                     trusted_experience_consumption_decision
                 ),
+                trusted_experience_context_projection=(
+                    trusted_experience_context_projection
+                ),
             )
 
         except ProjectContextUnavailableError:
@@ -623,6 +650,19 @@ class CognitiveExecutive:
         try:
             return CognitiveTrustedExperienceConsumptionPolicyEvaluator.evaluate(
                 binding=binding
+            )
+        except Exception:
+            return None
+
+    @staticmethod
+    def _trusted_experience_context_projection(
+        decision: CognitiveTrustedExperienceConsumptionDecision | None,
+    ) -> CognitiveTrustedExperienceContextProjection | None:
+        if decision is None:
+            return None
+        try:
+            return CognitiveTrustedExperienceContextProjectionService.project(
+                decision=decision
             )
         except Exception:
             return None
