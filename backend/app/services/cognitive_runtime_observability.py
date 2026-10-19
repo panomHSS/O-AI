@@ -6,6 +6,7 @@ import logging
 from uuid import UUID
 
 from app.contracts.cognitive_executive import CognitiveExecutiveOutcome
+from app.contracts.cognitive_quality_observability import CognitiveQualityObservation
 from app.contracts.cognitive_runtime_adoption import (
     CognitiveRuntimeLane,
     CognitiveRuntimeObservation,
@@ -16,6 +17,7 @@ from app.services.cognitive_runtime_assurance import CognitiveRuntimeAssurance
 from app.services.cognitive_outcome_quality_feedback import (
     CognitiveOutcomeQualityFeedbackMonitor,
 )
+from app.services.cognitive_quality_observability import CognitiveQualityRecorder
 from app.services.trusted_experience_lifecycle import (
     TrustedExperienceLifecycleService,
 )
@@ -32,6 +34,7 @@ class CognitiveRuntimeObserver:
         assurance: CognitiveRuntimeAssurance | None = None,
         outcome_quality_feedback: CognitiveOutcomeQualityFeedbackMonitor | None = None,
         trusted_experience_lifecycle: TrustedExperienceLifecycleService | None = None,
+        cognitive_quality_recorder: CognitiveQualityRecorder | None = None,
     ) -> None:
         if not isinstance(workspace_id, WorkspaceId):
             raise ValueError("cognitive_runtime_observer_workspace_invalid")
@@ -40,6 +43,7 @@ class CognitiveRuntimeObserver:
         self._assurance = assurance
         self._outcome_quality_feedback = outcome_quality_feedback
         self._trusted_experience_lifecycle = trusted_experience_lifecycle
+        self._cognitive_quality_recorder = cognitive_quality_recorder
 
     def try_record_selection(
         self,
@@ -109,6 +113,13 @@ class CognitiveRuntimeObserver:
         except Exception:
             return False
         return self._record(event)
+
+    def try_record_cognitive_quality(self, observation: object) -> bool:
+        recorder=self._cognitive_quality_recorder
+        if recorder is None or not isinstance(observation,CognitiveQualityObservation): return False
+        if observation.workspace_id is not self._workspace_id: return False
+        try: return bool(recorder.try_record(observation))
+        except Exception: return False
 
     def try_record_experience_feedback(self, candidate: object) -> bool:
         """Record D146 aggregate feedback without adding any per-turn log payload."""

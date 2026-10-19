@@ -64,6 +64,7 @@ from app.plugins.gmail import GmailPlugin
 from app.plugins.google_calendar import GoogleCalendarPlugin
 from app.readers import create_document_reader_registry
 from app.repositories.ai_usage_events import AIUsageEventRepository
+from app.repositories.cognitive_quality_observations import CognitiveQualityObservationRepository
 from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.memories import MemoryRepository
@@ -279,6 +280,8 @@ from app.services.ai_runtime import AIRuntime
 from app.services.ai_usage_metering import AIUsageMeter
 from app.services.ai_usage_pricing import AIUsagePricing
 from app.services.ai_usage_summary import AIUsageSummaryService
+from app.services.cognitive_quality_observability import CognitiveQualityRecorder
+from app.services.cognitive_quality_summary import CognitiveQualitySummaryService
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -1510,6 +1513,15 @@ def get_ai_usage_summary_service(
     )
 
 
+def get_cognitive_quality_recorder(database_session: Session = Depends(get_db)) -> CognitiveQualityRecorder:
+    bind=database_session.get_bind(); quality_bind=getattr(bind,"engine",bind)
+    return CognitiveQualityRecorder(session_factory=sessionmaker(bind=quality_bind,autoflush=False,autocommit=False,expire_on_commit=False))
+
+
+def get_cognitive_quality_summary_service(database_session: Session = Depends(get_db), workspace_scope: WorkspaceScope = Depends(get_workspace_scope)) -> CognitiveQualitySummaryService:
+    return CognitiveQualitySummaryService(CognitiveQualityObservationRepository(database_session),workspace_id=workspace_scope.workspace_id)
+
+
 def get_ai_runtime(
     adapter_registry: AdapterRegistry = Depends(get_adapter_registry),
     audit: ExecutionAuditTrail = Depends(get_execution_audit_trail),
@@ -2184,6 +2196,7 @@ def get_cognitive_runtime_observer(
         assurance=get_cognitive_runtime_assurance(),
         outcome_quality_feedback=get_cognitive_outcome_quality_feedback_monitor(),
         trusted_experience_lifecycle=trusted_experience_lifecycle,
+        cognitive_quality_recorder=get_cognitive_quality_recorder(database_session),
     )
 
 

@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0015_ai_usage_observability"
+REVISION = "0016_cognitive_quality_observability"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -39,6 +39,7 @@ EXPECTED_TABLES = {
     "project_action_execution_proposals",
     "execution_audit_events",
     "ai_usage_events",
+    "cognitive_quality_observations",
     "oauth_credentials",
     "automation_definitions",
     "automation_runs",
@@ -63,6 +64,12 @@ EXPECTED_INDEXES = {
         "ix_ai_usage_events_request_digest",
         "ix_ai_usage_events_occurred_at",
         "ix_ai_usage_events_model_occurred_at",
+    },
+    "cognitive_quality_observations": {
+        "uq_cognitive_quality_turn_digest",
+        "ix_cognitive_quality_workspace_occurred_at",
+        "ix_cognitive_quality_workspace_cohort_occurred_at",
+        "ix_cognitive_quality_workspace_task_occurred_at",
     },
     "memories": {"ix_memories_key", "ix_memories_state", "ix_memories_updated_at", "ix_memories_workspace_id", "uq_memories_legacy_key", "uq_memories_workspace_key"},
     "memory_versions": {"ix_memory_versions_memory_id"},
@@ -251,6 +258,12 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
                 "trg_ai_usage_events_immutable_delete",
             },
         )
+
+        quality_columns = {column["name"] for column in inspector.get_columns("cognitive_quality_observations")}
+        self.assertEqual(quality_columns, {"id","contract_version","turn_digest","workspace_id","terminal_state","interaction_intent","cognitive_intent","task_kind","quality_classification","quality_reason_code","verification_result","publication_disposition","critic_exhausted","revision_count","confidence_class","experience_cohort","adapter_id","model_id","profile_id","source_candidate_fingerprint","source_feedback_fingerprint","projection_fingerprint","occurred_at"})
+        with self.engine.connect() as connection:
+            quality_triggers={row[0] for row in connection.execute(text("SELECT name FROM sqlite_schema WHERE type = 'trigger' AND name LIKE 'trg_cognitive_quality_observations_%'")).all()}
+        self.assertEqual(quality_triggers,{"trg_cognitive_quality_observations_immutable_update","trg_cognitive_quality_observations_immutable_delete"})
 
         oauth_columns = {
             column["name"]
@@ -500,6 +513,17 @@ class AlembicFreshDatabaseTests(unittest.TestCase):
                 connection.scalar(text("SELECT version_num FROM alembic_version")),
                 REVISION,
             )
+
+    def test_d156_upgrade_preserves_d155_usage_data(self) -> None:
+        self._upgrade_to_head("0015_ai_usage_observability")
+        self.engine=create_database_engine(self.database_url)
+        with self.engine.begin() as connection:
+            connection.execute(text("INSERT INTO ai_usage_events (contract_version,invocation_digest,request_digest,plan_digest,adapter_id,authorized_model_id,provider_id,model_id,pricing_mode,usage_status,billing_status,occurred_at) VALUES ('1',:a,:b,:c,'local_ai.default','local-model','local','local-model','not_applicable','not_applicable','not_applicable',CURRENT_TIMESTAMP)"),{"a":"a"*64,"b":"b"*64,"c":"c"*64})
+        self.engine.dispose(); self.engine=None; self._upgrade_to_head(); self.engine=create_database_engine(self.database_url)
+        with self.engine.connect() as connection:
+            self.assertEqual(connection.scalar(text("SELECT count(*) FROM ai_usage_events")),1)
+            self.assertEqual(connection.scalar(text("SELECT count(*) FROM cognitive_quality_observations")),0)
+            self.assertEqual(connection.scalar(text("SELECT version_num FROM alembic_version")),REVISION)
 
     def _assert_foreign_key(self, inspector, table_name: str, column_name: str, target_table: str) -> None:
         foreign_keys = inspector.get_foreign_keys(table_name)

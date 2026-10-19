@@ -1,6 +1,7 @@
 """SQLAlchemy persistence models."""
 
 from app.models.ai_usage_event import AIUsageEventRecord
+from app.models.cognitive_quality_observation import CognitiveQualityObservationRecord
 from app.models.automation_definition import AutomationDefinitionRecord
 from app.models.automation_run import AutomationRunRecord
 from app.models.context_snapshot import ContextSnapshotItemRecord, ContextSnapshotRecord
@@ -24,6 +25,7 @@ from app.models.project_update_proposal import ProjectUpdateProposal
 
 __all__ = [
     "AIUsageEventRecord",
+    "CognitiveQualityObservationRecord",
     "AutomationDefinitionRecord",
     "AutomationRunRecord",
     "ContextSnapshotItemRecord",

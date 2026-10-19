@@ -160,6 +160,7 @@ class CommandOrchestrator:
                         task_kind=task_kind,
                         outcome=error.outcome,
                     )
+                    self._observe_cognitive_quality(observation=getattr(error, "quality_observation", None))
                     return self._normalized(
                         self._error_normalizer.normalize_cognitive_outcome(
                             command.request_id,
@@ -175,6 +176,7 @@ class CommandOrchestrator:
                     task_kind=task_kind,
                     outcome=cognitive_result.outcome,
                 )
+                self._observe_cognitive_quality(observation=getattr(cognitive_result, "quality_observation", None))
                 experience_candidate = getattr(
                     cognitive_result,
                     "experience_candidate",
@@ -429,6 +431,12 @@ class CommandOrchestrator:
             )
         except Exception:
             pass
+
+    def _observe_cognitive_quality(self, *, observation: object) -> None:
+        observer = self._cognitive_runtime_observer
+        if observer is None or observation is None: return
+        try: observer.try_record_cognitive_quality(observation)
+        except Exception: pass
 
     def _observe_experience_feedback(self, *, candidate: object) -> None:
         observer = self._cognitive_runtime_observer

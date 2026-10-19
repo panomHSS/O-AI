@@ -36,6 +36,7 @@ from app.contracts.cognitive_experience import (
     D134_EXPERIENCE_CONTRACT_VERSION,
     CognitiveExperienceCandidateArtifact,
 )
+from app.contracts.cognitive_quality_observability import CognitiveQualityObservation
 from app.contracts.cognitive_input_semantics import (
     D127_ATTENTION_ARTIFACT_TYPE,
     D127_ATTENTION_CONTRACT_VERSION,
@@ -100,6 +101,7 @@ from app.services.cognitive_context_memory import (
     CognitiveContextUnstableError,
 )
 from app.services.cognitive_experience import CognitiveExperienceCoordinator
+from app.services.cognitive_quality_projection import CognitiveQualityProjectionService
 from app.contracts.cognitive_trusted_experience_runtime_binding import (
     CognitiveTrustedExperienceRuntimeBinding,
 )
@@ -211,15 +213,12 @@ _D154_CRITIC_DIRECTIVE = (
 
 
 class CognitiveExecutiveFailure(RuntimeError):
-    """Safe D136 terminal failure carrying bounded executive metadata."""
+    """Safe terminal failure carrying bounded executive + D156 metadata."""
 
-    def __init__(self, outcome: CognitiveExecutiveOutcome) -> None:
+    def __init__(self, outcome: CognitiveExecutiveOutcome, quality_observation: CognitiveQualityObservation | None = None) -> None:
         self.outcome = outcome
-        reason = (
-            outcome.failure_code.value
-            if outcome.failure_code is not None
-            else "cognitive_executive_failed"
-        )
+        self.quality_observation = quality_observation
+        reason = outcome.failure_code.value if outcome.failure_code is not None else "cognitive_executive_failed"
         super().__init__(reason)
 
 
@@ -243,6 +242,7 @@ class CognitiveExecutiveTurnResult:
     trusted_experience_verification_influence: (
         CognitiveTrustedExperienceVerificationInfluence | None
     ) = None
+    quality_observation: CognitiveQualityObservation | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.chat_turn, ChatTurnResult):
@@ -310,6 +310,8 @@ class CognitiveExecutiveTurnResult:
             raise ValueError(
                 "cognitive_executive_trusted_experience_verification_influence_invalid"
             )
+        if self.quality_observation is not None and not isinstance(self.quality_observation, CognitiveQualityObservation):
+            raise ValueError("cognitive_executive_quality_observation_invalid")
 
 
 class CognitiveExecutive:
@@ -332,6 +334,7 @@ class CognitiveExecutive:
         metacognition_projector: CognitiveMetacognitionProjector | None = None,
         verification_coordinator: CognitiveVerificationCoordinator | None = None,
         experience_coordinator: CognitiveExperienceCoordinator | None = None,
+        quality_projector: CognitiveQualityProjectionService | None = None,
         trusted_experience_runtime_binder: (
             CognitiveTrustedExperienceRuntimeBinder | None
         ) = None,
@@ -385,6 +388,7 @@ class CognitiveExecutive:
         self._trusted_experience_runtime_binder = trusted_experience_runtime_binder
         self._monotonic = monotonic_clock
         self._utc = utc_clock or (lambda: datetime.now(timezone.utc))
+        self._quality_projector = quality_projector or CognitiveQualityProjectionService(clock=self._utc)
 
     def process_chat(
         self,
@@ -419,6 +423,29 @@ class CognitiveExecutive:
         self._trace(trace, CognitiveTurnState.ACCEPTED, "conversation_reserved")
         self._trace(trace, CognitiveTurnState.COGNITIVE_LANE, "cognitive_lane")
 
+        state = None
+        verification = None
+        publication_gate = None
+        experience_evaluated = False
+        trusted_experience_binding = None
+        trusted_experience_consumption_decision = None
+        trusted_experience_context_projection = None
+        trusted_experience_reasoning_influence = None
+        trusted_experience_verification_influence = None
+
+        def attach_quality(error: CognitiveExecutiveFailure) -> CognitiveExecutiveFailure:
+            if error.quality_observation is None:
+                error.quality_observation = self._best_effort_quality_observation(
+                    binding=binding, outcome=error.outcome, state=state,
+                    verification=verification, publication_gate=publication_gate,
+                    candidate=None, experience_evaluated=experience_evaluated,
+                    trusted_experience_binding=trusted_experience_binding,
+                    trusted_experience_context_projection=trusted_experience_context_projection,
+                    trusted_experience_reasoning_influence=trusted_experience_reasoning_influence,
+                    trusted_experience_verification_influence=trusted_experience_verification_influence,
+                )
+            return error
+
         try:
             lease = self._turn_guard.acquire(binding)
         except CognitiveTurnInProgressError:
@@ -431,7 +458,7 @@ class CognitiveExecutive:
                 session=None,
                 trace=trace,
             )
-            raise CognitiveExecutiveFailure(outcome) from None
+            raise attach_quality(CognitiveExecutiveFailure(outcome)) from None
 
         self._trace(trace, CognitiveTurnState.BOUND, "turn_bound")
         prepared = False
@@ -500,6 +527,7 @@ class CognitiveExecutive:
             trusted_experience_binding = self._trusted_experience_binding(
                 state.task
             )
+            experience_evaluated = True
             trusted_experience_consumption_decision = (
                 self._trusted_experience_consumption_decision(
                     trusted_experience_binding
@@ -625,6 +653,15 @@ class CognitiveExecutive:
                 publication_gate=publication_gate,
                 draft=final_draft,
             )
+            quality_observation = self._best_effort_quality_observation(
+                binding=binding, outcome=outcome, state=state,
+                verification=verification, publication_gate=publication_gate,
+                candidate=experience_candidate, experience_evaluated=experience_evaluated,
+                trusted_experience_binding=trusted_experience_binding,
+                trusted_experience_context_projection=trusted_experience_context_projection,
+                trusted_experience_reasoning_influence=trusted_experience_reasoning_influence,
+                trusted_experience_verification_influence=trusted_experience_verification_influence,
+            )
             return CognitiveExecutiveTurnResult(
                 chat_turn=chat_turn,
                 outcome=outcome,
@@ -642,20 +679,22 @@ class CognitiveExecutive:
                 trusted_experience_verification_influence=(
                     trusted_experience_verification_influence
                 ),
+                quality_observation=quality_observation,
             )
 
         except ProjectContextUnavailableError:
             if not prepared:
                 self._conversation_service.abort_cognitive_turn()
             raise
-        except CognitiveExecutiveFailure:
+        except CognitiveExecutiveFailure as error:
             if not prepared:
                 self._conversation_service.abort_cognitive_turn()
+            attach_quality(error)
             raise
         except CognitiveInvocationStaleResult:
             if not prepared:
                 self._conversation_service.abort_cognitive_turn()
-            raise self._failure(
+            raise attach_quality(self._failure(
                 binding=binding,
                 context_digest=self._context_digest_if_prepared(
                     prepared,
@@ -665,7 +704,7 @@ class CognitiveExecutive:
                 revision_count=0,
                 session=session,
                 trace=trace,
-            ) from None
+            )) from None
         except CognitiveInvocationError as error:
             if not prepared:
                 self._conversation_service.abort_cognitive_turn()
@@ -674,7 +713,7 @@ class CognitiveExecutive:
                 if error.reason_code == "turn_deadline_exceeded"
                 else CognitiveFailureCode.CONTRACT_VIOLATION
             )
-            raise self._failure(
+            raise attach_quality(self._failure(
                 binding=binding,
                 context_digest=self._context_digest_if_prepared(
                     prepared,
@@ -684,11 +723,11 @@ class CognitiveExecutive:
                 revision_count=0,
                 session=session,
                 trace=trace,
-            ) from None
+            )) from None
         except Exception:
             if not prepared:
                 self._conversation_service.abort_cognitive_turn()
-            raise self._failure(
+            raise attach_quality(self._failure(
                 binding=binding,
                 context_digest=self._context_digest_if_prepared(
                     prepared,
@@ -698,7 +737,7 @@ class CognitiveExecutive:
                 revision_count=0,
                 session=session,
                 trace=trace,
-            ) from None
+            )) from None
         finally:
             if session is not None:
                 session.mark_terminal()
@@ -1621,6 +1660,26 @@ class CognitiveExecutive:
                 metacognition=metacognition,
                 verification=verification,
                 publication_gate=publication_gate,
+            )
+        except Exception:
+            return None
+
+    def _best_effort_quality_observation(
+        self, *, binding: CognitiveWorkingStateBinding, outcome: CognitiveExecutiveOutcome,
+        state, verification, publication_gate, candidate, experience_evaluated: bool,
+        trusted_experience_binding, trusted_experience_context_projection,
+        trusted_experience_reasoning_influence, trusted_experience_verification_influence,
+    ) -> CognitiveQualityObservation | None:
+        try:
+            return self._quality_projector.project(
+                turn_id=binding.turn_id, outcome=outcome, candidate=candidate,
+                task=getattr(state, "task", None), metacognition=getattr(state, "metacognition", None),
+                verification=verification, publication_gate=publication_gate,
+                experience_evaluated=experience_evaluated,
+                trusted_experience_binding=trusted_experience_binding,
+                trusted_experience_context_projection=trusted_experience_context_projection,
+                trusted_experience_reasoning_influence=trusted_experience_reasoning_influence,
+                trusted_experience_verification_influence=trusted_experience_verification_influence,
             )
         except Exception:
             return None

@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 
-TARGET_REVISION = "0015_ai_usage_observability"
+TARGET_REVISION = "0016_cognitive_quality_observability"
 EXPECTED_TABLES = {
     "alembic_version",
     "context_snapshots",
@@ -29,6 +29,7 @@ EXPECTED_TABLES = {
     "project_action_execution_proposals",
     "execution_audit_events",
     "ai_usage_events",
+    "cognitive_quality_observations",
     "oauth_credentials",
     "automation_definitions",
     "automation_runs",
@@ -106,6 +107,16 @@ EXPECTED_COLUMNS = {
         ("pricing_version", "VARCHAR(64)", 0),
         ("estimated_cost_nano_usd", "BIGINT", 0),
         ("occurred_at", "DATETIME", 0),
+    ],
+    "cognitive_quality_observations": [
+        ("id", "INTEGER", 1), ("contract_version", "VARCHAR(16)", 0), ("turn_digest", "VARCHAR(64)", 0),
+        ("workspace_id", "VARCHAR(16)", 0), ("terminal_state", "VARCHAR(32)", 0), ("interaction_intent", "VARCHAR(64)", 0),
+        ("cognitive_intent", "VARCHAR(64)", 0), ("task_kind", "VARCHAR(64)", 0), ("quality_classification", "VARCHAR(32)", 0),
+        ("quality_reason_code", "VARCHAR(64)", 0), ("verification_result", "VARCHAR(32)", 0), ("publication_disposition", "VARCHAR(32)", 0),
+        ("critic_exhausted", "BOOLEAN", 0), ("revision_count", "INTEGER", 0), ("confidence_class", "VARCHAR(32)", 0),
+        ("experience_cohort", "VARCHAR(32)", 0), ("adapter_id", "TEXT", 0), ("model_id", "TEXT", 0), ("profile_id", "TEXT", 0),
+        ("source_candidate_fingerprint", "VARCHAR(64)", 0), ("source_feedback_fingerprint", "VARCHAR(64)", 0),
+        ("projection_fingerprint", "VARCHAR(64)", 0), ("occurred_at", "DATETIME", 0),
     ],
     "oauth_credentials": [
         ("profile_id", "TEXT", 1),
@@ -218,6 +229,12 @@ EXPECTED_INDEXES = {
         "ix_ai_usage_events_occurred_at": (["occurred_at"], False),
         "ix_ai_usage_events_model_occurred_at": (["model_id", "occurred_at"], False),
     },
+    "cognitive_quality_observations": {
+        "uq_cognitive_quality_turn_digest": (["turn_digest"], True),
+        "ix_cognitive_quality_workspace_occurred_at": (["workspace_id", "occurred_at"], False),
+        "ix_cognitive_quality_workspace_cohort_occurred_at": (["workspace_id", "experience_cohort", "occurred_at"], False),
+        "ix_cognitive_quality_workspace_task_occurred_at": (["workspace_id", "task_kind", "occurred_at"], False),
+    },
     "oauth_credentials": {},
     "automation_definitions": {
         "ix_automation_definitions_status_due": (["status", "next_due_at_utc"], False),
@@ -248,6 +265,7 @@ EXPECTED_FOREIGN_KEYS = {
     },
     "execution_audit_events": set(),
     "ai_usage_events": set(),
+    "cognitive_quality_observations": set(),
     "oauth_credentials": set(),
     "automation_definitions": set(),
     "automation_runs": {
@@ -509,6 +527,19 @@ def _verify_schema(connection: sqlite3.Connection) -> None:
             raise DatabaseVerificationError(
                 "Configured database is missing AI usage append-only protection."
             )
+
+    quality_sql = connection.execute("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'cognitive_quality_observations'").fetchone()
+    normalized_quality = "" if quality_sql is None or quality_sql[0] is None else " ".join(quality_sql[0].upper().split())
+    for required in (
+        "CONTRACT_VERSION = '1'", "WORKSPACE_ID IN ('PERSONAL','COMPANY')",
+        "TERMINAL_STATE IN ('COMPLETED','INSUFFICIENT','FAILED')",
+        "QUALITY_CLASSIFICATION IN ('VERIFIED_SUCCESS','BOUNDED_INSUFFICIENCY','ADVERSE_OUTCOME','INVALID_EVIDENCE')",
+        "EXPERIENCE_COHORT IN ('VERIFICATION_ACTIVE','REASONING_ACTIVE','PROJECTED','RESTRICTED','NO_EVIDENCE','UNAVAILABLE','ABSENT','NOT_EVALUATED')",
+    ):
+        if required not in normalized_quality: raise DatabaseVerificationError("Configured database is missing cognitive quality constraints.")
+    for trigger_name in ("trg_cognitive_quality_observations_immutable_update","trg_cognitive_quality_observations_immutable_delete"):
+        if connection.execute("SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND name = ?",(trigger_name,)).fetchone() is None:
+            raise DatabaseVerificationError("Configured database is missing cognitive quality append-only protection.")
 
     automation_definition_sql = connection.execute(
         "SELECT sql FROM sqlite_schema "
