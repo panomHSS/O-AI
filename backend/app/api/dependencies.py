@@ -284,6 +284,7 @@ from app.services.cognitive_quality_observability import CognitiveQualityRecorde
 from app.services.cognitive_quality_summary import CognitiveQualitySummaryService
 from app.services.cognitive_quality_diagnostic_advisory import CognitiveQualityDiagnosticService
 from app.services.cognitive_quality_investigation_planning import CognitiveQualityInvestigationPlanningService
+from app.services.cognitive_quality_investigation_evidence import CognitiveQualityInvestigationEvidenceService
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -1535,6 +1536,18 @@ def get_cognitive_quality_investigation_planning_service(
 ) -> CognitiveQualityInvestigationPlanningService:
     return CognitiveQualityInvestigationPlanningService(
         diagnostic_service,
+        workspace_id=workspace_scope.workspace_id,
+    )
+
+
+def get_cognitive_quality_investigation_evidence_service(
+    planning_service: CognitiveQualityInvestigationPlanningService = Depends(get_cognitive_quality_investigation_planning_service),
+    summary_service: CognitiveQualitySummaryService = Depends(get_cognitive_quality_summary_service),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> CognitiveQualityInvestigationEvidenceService:
+    return CognitiveQualityInvestigationEvidenceService(
+        planning_service,
+        summary_service,
         workspace_id=workspace_scope.workspace_id,
     )
 
