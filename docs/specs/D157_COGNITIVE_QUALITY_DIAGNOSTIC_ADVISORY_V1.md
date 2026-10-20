@@ -16,6 +16,7 @@ Frozen V1 policy:
 - minimum observations per period: 30
 - minimum observations per subgroup: 10
 - material longitudinal increase: 1,000 bps plus at least 3 supporting-event increase
+- `cognition_validity` includes `terminal_failed_rate = terminal_failed_count / observed_count`, governed by that same longitudinal material rule and mapped to `investigate_cognition`
 - material subgroup gap: 1,500 bps
 - periods are closed, timezone-aware `[start,end)` intervals and may be contiguous but not overlap
 - subgroup/cohort differences are observational signals, never causal claims

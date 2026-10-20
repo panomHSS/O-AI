@@ -260,6 +260,7 @@ class CognitiveQualityDiagnosticEvaluator:
 
         longitudinal("cognition_validity", "adverse_outcome_rate", reference.counts.adverse_outcome_count, candidate.counts.adverse_outcome_count)
         longitudinal("cognition_validity", "verification_invalid_cognition_rate", reference.counts.verification_invalid_cognition_count, candidate.counts.verification_invalid_cognition_count)
+        longitudinal("cognition_validity", "terminal_failed_rate", reference.counts.terminal_failed_count, candidate.counts.terminal_failed_count)
         longitudinal("critic_revision", "critic_exhausted_rate", reference.counts.critic_exhausted_count, candidate.counts.critic_exhausted_count)
         longitudinal("critic_revision", "revised_turn_rate", reference.counts.revised_turn_count, candidate.counts.revised_turn_count)
 

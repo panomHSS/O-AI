@@ -58,6 +58,7 @@ _ALLOWED_METRICS = {
     "confidence_concern_rate",
     "adverse_outcome_rate",
     "verification_invalid_cognition_rate",
+    "terminal_failed_rate",
     "critic_exhausted_rate",
     "revised_turn_rate",
     "adverse_outcome_rate_vs_overall",

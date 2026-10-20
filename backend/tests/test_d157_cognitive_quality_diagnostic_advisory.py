@@ -99,7 +99,10 @@ def test_d157_g_material_boundary_requires_rate_and_events():
     yes=evaluate(period_records(NOW),period_records(REF_END,adverse=3))
     no_events=evaluate(period_records(NOW,n=60),period_records(REF_END,n=60,adverse=2))
     assert any(s.metric=="adverse_outcome_rate" and s.delta_bps==1000 for s in yes.signals)
+    terminal=next(s for s in yes.signals if s.metric=="terminal_failed_rate")
+    assert (terminal.reference_numerator,terminal.reference_denominator,terminal.candidate_numerator,terminal.candidate_denominator,terminal.delta_bps)==(0,30,3,30,1000)
     assert all(s.metric!="adverse_outcome_rate" for s in no_events.signals)
+    assert all(s.metric!="terminal_failed_rate" for s in no_events.signals)
 
 
 def test_d157_h_i_quality_evidence_signals():
@@ -116,7 +119,7 @@ def test_d157_j_confidence_concern():
 def test_d157_k_l_cognition_signals():
     result=evaluate(period_records(NOW),period_records(REF_END,adverse=3,invalid_cognition=3))
     metrics={s.metric for s in result.signals}
-    assert {"adverse_outcome_rate","verification_invalid_cognition_rate"} <= metrics
+    assert {"adverse_outcome_rate","verification_invalid_cognition_rate","terminal_failed_rate"} <= metrics
     assert result.primary_recommendation=="investigate_cognition"
 
 
