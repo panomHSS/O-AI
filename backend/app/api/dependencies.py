@@ -282,6 +282,7 @@ from app.services.ai_usage_pricing import AIUsagePricing
 from app.services.ai_usage_summary import AIUsageSummaryService
 from app.services.cognitive_quality_observability import CognitiveQualityRecorder
 from app.services.cognitive_quality_summary import CognitiveQualitySummaryService
+from app.services.cognitive_quality_diagnostic_advisory import CognitiveQualityDiagnosticService
 from app.services.ai_capability_model_discovery import AICapabilityModelDiscovery
 from app.services.ai_discovery_sources import (
     ChatGPTConfiguredModelDiscoverySource,
@@ -1520,6 +1521,11 @@ def get_cognitive_quality_recorder(database_session: Session = Depends(get_db)) 
 
 def get_cognitive_quality_summary_service(database_session: Session = Depends(get_db), workspace_scope: WorkspaceScope = Depends(get_workspace_scope)) -> CognitiveQualitySummaryService:
     return CognitiveQualitySummaryService(CognitiveQualityObservationRepository(database_session),workspace_id=workspace_scope.workspace_id)
+
+
+def get_cognitive_quality_diagnostic_service(database_session: Session = Depends(get_db), workspace_scope: WorkspaceScope = Depends(get_workspace_scope)) -> CognitiveQualityDiagnosticService:
+    summary = CognitiveQualitySummaryService(CognitiveQualityObservationRepository(database_session), workspace_id=workspace_scope.workspace_id)
+    return CognitiveQualityDiagnosticService(summary, workspace_id=workspace_scope.workspace_id)
 
 
 def get_ai_runtime(

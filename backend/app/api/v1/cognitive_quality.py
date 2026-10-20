@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.api.dependencies import get_cognitive_quality_summary_service
+from app.api.dependencies import get_cognitive_quality_diagnostic_service, get_cognitive_quality_summary_service
 from app.schemas.api import ApiSuccess
 from app.schemas.cognitive_quality import CognitiveQualitySummaryResponse, CognitiveQualityComparisonResponse
+from app.schemas.cognitive_quality_diagnostic import CognitiveQualityDiagnosticResponse
 from app.services.cognitive_quality_summary import CognitiveQualitySummaryService
+from app.services.cognitive_quality_diagnostic_advisory import CognitiveQualityDiagnosticService
 
 router=APIRouter(prefix="/cognitive-quality",tags=["cognitive-quality"])
 
@@ -21,3 +23,8 @@ def cognitive_quality_compare(service:Annotated[CognitiveQualitySummaryService,D
     try: c=service.compare(reference_since=reference_since,reference_until=reference_until,candidate_since=candidate_since,candidate_until=candidate_until)
     except ValueError: raise HTTPException(status_code=400,detail="Invalid cognitive quality comparison filters.") from None
     return ApiSuccess(data=CognitiveQualityComparisonResponse.from_contract(c))
+
+@router.get("/diagnostic",response_model=ApiSuccess[CognitiveQualityDiagnosticResponse],status_code=status.HTTP_200_OK)
+def cognitive_quality_diagnostic(service:Annotated[CognitiveQualityDiagnosticService,Depends(get_cognitive_quality_diagnostic_service)],reference_since:Annotated[datetime,Query()],reference_until:Annotated[datetime,Query()],candidate_since:Annotated[datetime,Query()],candidate_until:Annotated[datetime,Query()]):
+    advisory=service.diagnose(reference_since=reference_since,reference_until=reference_until,candidate_since=candidate_since,candidate_until=candidate_until)
+    return ApiSuccess(data=CognitiveQualityDiagnosticResponse.from_contract(advisory))
