@@ -253,6 +253,12 @@ from app.services.execution_approval_service import (
     ExecutionApprovalService,
     PendingExecutionApprovalStore,
 )
+from app.services.governed_action import (
+    GovernedActionBoundary,
+)
+from app.services.governed_action_runtime import (
+    GovernedActionRuntimeIntegration,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -1997,6 +2003,34 @@ def get_execution_approval_service(
         permission_policy=permission_policy,
         coordinator=coordinator,
         store=store,
+        workspace_scope=workspace_scope,
+    )
+
+
+def get_governed_action_boundary(
+    permission_policy: CapabilityPermissionPolicy = Depends(
+        get_capability_permission_policy
+    ),
+    approval_service: ExecutionApprovalService = Depends(
+        get_execution_approval_service
+    ),
+) -> GovernedActionBoundary:
+    """Compose D166 over existing production authority services."""
+    return GovernedActionBoundary(
+        permission_policy=permission_policy,
+        approval_service=approval_service,
+    )
+
+
+def get_governed_action_runtime_integration(
+    boundary: GovernedActionBoundary = Depends(
+        get_governed_action_boundary
+    ),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> GovernedActionRuntimeIntegration:
+    """Compose D167 lineage validation without execution authority."""
+    return GovernedActionRuntimeIntegration(
+        boundary=boundary,
         workspace_scope=workspace_scope,
     )
 
