@@ -36,6 +36,7 @@ from tests import test_d136_cognitive_executive_security as d136s
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "docs" / "specs" / "D137_NEWBORN_BRAIN_INTEGRATION_SECURITY_REVIEW_V1.md"
 SPEC_SHA = "a93aa6826ff05432c3aa0ea7eddadc800cabeb5596a88d167ef4b8b229cbf44f"
+D137_IMPLEMENTATION_COMMIT = "794bb7db142809d2b542639186d233eaf67275aa"
 D137_TESTS = {
     "backend/tests/test_d137_newborn_brain_integration.py",
     "backend/tests/test_d137_newborn_brain_security.py",
@@ -81,23 +82,26 @@ def _call(module_name: str, function_name: str) -> None:
     getattr(importlib.import_module(module_name), function_name)()
 
 
-def _status_paths() -> set[str]:
+def _d137_historical_paths() -> set[str]:
     run = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
+        [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            D137_IMPLEMENTATION_COMMIT,
+        ],
         cwd=ROOT,
         text=True,
         capture_output=True,
         check=True,
     )
-    paths: set[str] = set()
-    for raw in run.stdout.splitlines():
-        if not raw:
-            continue
-        path = raw[3:]
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1]
-        paths.add(path.replace("\\", "/"))
-    return paths
+    return {
+        raw.strip().replace("\\", "/")
+        for raw in run.stdout.splitlines()
+        if raw.strip()
+    }
 
 
 def run_case(case: int) -> None:
@@ -428,7 +432,7 @@ def run_case(case: int) -> None:
         assert len(CognitiveOrgan) == 17
         assert len({item.value for item in CognitiveOrgan}) == 17
     elif 92 <= case <= 95:
-        paths = _status_paths()
+        paths = _d137_historical_paths()
         if case == 92:
             app_paths = {path for path in paths if path.startswith("backend/app/")}
             assert app_paths == D137_A2_PRODUCTION_PATHS

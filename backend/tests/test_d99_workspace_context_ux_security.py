@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from uuid import UUID
 
 from app.contracts.context_usage import ContextUsage
@@ -213,5 +216,8 @@ def test_only_normal_chat_api_branch_projects_context_usage() -> None:
     assert "ContextUsageResponse.from_usage(result.context_usage)" in source
 
 
-def test_d99_does_not_add_database_revision() -> None:
-    assert TARGET_REVISION == "0013_context_snapshot_persistence"
+def test_database_verification_target_tracks_current_alembic_head() -> None:
+    config = Config(str(ROOT / "alembic.ini"))
+    heads = tuple(ScriptDirectory.from_config(config).get_heads())
+
+    assert heads == (TARGET_REVISION,)

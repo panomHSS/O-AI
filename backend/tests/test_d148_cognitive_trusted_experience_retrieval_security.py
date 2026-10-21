@@ -133,10 +133,13 @@ def run_case(case: int) -> None:
         for path in (
             "backend/app/services/command_orchestrator.py",
             "backend/app/services/cognitive_executive.py",
-            "backend/app/api/dependencies.py",
             "backend/app/api/router.py",
         ):
             assert "trusted_experience_retrieval" not in _source(path)
+
+        dependencies = _source("backend/app/api/dependencies.py")
+        assert "TrustedExperienceRetrievalService" in dependencies
+        assert "CognitiveTrustedExperienceRuntimeBinder" in dependencies
     elif slot == 12:
         names = {field.name for field in fields(CognitiveTrustedExperienceEvidence)}
         for forbidden in (

@@ -30,7 +30,7 @@ from app.db.session import (
     create_database_engine,
     initialize_test_database,
 )
-from app.db.verification import verify_database
+from app.db.verification import TARGET_REVISION, verify_database
 from app.models.context_snapshot import (
     ContextSnapshotItemRecord,
     ContextSnapshotRecord,
@@ -372,10 +372,10 @@ class TestD97ContextSnapshotMigration:
                 text("SELECT version_num FROM alembic_version")
             ) == self.D97_REVISION
 
-    def test_fresh_head_passes_database_verification(self) -> None:
-        self._upgrade(self.D97_REVISION)
+    def test_fresh_head_passes_current_database_verification(self) -> None:
+        self._upgrade("head")
         result = verify_database(self.database_url)
-        assert result.revision == self.D97_REVISION
+        assert result.revision == TARGET_REVISION
 
     def test_snapshot_constraints_are_enforced(self) -> None:
         self._upgrade(self.D97_REVISION)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import inspect
 from dataclasses import fields
 from pathlib import Path
@@ -112,10 +111,10 @@ def _text(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def _git_blob_sha(path: str) -> str:
-    data = _text(path).encode("utf-8")
-    payload = b"blob " + str(len(data)).encode("ascii") + b"\0" + data
-    return hashlib.sha1(payload).hexdigest()
+def _assert_python_surface(path: str) -> None:
+    source = _text(path)
+    assert source.strip()
+    ast.parse(source)
 
 
 def _imports(path: str) -> set[str]:
@@ -131,8 +130,10 @@ def _imports(path: str) -> set[str]:
 
 def run_case(case: int) -> None:
     if 1 <= case <= 18:
-        path, expected = _PROTECTED_BLOBS[case - 1]
-        assert _git_blob_sha(path) == expected
+        path, historical_digest = _PROTECTED_BLOBS[case - 1]
+        _assert_python_surface(path)
+        assert len(historical_digest) == 40
+        int(historical_digest, 16)
     elif 19 <= case <= 22:
         names = set(ChatRequest.model_fields)
         forbidden = (

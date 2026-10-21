@@ -5,6 +5,9 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
 from fastapi import FastAPI
 from fastapi.params import Depends as DependsParam
 
@@ -248,8 +251,11 @@ def test_d100_context_usage_surface_has_no_execution_or_routing_bridge() -> None
         assert forbidden not in combined
 
 
-def test_d100_database_revision_is_frozen_at_d97_snapshot_schema() -> None:
-    assert TARGET_REVISION == "0013_context_snapshot_persistence"
+def test_database_verification_target_tracks_current_alembic_head() -> None:
+    config = Config(str(ROOT / "alembic.ini"))
+    heads = tuple(ScriptDirectory.from_config(config).get_heads())
+
+    assert heads == (TARGET_REVISION,)
 
 
 def test_d100_authority_component_inventory_matches_composition_root() -> None:
