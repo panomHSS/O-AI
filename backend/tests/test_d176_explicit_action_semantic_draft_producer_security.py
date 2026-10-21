@@ -101,21 +101,31 @@ def test_d176_has_no_routing_lineage_authority_inference_or_plugin_surface() -> 
         assert token not in text
 
 
-def test_d176_is_not_composed_or_invoked_from_production_paths() -> None:
-    markers = (
+def test_d176_is_composed_only_for_d177_and_not_invoked_from_normal_paths() -> None:
+    dependencies = source("backend/app/api/dependencies.py")
+    for marker in (
         "ExplicitActionDirectiveSemanticDraftProducer",
-        "explicit_action_semantic_draft_producer",
         "get_explicit_action_semantic_draft_producer",
-    )
+        "ExplicitActionSemanticRuntimeIntegration",
+        "get_explicit_action_semantic_runtime_integration",
+    ):
+        assert marker in dependencies
+
     for path in (
-        "backend/app/api/dependencies.py",
         "backend/app/api/v1/chat.py",
         "backend/app/services/command_orchestrator.py",
         "backend/app/services/cognitive_executive.py",
         "backend/app/services/chat_action_bridge.py",
     ):
         text = source(path)
-        for marker in markers:
+        for marker in (
+            "ExplicitActionDirectiveSemanticDraftProducer",
+            "explicit_action_semantic_draft_producer",
+            "get_explicit_action_semantic_draft_producer",
+            "ExplicitActionSemanticRuntimeIntegration",
+            "explicit_action_semantic_runtime",
+            "get_explicit_action_semantic_runtime_integration",
+        ):
             assert marker not in text
 
 

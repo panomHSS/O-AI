@@ -280,6 +280,12 @@ from app.services.structured_action_semantic_lineage import (
 from app.services.structured_action_semantic_runtime import (
     StructuredActionSemanticRuntimeIntegration,
 )
+from app.services.explicit_action_semantic_draft_producer import (
+    ExplicitActionDirectiveSemanticDraftProducer,
+)
+from app.services.explicit_action_semantic_runtime import (
+    ExplicitActionSemanticRuntimeIntegration,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -2126,6 +2132,27 @@ def get_structured_action_semantic_runtime_integration(
     return StructuredActionSemanticRuntimeIntegration(
         lineage_binder=lineage_binder,
         candidate_runtime=candidate_runtime,
+    )
+
+
+def get_explicit_action_semantic_draft_producer(
+) -> ExplicitActionDirectiveSemanticDraftProducer:
+    """Compose D176 only for the D177 integration boundary."""
+    return ExplicitActionDirectiveSemanticDraftProducer()
+
+
+def get_explicit_action_semantic_runtime_integration(
+    producer: ExplicitActionDirectiveSemanticDraftProducer = Depends(
+        get_explicit_action_semantic_draft_producer
+    ),
+    semantic_runtime: StructuredActionSemanticRuntimeIntegration = Depends(
+        get_structured_action_semantic_runtime_integration
+    ),
+) -> ExplicitActionSemanticRuntimeIntegration:
+    """Compose D177 without creating a normal-Chat invocation path."""
+    return ExplicitActionSemanticRuntimeIntegration(
+        producer=producer,
+        semantic_runtime=semantic_runtime,
     )
 
 
