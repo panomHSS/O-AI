@@ -274,6 +274,12 @@ from app.services.structured_action_proposal_runtime import (
 from app.services.structured_action_candidate_runtime import (
     StructuredActionCandidateRuntimeIntegration,
 )
+from app.services.structured_action_semantic_lineage import (
+    StructuredActionSemanticLineageBinder,
+)
+from app.services.structured_action_semantic_runtime import (
+    StructuredActionSemanticRuntimeIntegration,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -2099,6 +2105,27 @@ def get_structured_action_candidate_runtime_integration(
         candidate_producer=candidate_producer,
         proposal_service=proposal_service,
         proposal_runtime=proposal_runtime,
+    )
+
+
+def get_structured_action_semantic_lineage_binder(
+) -> StructuredActionSemanticLineageBinder:
+    """Compose D174 lineage binding without normal-Chat invocation."""
+    return StructuredActionSemanticLineageBinder()
+
+
+def get_structured_action_semantic_runtime_integration(
+    lineage_binder: StructuredActionSemanticLineageBinder = Depends(
+        get_structured_action_semantic_lineage_binder
+    ),
+    candidate_runtime: StructuredActionCandidateRuntimeIntegration = Depends(
+        get_structured_action_candidate_runtime_integration
+    ),
+) -> StructuredActionSemanticRuntimeIntegration:
+    """Compose D175 without semantic inference or normal-Chat invocation."""
+    return StructuredActionSemanticRuntimeIntegration(
+        lineage_binder=lineage_binder,
+        candidate_runtime=candidate_runtime,
     )
 
 

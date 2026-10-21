@@ -117,9 +117,32 @@ def test_d174_has_no_authority_execution_or_text_inference_surface() -> None:
         assert token not in text
 
 
-def test_d174_is_not_composed_or_invoked_from_production_paths() -> None:
+def test_d174_is_composed_only_for_d175_and_not_invoked_from_normal_paths() -> None:
+    dependencies = source("backend/app/api/dependencies.py")
+    for marker in (
+        "StructuredActionSemanticLineageBinder",
+        "StructuredActionSemanticRuntimeIntegration",
+        "def get_structured_action_semantic_lineage_binder(",
+        "def get_structured_action_semantic_runtime_integration(",
+    ):
+        assert marker in dependencies
+
+    tree = ast.parse(dependencies)
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+    runtime_body = ast.get_source_segment(
+        dependencies,
+        functions["get_structured_action_semantic_runtime_integration"],
+    )
+    assert runtime_body is not None
+    assert runtime_body.count("Depends(") == 2
+    assert ".bind(" not in runtime_body
+    assert ".process(" not in runtime_body
+
     for path in (
-        "backend/app/api/dependencies.py",
         "backend/app/api/v1/chat.py",
         "backend/app/services/command_orchestrator.py",
         "backend/app/services/cognitive_executive.py",
@@ -127,6 +150,8 @@ def test_d174_is_not_composed_or_invoked_from_production_paths() -> None:
         text = source(path)
         assert "StructuredActionSemanticLineageBinder" not in text
         assert "structured_action_semantic_lineage" not in text
+        assert "StructuredActionSemanticRuntimeIntegration" not in text
+        assert "structured_action_semantic_runtime" not in text
 
 
 def test_d174_adds_no_api_model_repo_frontend_store_or_migration() -> None:
