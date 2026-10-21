@@ -90,9 +90,29 @@ def test_d169_service_has_no_permission_approval_runtime_or_d167_invocation():
     assert text.count("ActionIntent(") == 1
 
 
-def test_d169_does_not_wire_itself_into_existing_production_paths():
+def test_d169_is_only_composed_by_d170_and_not_invoked_by_runtime_paths():
+    dependencies = source("backend/app/api/dependencies.py")
+    for marker in (
+        "GovernedActionIntentConversionService",
+        "def get_governed_action_intent_conversion_service(",
+        "def get_structured_action_proposal_runtime_integration(",
+    ):
+        assert marker in dependencies
+
+    tree = ast.parse(dependencies)
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+    composition = functions["get_structured_action_proposal_runtime_integration"]
+    composition_text = ast.get_source_segment(dependencies, composition)
+    assert composition_text is not None
+    assert "Depends(" in composition_text
+    assert "get_governed_action_intent_conversion_service" in composition_text
+
     for path in (
-        "backend/app/api/dependencies.py",
+        "backend/app/api/v1/chat.py",
         "backend/app/services/cognitive_executive.py",
         "backend/app/services/command_orchestrator.py",
         "backend/app/services/governed_action.py",

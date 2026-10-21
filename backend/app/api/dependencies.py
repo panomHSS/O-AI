@@ -259,6 +259,12 @@ from app.services.governed_action import (
 from app.services.governed_action_runtime import (
     GovernedActionRuntimeIntegration,
 )
+from app.services.governed_action_intent_conversion import (
+    GovernedActionIntentConversionService,
+)
+from app.services.structured_action_proposal_runtime import (
+    StructuredActionProposalRuntimeIntegration,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -2032,6 +2038,27 @@ def get_governed_action_runtime_integration(
     return GovernedActionRuntimeIntegration(
         boundary=boundary,
         workspace_scope=workspace_scope,
+    )
+
+
+def get_governed_action_intent_conversion_service(
+) -> GovernedActionIntentConversionService:
+    """Compose D169 deterministic proposal conversion."""
+    return GovernedActionIntentConversionService()
+
+
+def get_structured_action_proposal_runtime_integration(
+    conversion_service: GovernedActionIntentConversionService = Depends(
+        get_governed_action_intent_conversion_service
+    ),
+    runtime_integration: GovernedActionRuntimeIntegration = Depends(
+        get_governed_action_runtime_integration
+    ),
+) -> StructuredActionProposalRuntimeIntegration:
+    """Compose D170 without creating a normal-Chat invocation path."""
+    return StructuredActionProposalRuntimeIntegration(
+        conversion_service=conversion_service,
+        runtime_integration=runtime_integration,
     )
 
 
