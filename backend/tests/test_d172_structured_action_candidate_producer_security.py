@@ -145,9 +145,17 @@ def test_d172_has_no_free_text_or_brain_output_action_inference_surface() -> Non
         assert token not in text
 
 
-def test_d172_is_not_composed_or_invoked_from_normal_chat_or_existing_runtime() -> None:
+def test_d172_is_composed_only_by_d173_and_not_invoked_from_normal_chat() -> None:
+    dependencies = source("backend/app/api/dependencies.py")
+    for marker in (
+        "StructuredActionCandidateProducer",
+        "get_structured_action_candidate_producer",
+        "StructuredActionCandidateRuntimeIntegration",
+        "get_structured_action_candidate_runtime_integration",
+    ):
+        assert marker in dependencies
+
     for path in (
-        "backend/app/api/dependencies.py",
         "backend/app/api/v1/chat.py",
         "backend/app/services/command_orchestrator.py",
         "backend/app/services/cognitive_executive.py",
@@ -155,6 +163,7 @@ def test_d172_is_not_composed_or_invoked_from_normal_chat_or_existing_runtime() 
         "backend/app/services/structured_action_proposal_runtime.py",
     ):
         assert "StructuredActionCandidateProducer" not in source(path)
+        assert "StructuredActionCandidateRuntimeIntegration" not in source(path)
 
 
 def test_d172_adds_no_api_model_repo_frontend_migration_or_store() -> None:

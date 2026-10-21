@@ -262,8 +262,17 @@ from app.services.governed_action_runtime import (
 from app.services.governed_action_intent_conversion import (
     GovernedActionIntentConversionService,
 )
+from app.services.structured_action_candidate_producer import (
+    StructuredActionCandidateProducer,
+)
+from app.services.structured_action_intent_proposal import (
+    StructuredActionIntentProposalService,
+)
 from app.services.structured_action_proposal_runtime import (
     StructuredActionProposalRuntimeIntegration,
+)
+from app.services.structured_action_candidate_runtime import (
+    StructuredActionCandidateRuntimeIntegration,
 )
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
@@ -2041,6 +2050,18 @@ def get_governed_action_runtime_integration(
     )
 
 
+def get_structured_action_candidate_producer(
+) -> StructuredActionCandidateProducer:
+    """Compose D172 deterministic structured semantic candidate production."""
+    return StructuredActionCandidateProducer()
+
+
+def get_structured_action_intent_proposal_service(
+) -> StructuredActionIntentProposalService:
+    """Compose D168 deterministic candidate-to-proposal projection."""
+    return StructuredActionIntentProposalService()
+
+
 def get_governed_action_intent_conversion_service(
 ) -> GovernedActionIntentConversionService:
     """Compose D169 deterministic proposal conversion."""
@@ -2059,6 +2080,25 @@ def get_structured_action_proposal_runtime_integration(
     return StructuredActionProposalRuntimeIntegration(
         conversion_service=conversion_service,
         runtime_integration=runtime_integration,
+    )
+
+
+def get_structured_action_candidate_runtime_integration(
+    candidate_producer: StructuredActionCandidateProducer = Depends(
+        get_structured_action_candidate_producer
+    ),
+    proposal_service: StructuredActionIntentProposalService = Depends(
+        get_structured_action_intent_proposal_service
+    ),
+    proposal_runtime: StructuredActionProposalRuntimeIntegration = Depends(
+        get_structured_action_proposal_runtime_integration
+    ),
+) -> StructuredActionCandidateRuntimeIntegration:
+    """Compose D173 without creating a normal-Chat invocation path."""
+    return StructuredActionCandidateRuntimeIntegration(
+        candidate_producer=candidate_producer,
+        proposal_service=proposal_service,
+        proposal_runtime=proposal_runtime,
     )
 
 
