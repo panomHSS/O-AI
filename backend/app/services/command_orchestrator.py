@@ -8,6 +8,7 @@ from uuid import UUID
 from app.contracts.ai import AIResult
 from app.contracts.ai_brain_routing import AIMode
 from app.contracts.command import CommandRequest, Response
+from app.contracts.cognitive_executive import CognitiveExecutiveOutcome
 from app.contracts.execution_authorization import ExecutionAuthorization
 from app.contracts.response_composition import NormalizedError
 from app.contracts.task_aware_ai_routing import AITaskKind
@@ -38,6 +39,7 @@ from app.services.tool_runtime import ToolRuntime
 class CommandOrchestrationOutcome:
     response: Response
     chat_turn: ChatTurnResult | None = None
+    cognitive_outcome: CognitiveExecutiveOutcome | None = None
 
 
 class CommandOrchestrationFailure(Exception):
@@ -195,6 +197,7 @@ class CommandOrchestrator:
                         AIResult(content=turn.reply),
                     ),
                     chat_turn=turn,
+                    cognitive_outcome=cognitive_result.outcome,
                 )
 
             self._observe_selection(
