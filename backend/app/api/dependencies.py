@@ -286,6 +286,9 @@ from app.services.explicit_action_semantic_draft_producer import (
 from app.services.explicit_action_semantic_runtime import (
     ExplicitActionSemanticRuntimeIntegration,
 )
+from app.services.explicit_action_cognitive_handoff import (
+    ExplicitActionCognitiveHandoffIntegration,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -2153,6 +2156,17 @@ def get_explicit_action_semantic_runtime_integration(
     return ExplicitActionSemanticRuntimeIntegration(
         producer=producer,
         semantic_runtime=semantic_runtime,
+    )
+
+
+def get_explicit_action_cognitive_handoff_integration(
+    runtime: ExplicitActionSemanticRuntimeIntegration = Depends(
+        get_explicit_action_semantic_runtime_integration
+    ),
+) -> ExplicitActionCognitiveHandoffIntegration:
+    """Compose D179 without creating a live Chat invocation path."""
+    return ExplicitActionCognitiveHandoffIntegration(
+        runtime=runtime,
     )
 
 
