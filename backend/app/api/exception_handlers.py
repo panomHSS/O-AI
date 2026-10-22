@@ -33,6 +33,10 @@ from app.services.execution_approval_service import (
     ExecutionApprovalProposalInvalidError,
     ExecutionApprovalStoreFullError,
 )
+from app.services.owner_approved_governed_execution import (
+    CognitiveExecutionBindingStoreFullError,
+    OwnerApprovedGovernedExecutionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +240,28 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(KnowledgeSearchValidationError)
     async def handle_knowledge_search_validation(_: Request, error: KnowledgeSearchValidationError) -> JSONResponse:
         return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "KNOWLEDGE_SEARCH_VALIDATION_ERROR", str(error))
+
+    @app.exception_handler(CognitiveExecutionBindingStoreFullError)
+    async def handle_cognitive_execution_binding_store_full(
+        _: Request,
+        error: CognitiveExecutionBindingStoreFullError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            error.reason_code,
+            "Cognitive execution binding capacity is temporarily unavailable.",
+        )
+
+    @app.exception_handler(OwnerApprovedGovernedExecutionError)
+    async def handle_owner_approved_governed_execution_error(
+        _: Request,
+        error: OwnerApprovedGovernedExecutionError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_409_CONFLICT,
+            error.reason_code,
+            "The cognitive execution decision could not be completed safely.",
+        )
 
     @app.exception_handler(ExecutionApprovalNotPendingError)
     async def handle_execution_approval_not_pending(

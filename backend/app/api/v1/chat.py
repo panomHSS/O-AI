@@ -17,6 +17,7 @@ from app.api.dependencies import (
     get_command_input_pipeline,
     get_command_orchestrator,
     get_explicit_action_live_chat_routing_service,
+    get_owner_approved_governed_execution_service,
     get_project_update_turn_orchestrator,
 )
 from app.api.workspace_scope import get_workspace_scope
@@ -70,6 +71,9 @@ from app.services.command_orchestrator import (
 )
 from app.services.explicit_action_live_chat_routing import (
     ExplicitActionLiveChatRoutingService,
+)
+from app.services.owner_approved_governed_execution import (
+    OwnerApprovedGovernedExecutionService,
 )
 from app.services.project_update_orchestrator import (
     ProjectUpdateTurnInput,
@@ -256,6 +260,9 @@ def send_chat_message(
     explicit_action_live_chat_routing: ExplicitActionLiveChatRoutingService = Depends(
         get_explicit_action_live_chat_routing_service
     ),
+    owner_approved_governed_execution: OwnerApprovedGovernedExecutionService = Depends(
+        get_owner_approved_governed_execution_service
+    ),
     calendar_write_chat_service: CalendarWriteChatService = Depends(
         get_calendar_write_chat_service
     ),
@@ -427,6 +434,18 @@ def send_chat_message(
             command=explicit_action_request,
             orchestration_outcome=outcome,
         )
+        if (
+            projection.status == "pending_approval"
+            and not isinstance(
+                owner_approved_governed_execution,
+                DependsParam,
+            )
+        ):
+            owner_approved_governed_execution.register_cognitive_projection(
+                projection=projection,
+                command=explicit_action_request,
+                conversation_id=result.conversation_id,
+            )
         approval = (
             ExecutionApprovalProposalResponse.from_outcome(
                 projection.approval

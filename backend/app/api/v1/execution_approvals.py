@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 from app.api.dependencies import (
     get_chat_plugin_action_completion_service,
     get_execution_approval_service,
+    get_owner_approved_governed_execution_service,
 )
 from app.schemas.api import ApiSuccess
 from app.schemas.execution_approvals import (
@@ -19,6 +20,9 @@ from app.schemas.execution_approvals import (
 )
 from app.services.chat_plugin_action import ChatPluginActionCompletionService
 from app.services.execution_approval_service import ExecutionApprovalService
+from app.services.owner_approved_governed_execution import (
+    OwnerApprovedGovernedExecutionService,
+)
 
 
 LOCAL_REQUEST_HEADER_VALUE = "1"
@@ -76,16 +80,16 @@ def approve_execution(
         None,
         Depends(require_local_execution_request_marker),
     ],
-    service: Annotated[
-        ExecutionApprovalService,
-        Depends(get_execution_approval_service),
+    decision_service: Annotated[
+        OwnerApprovedGovernedExecutionService,
+        Depends(get_owner_approved_governed_execution_service),
     ],
     completion_service: Annotated[
         ChatPluginActionCompletionService,
         Depends(get_chat_plugin_action_completion_service),
     ],
 ) -> ApiSuccess[ExecutionApprovalDecisionResponse]:
-    outcome = service.approve(
+    outcome = decision_service.approve(
         approval_id,
         payload.plan_digest,
     )
@@ -113,16 +117,16 @@ def deny_execution(
         None,
         Depends(require_local_execution_request_marker),
     ],
-    service: Annotated[
-        ExecutionApprovalService,
-        Depends(get_execution_approval_service),
+    decision_service: Annotated[
+        OwnerApprovedGovernedExecutionService,
+        Depends(get_owner_approved_governed_execution_service),
     ],
     completion_service: Annotated[
         ChatPluginActionCompletionService,
         Depends(get_chat_plugin_action_completion_service),
     ],
 ) -> ApiSuccess[ExecutionApprovalDecisionResponse]:
-    outcome = service.deny(
+    outcome = decision_service.deny(
         approval_id,
         payload.plan_digest,
     )

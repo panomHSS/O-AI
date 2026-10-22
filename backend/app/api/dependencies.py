@@ -6,7 +6,7 @@ from app.services.skill_invocation_bridge import SkillInvocationBridge
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import Depends, Request
+from fastapi import Depends, Header, Request
 
 from app.api.workspace_scope import get_workspace_scope
 from app.contracts.workspace import WorkspaceScope
@@ -291,6 +291,10 @@ from app.services.explicit_action_cognitive_handoff import (
 )
 from app.services.explicit_action_live_chat_routing import (
     ExplicitActionLiveChatRoutingService,
+)
+from app.services.owner_approved_governed_execution import (
+    CognitiveExecutionBindingStore,
+    OwnerApprovedGovernedExecutionService,
 )
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
@@ -1687,6 +1691,12 @@ def get_pending_execution_approval_store() -> PendingExecutionApprovalStore:
     return PendingExecutionApprovalStore()
 
 
+@lru_cache
+def get_cognitive_execution_binding_store() -> CognitiveExecutionBindingStore:
+    """Compose the bounded process-local D181 cognitive binding sidecar."""
+    return CognitiveExecutionBindingStore()
+
+
 def get_command_execution_coordinator(
     planner: ExecutionPlanner = Depends(get_execution_planner),
     guard: ExecutionGuard = Depends(get_execution_guard),
@@ -2036,6 +2046,37 @@ def get_execution_approval_service(
         permission_policy=permission_policy,
         coordinator=coordinator,
         store=store,
+        workspace_scope=workspace_scope,
+    )
+
+
+def get_optional_d181_workspace_scope(
+    x_oai_workspace: Annotated[
+        str | None,
+        Header(alias="X-OAI-Workspace"),
+    ] = None,
+) -> WorkspaceScope | None:
+    """Resolve D181 workspace only when the request supplies one."""
+    if x_oai_workspace is None:
+        return None
+    return get_workspace_scope(x_oai_workspace)
+
+
+def get_owner_approved_governed_execution_service(
+    approval_service: ExecutionApprovalService = Depends(
+        get_execution_approval_service
+    ),
+    binding_store: CognitiveExecutionBindingStore = Depends(
+        get_cognitive_execution_binding_store
+    ),
+    workspace_scope: WorkspaceScope | None = Depends(
+        get_optional_d181_workspace_scope
+    ),
+) -> OwnerApprovedGovernedExecutionService:
+    """Compose D181 correlation/decision gate over frozen D45 authority."""
+    return OwnerApprovedGovernedExecutionService(
+        binding_store=binding_store,
+        approval_service=approval_service,
         workspace_scope=workspace_scope,
     )
 
