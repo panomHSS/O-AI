@@ -16,6 +16,7 @@ from app.api.dependencies import (
     get_runtime_capability_chat_service,
     get_command_input_pipeline,
     get_command_orchestrator,
+    get_explicit_action_live_chat_routing_service,
     get_project_update_turn_orchestrator,
 )
 from app.api.workspace_scope import get_workspace_scope
@@ -66,6 +67,9 @@ from app.services.command_input_pipeline import CommandInputPipeline
 from app.services.command_orchestrator import (
     CommandOrchestrator,
     CommandOrchestrationFailure,
+)
+from app.services.explicit_action_live_chat_routing import (
+    ExplicitActionLiveChatRoutingService,
 )
 from app.services.project_update_orchestrator import (
     ProjectUpdateTurnInput,
@@ -249,6 +253,9 @@ def send_chat_message(
         CrossConnectorChatService,
         Depends(get_cross_connector_chat_service),
     ],
+    explicit_action_live_chat_routing: ExplicitActionLiveChatRoutingService = Depends(
+        get_explicit_action_live_chat_routing_service
+    ),
     calendar_write_chat_service: CalendarWriteChatService = Depends(
         get_calendar_write_chat_service
     ),
@@ -354,14 +361,97 @@ def send_chat_message(
         and calendar_write_classifier(payload.message)
     )
 
-    if (
+    explicit_action_requested = (
         not runtime_status_requested
         and not calendar_write_requested
-        and (
-            chat_action_bridge.is_action_directive(payload.message)
-            or chat_action_bridge.is_plugin_action_request(payload.message)
+        and chat_action_bridge.is_action_directive(payload.message)
+    )
+    if explicit_action_requested:
+        if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        cognitive_route = (
+            isinstance(
+                explicit_action_live_chat_routing,
+                ExplicitActionLiveChatRoutingService,
+            )
+            and explicit_action_live_chat_routing.route_mode == "cognitive"
         )
-    ):
+        if not cognitive_route:
+            action_outcome = chat_action_bridge.process(
+                message=payload.message,
+                conversation_id=payload.conversation_id,
+                project_id=payload.project_id,
+            )
+            approval = (
+                ExecutionApprovalProposalResponse.from_outcome(
+                    action_outcome.approval
+                )
+                if action_outcome.approval is not None
+                else None
+            )
+            return ApiSuccess(
+                data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
+                    reply=action_outcome.reply,
+                    conversation_id=action_outcome.conversation_id,
+                    action=ChatActionResponse(
+                        status=action_outcome.status,
+                        reason_code=action_outcome.reason_code,
+                        approval=approval,
+                    ),
+                )
+            )
+
+        explicit_action_request = command_input_pipeline.normalize_chat(
+            request_id=request.state.request_id,
+            message=payload.message,
+            conversation_id=payload.conversation_id,
+            project_id=payload.project_id,
+        )
+        outcome = (
+            command_orchestrator.process_chat(explicit_action_request)
+            if payload.ai_mode is None
+            else command_orchestrator.process_chat(
+                explicit_action_request,
+                ai_mode=payload.ai_mode,
+            )
+        )
+        if outcome.chat_turn is None:
+            raise CommandOrchestrationFailure(outcome.response)
+        result = outcome.chat_turn
+        projection = explicit_action_live_chat_routing.project_cognitive(
+            payload.message,
+            project_id=payload.project_id,
+            command=explicit_action_request,
+            orchestration_outcome=outcome,
+        )
+        approval = (
+            ExecutionApprovalProposalResponse.from_outcome(
+                projection.approval
+            )
+            if projection.approval is not None
+            else None
+        )
+        return ApiSuccess(
+            data=ChatResponse(workspace_id=workspace_scope.workspace_id.value,
+                reply=result.reply,
+                conversation_id=result.conversation_id,
+                action=ChatActionResponse(
+                    status=projection.status,
+                    reason_code=projection.reason_code,
+                    approval=approval,
+                ),
+            )
+        )
+
+    plugin_action_requested = (
+        not runtime_status_requested
+        and not calendar_write_requested
+        and chat_action_bridge.is_plugin_action_request(payload.message)
+    )
+    if plugin_action_requested:
         if x_oai_local_request != LOCAL_REQUEST_HEADER_VALUE:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN

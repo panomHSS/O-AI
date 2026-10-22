@@ -120,9 +120,14 @@ def test_d179_dependency_composition_has_exactly_one_d177_dependency() -> None:
     assert "ExplicitActionCognitiveHandoffIntegration(" in body
 
 
-def test_d179_is_not_invoked_by_live_chat_or_cognitive_runtime() -> None:
+def test_d179_live_adoption_is_only_through_d180_boundary() -> None:
+    chat = source("backend/app/api/v1/chat.py")
+    assert "ExplicitActionCognitiveHandoffIntegration" not in chat
+    assert "get_explicit_action_cognitive_handoff_integration" not in chat
+    assert "ExplicitActionLiveChatRoutingService" in chat
+    assert "get_explicit_action_live_chat_routing_service" in chat
+
     for path in (
-        "backend/app/api/v1/chat.py",
         "backend/app/services/command_orchestrator.py",
         "backend/app/services/cognitive_executive.py",
         "backend/app/services/chat_action_bridge.py",
@@ -133,10 +138,11 @@ def test_d179_is_not_invoked_by_live_chat_or_cognitive_runtime() -> None:
         assert "get_explicit_action_cognitive_handoff_integration" not in text
 
 
-def test_d179_preserves_legacy_action_bridge_live_route() -> None:
+def test_d179_legacy_action_bridge_remains_d180_rollback_path() -> None:
     chat = source("backend/app/api/v1/chat.py")
     bridge = source("backend/app/services/chat_action_bridge.py")
     assert "chat_action_bridge.is_action_directive(payload.message)" in chat
+    assert 'route_mode == "cognitive"' in chat
     assert "action_outcome = chat_action_bridge.process(" in chat
     assert 'ACTION_PREFIX = "/action"' in bridge
     assert "return self._propose(" in bridge

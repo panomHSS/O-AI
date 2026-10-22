@@ -289,6 +289,9 @@ from app.services.explicit_action_semantic_runtime import (
 from app.services.explicit_action_cognitive_handoff import (
     ExplicitActionCognitiveHandoffIntegration,
 )
+from app.services.explicit_action_live_chat_routing import (
+    ExplicitActionLiveChatRoutingService,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -2167,6 +2170,19 @@ def get_explicit_action_cognitive_handoff_integration(
     """Compose D179 without creating a live Chat invocation path."""
     return ExplicitActionCognitiveHandoffIntegration(
         runtime=runtime,
+    )
+
+
+def get_explicit_action_live_chat_routing_service(
+    handoff: ExplicitActionCognitiveHandoffIntegration = Depends(
+        get_explicit_action_cognitive_handoff_integration
+    ),
+) -> ExplicitActionLiveChatRoutingService:
+    """Compose D180 owner-controlled /action live routing and projection."""
+    settings = get_settings()
+    return ExplicitActionLiveChatRoutingService(
+        route_mode=settings.oai_explicit_action_chat_route_mode,
+        handoff=handoff,
     )
 
 
