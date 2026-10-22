@@ -296,6 +296,10 @@ from app.services.owner_approved_governed_execution import (
     CognitiveExecutionBindingStore,
     OwnerApprovedGovernedExecutionService,
 )
+from app.services.governed_execution_outcome_feedback import (
+    GovernedExecutionOutcomeFeedbackRecorder,
+    GovernedExecutionOutcomeFeedbackStore,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -1697,6 +1701,22 @@ def get_cognitive_execution_binding_store() -> CognitiveExecutionBindingStore:
     return CognitiveExecutionBindingStore()
 
 
+@lru_cache
+def get_governed_execution_outcome_feedback_store(
+) -> GovernedExecutionOutcomeFeedbackStore:
+    """Compose the bounded process-local D182 feedback evidence store."""
+    return GovernedExecutionOutcomeFeedbackStore()
+
+
+@lru_cache
+def get_governed_execution_outcome_feedback_recorder(
+) -> GovernedExecutionOutcomeFeedbackRecorder:
+    """Compose D182 metadata-only post-execution feedback observation."""
+    return GovernedExecutionOutcomeFeedbackRecorder(
+        store=get_governed_execution_outcome_feedback_store()
+    )
+
+
 def get_command_execution_coordinator(
     planner: ExecutionPlanner = Depends(get_execution_planner),
     guard: ExecutionGuard = Depends(get_execution_guard),
@@ -2072,12 +2092,16 @@ def get_owner_approved_governed_execution_service(
     workspace_scope: WorkspaceScope | None = Depends(
         get_optional_d181_workspace_scope
     ),
+    outcome_feedback_recorder: GovernedExecutionOutcomeFeedbackRecorder = Depends(
+        get_governed_execution_outcome_feedback_recorder
+    ),
 ) -> OwnerApprovedGovernedExecutionService:
-    """Compose D181 correlation/decision gate over frozen D45 authority."""
+    """Compose D181 decision gate plus post-decision D182 observation."""
     return OwnerApprovedGovernedExecutionService(
         binding_store=binding_store,
         approval_service=approval_service,
         workspace_scope=workspace_scope,
+        outcome_feedback_recorder=outcome_feedback_recorder,
     )
 
 

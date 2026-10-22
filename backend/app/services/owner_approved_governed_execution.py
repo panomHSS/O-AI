@@ -21,6 +21,9 @@ from app.contracts.workspace import WorkspaceScope
 from app.services.execution_approval_service import ExecutionApprovalService
 from app.services.execution_guard import execution_plan_digest
 from app.services.governed_action import governed_action_intent_digest
+from app.services.governed_execution_outcome_feedback import (
+    GovernedExecutionOutcomeFeedbackRecorder,
+)
 
 DEFAULT_MAX_COGNITIVE_EXECUTION_BINDINGS = 100
 
@@ -120,6 +123,7 @@ class OwnerApprovedGovernedExecutionService:
         binding_store: CognitiveExecutionBindingStore,
         approval_service: ExecutionApprovalService,
         workspace_scope: WorkspaceScope | None,
+        outcome_feedback_recorder: GovernedExecutionOutcomeFeedbackRecorder | None = None,
     ) -> None:
         if not isinstance(binding_store, CognitiveExecutionBindingStore):
             raise TypeError("binding_store must be a CognitiveExecutionBindingStore.")
@@ -134,6 +138,7 @@ class OwnerApprovedGovernedExecutionService:
             if workspace_scope is not None
             else None
         )
+        self._outcome_feedback_recorder = outcome_feedback_recorder
 
     def binding_for(self, approval_id: str) -> CognitiveExecutionBinding | None:
         return self._store.get(approval_id)
@@ -164,7 +169,9 @@ class OwnerApprovedGovernedExecutionService:
             )
 
         try:
-            return self._approval_service.approve(approval_id, plan_digest)
+            outcome = self._approval_service.approve(approval_id, plan_digest)
+            self._try_record_outcome_feedback(binding, outcome)
+            return outcome
         finally:
             self._store.discard(approval_id)
 
@@ -175,9 +182,25 @@ class OwnerApprovedGovernedExecutionService:
 
         self._require_workspace(binding)
         try:
-            return self._approval_service.deny(approval_id, plan_digest)
+            outcome = self._approval_service.deny(approval_id, plan_digest)
+            self._try_record_outcome_feedback(binding, outcome)
+            return outcome
         finally:
             self._store.discard(approval_id)
+
+    def _try_record_outcome_feedback(
+        self,
+        binding: CognitiveExecutionBinding,
+        outcome: ExecutionApprovalDecisionOutcome,
+    ) -> None:
+        recorder = self._outcome_feedback_recorder
+        if recorder is None:
+            return
+        try:
+            recorder.try_record(binding, outcome)
+        except Exception:
+            # D182 is post-authority observation and cannot alter D45/D40 outcome.
+            return
 
     def _require_workspace(self, binding: CognitiveExecutionBinding) -> None:
         if (
