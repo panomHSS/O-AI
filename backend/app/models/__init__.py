@@ -14,6 +14,10 @@ from app.models.execution_experience_review import (
     ExecutionExperienceReviewEventRecord,
     ExecutionExperienceReviewRecord,
 )
+from app.models.trusted_execution_experience import (
+    TrustedExecutionExperienceEventRecord,
+    TrustedExecutionExperienceRecord,
+)
 from app.models.message import Message
 from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
@@ -41,6 +45,8 @@ __all__ = [
     "ExecutionAuditEventRecord",
     "ExecutionExperienceReviewEventRecord",
     "ExecutionExperienceReviewRecord",
+    "TrustedExecutionExperienceEventRecord",
+    "TrustedExecutionExperienceRecord",
     "Memory",
     "MemoryVersion",
     "TrustedExperienceEventRecord",

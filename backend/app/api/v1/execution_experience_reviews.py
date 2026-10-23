@@ -5,7 +5,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.dependencies import get_execution_experience_review_lifecycle_service
+from app.api.dependencies import (
+    get_execution_experience_review_lifecycle_service,
+    get_execution_experience_trust_lifecycle_service,
+)
 from app.schemas.api import ApiSuccess
 from app.schemas.execution_experience_reviews import (
     ExecutionExperienceReviewDecisionRequest,
@@ -16,6 +19,14 @@ from app.schemas.execution_experience_reviews import (
 )
 from app.services.execution_experience_review_lifecycle import (
     ExecutionExperienceReviewLifecycleService,
+)
+from app.schemas.trusted_execution_experiences import (
+    ExecutionExperienceTrustEligibilityResponse,
+    ExecutionExperienceTrustPromotionRequest,
+    TrustedExecutionExperienceResponse,
+)
+from app.services.execution_experience_trust_lifecycle import (
+    ExecutionExperienceTrustLifecycleService,
 )
 
 
@@ -133,5 +144,42 @@ def reject_execution_experience_review(
             revision=revision,
             payload=payload,
             service=service,
+        )
+    )
+@router.get(
+    "/{review_id}/trust-eligibility",
+    response_model=ApiSuccess[ExecutionExperienceTrustEligibilityResponse],
+    status_code=status.HTTP_200_OK,
+)
+def get_execution_experience_trust_eligibility(
+    review_id: UUID,
+    service: Annotated[
+        ExecutionExperienceTrustLifecycleService,
+        Depends(get_execution_experience_trust_lifecycle_service),
+    ],
+) -> ApiSuccess[ExecutionExperienceTrustEligibilityResponse]:
+    return ApiSuccess(data=service.evaluate(review_id))
+
+
+@router.post(
+    "/{review_id}/revisions/{revision}/promote-trust",
+    response_model=ApiSuccess[TrustedExecutionExperienceResponse],
+    status_code=status.HTTP_200_OK,
+)
+def promote_execution_experience_trust(
+    review_id: UUID,
+    revision: int,
+    payload: ExecutionExperienceTrustPromotionRequest,
+    service: Annotated[
+        ExecutionExperienceTrustLifecycleService,
+        Depends(get_execution_experience_trust_lifecycle_service),
+    ],
+) -> ApiSuccess[TrustedExecutionExperienceResponse]:
+    return ApiSuccess(
+        data=service.promote(
+            review_id=review_id,
+            expected_revision=revision,
+            source_record_fingerprint=payload.source_record_fingerprint,
+            promotion_fingerprint=payload.promotion_fingerprint,
         )
     )

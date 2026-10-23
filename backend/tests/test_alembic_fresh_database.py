@@ -20,7 +20,7 @@ from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
 
 
-REVISION = "0017_execution_experience_review_lifecycle"
+REVISION = "0018_trusted_execution_experience_lifecycle"
 
 EXPECTED_TABLES = {
     "alembic_version",
@@ -47,6 +47,8 @@ EXPECTED_TABLES = {
     "trusted_experience_events",
     "execution_experience_reviews",
     "execution_experience_review_events",
+    "trusted_execution_experiences",
+    "trusted_execution_experience_events",
 }
 
 EXPECTED_INDEXES = {
@@ -96,6 +98,13 @@ EXPECTED_INDEXES = {
     },
     "execution_experience_review_events": {
         "ix_execution_experience_review_events_review_id",
+    },
+    "trusted_execution_experiences": {
+        "ix_trusted_execution_experiences_workspace_state",
+        "ix_trusted_execution_experiences_updated_at",
+    },
+    "trusted_execution_experience_events": {
+        "ix_trusted_execution_experience_events_experience_id",
     },
 }
 

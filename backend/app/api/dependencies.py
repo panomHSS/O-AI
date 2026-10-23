@@ -72,6 +72,9 @@ from app.repositories.trusted_experiences import TrustedExperienceRepository
 from app.repositories.execution_experience_reviews import (
     ExecutionExperienceReviewRepository,
 )
+from app.repositories.trusted_execution_experiences import (
+    TrustedExecutionExperienceRepository,
+)
 from app.repositories.automations import AutomationRepository
 from app.repositories.oauth_credentials import OAuthCredentialRepository
 from app.repositories.message_citations import MessageCitationRepository
@@ -309,6 +312,9 @@ from app.services.governed_execution_experience_runtime import (
 )
 from app.services.execution_experience_review_lifecycle import (
     ExecutionExperienceReviewLifecycleService,
+)
+from app.services.execution_experience_trust_lifecycle import (
+    ExecutionExperienceTrustLifecycleService,
 )
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
@@ -1755,6 +1761,23 @@ def get_execution_experience_review_lifecycle_service(
             workspace_scope,
         ),
         runtime_store=get_governed_execution_experience_runtime_store(),
+    )
+
+
+def get_execution_experience_trust_lifecycle_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> ExecutionExperienceTrustLifecycleService:
+    """Compose strict workspace-scoped D187 trust eligibility and lifecycle."""
+    return ExecutionExperienceTrustLifecycleService(
+        review_repository=ExecutionExperienceReviewRepository(
+            database_session,
+            workspace_scope,
+        ),
+        trusted_repository=TrustedExecutionExperienceRepository(
+            database_session,
+            workspace_scope,
+        ),
     )
 
 

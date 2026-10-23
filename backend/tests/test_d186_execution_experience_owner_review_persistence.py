@@ -11,7 +11,7 @@ from sqlalchemy import inspect, text
 from app.core.config import get_settings
 from app.db.session import create_database_engine
 
-REVISION = "0017_execution_experience_review_lifecycle"
+REVISION = "0018_trusted_execution_experience_lifecycle"
 
 
 def config() -> Config:

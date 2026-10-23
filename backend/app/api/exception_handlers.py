@@ -42,6 +42,11 @@ from app.services.execution_experience_review_lifecycle import (
     ExecutionExperienceReviewNotFoundError,
     ExecutionExperienceReviewValidationError,
 )
+from app.services.execution_experience_trust_lifecycle import (
+    ExecutionExperienceTrustConflictError,
+    ExecutionExperienceTrustNotFoundError,
+    ExecutionExperienceTrustValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -298,6 +303,39 @@ def register_exception_handlers(app: FastAPI) -> None:
         return error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "EXECUTION_EXPERIENCE_REVIEW_VALIDATION_ERROR",
+            str(error),
+        )
+
+    @app.exception_handler(ExecutionExperienceTrustNotFoundError)
+    async def handle_execution_experience_trust_not_found(
+        _: Request,
+        error: ExecutionExperienceTrustNotFoundError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_404_NOT_FOUND,
+            "EXECUTION_EXPERIENCE_TRUST_NOT_FOUND",
+            str(error),
+        )
+
+    @app.exception_handler(ExecutionExperienceTrustConflictError)
+    async def handle_execution_experience_trust_conflict(
+        _: Request,
+        error: ExecutionExperienceTrustConflictError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_409_CONFLICT,
+            "EXECUTION_EXPERIENCE_TRUST_CONFLICT",
+            str(error),
+        )
+
+    @app.exception_handler(ExecutionExperienceTrustValidationError)
+    async def handle_execution_experience_trust_validation(
+        _: Request,
+        error: ExecutionExperienceTrustValidationError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "EXECUTION_EXPERIENCE_TRUST_VALIDATION_ERROR",
             str(error),
         )
 
