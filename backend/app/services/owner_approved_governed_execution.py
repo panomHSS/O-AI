@@ -27,6 +27,9 @@ from app.services.governed_execution_outcome_feedback import (
 from app.services.governed_execution_experience_runtime import (
     GovernedExecutionExperienceRuntimeIntegration,
 )
+from app.services.execution_experience_review_lifecycle import (
+    ExecutionExperienceReviewLifecycleService,
+)
 
 DEFAULT_MAX_COGNITIVE_EXECUTION_BINDINGS = 100
 
@@ -128,6 +131,7 @@ class OwnerApprovedGovernedExecutionService:
         workspace_scope: WorkspaceScope | None,
         outcome_feedback_recorder: GovernedExecutionOutcomeFeedbackRecorder | None = None,
         experience_runtime_integration: GovernedExecutionExperienceRuntimeIntegration | None = None,
+        experience_owner_review_lifecycle: ExecutionExperienceReviewLifecycleService | None = None,
     ) -> None:
         if not isinstance(binding_store, CognitiveExecutionBindingStore):
             raise TypeError("binding_store must be a CognitiveExecutionBindingStore.")
@@ -144,6 +148,7 @@ class OwnerApprovedGovernedExecutionService:
         )
         self._outcome_feedback_recorder = outcome_feedback_recorder
         self._experience_runtime_integration = experience_runtime_integration
+        self._experience_owner_review_lifecycle = experience_owner_review_lifecycle
 
     def binding_for(self, approval_id: str) -> CognitiveExecutionBinding | None:
         return self._store.get(approval_id)
@@ -213,9 +218,20 @@ class OwnerApprovedGovernedExecutionService:
         if integration is None:
             return
         try:
-            integration.try_integrate(binding.approval_id)
+            integrated = integration.try_integrate(binding.approval_id)
         except Exception:
             # D185 is post-authority evidence flow and cannot alter D45/D40 outcome.
+            return
+        if not integrated:
+            return
+
+        lifecycle = self._experience_owner_review_lifecycle
+        if lifecycle is None:
+            return
+        try:
+            lifecycle.try_capture(binding.approval_id)
+        except Exception:
+            # D186 is post-authority Owner-review capture and cannot alter execution.
             return
 
     def _require_workspace(self, binding: CognitiveExecutionBinding) -> None:

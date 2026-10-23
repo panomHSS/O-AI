@@ -69,6 +69,9 @@ from app.repositories.conversations import ConversationRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.memories import MemoryRepository
 from app.repositories.trusted_experiences import TrustedExperienceRepository
+from app.repositories.execution_experience_reviews import (
+    ExecutionExperienceReviewRepository,
+)
 from app.repositories.automations import AutomationRepository
 from app.repositories.oauth_credentials import OAuthCredentialRepository
 from app.repositories.message_citations import MessageCitationRepository
@@ -303,6 +306,9 @@ from app.services.governed_execution_outcome_feedback import (
 from app.services.governed_execution_experience_runtime import (
     GovernedExecutionExperienceRuntimeIntegration,
     GovernedExecutionExperienceRuntimeStore,
+)
+from app.services.execution_experience_review_lifecycle import (
+    ExecutionExperienceReviewLifecycleService,
 )
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
@@ -1738,6 +1744,20 @@ def get_governed_execution_experience_runtime_integration(
     )
 
 
+def get_execution_experience_review_lifecycle_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope = Depends(get_workspace_scope),
+) -> ExecutionExperienceReviewLifecycleService:
+    """Compose strict workspace-scoped durable D186 Owner review."""
+    return ExecutionExperienceReviewLifecycleService(
+        repository=ExecutionExperienceReviewRepository(
+            database_session,
+            workspace_scope,
+        ),
+        runtime_store=get_governed_execution_experience_runtime_store(),
+    )
+
+
 def get_command_execution_coordinator(
     planner: ExecutionPlanner = Depends(get_execution_planner),
     guard: ExecutionGuard = Depends(get_execution_guard),
@@ -2103,6 +2123,24 @@ def get_optional_d181_workspace_scope(
     return get_workspace_scope(x_oai_workspace)
 
 
+def get_optional_execution_experience_review_lifecycle_service(
+    database_session: Session = Depends(get_db),
+    workspace_scope: WorkspaceScope | None = Depends(
+        get_optional_d181_workspace_scope
+    ),
+) -> ExecutionExperienceReviewLifecycleService | None:
+    """Keep legacy unbound D45 free of a new D186 workspace requirement."""
+    if workspace_scope is None:
+        return None
+    return ExecutionExperienceReviewLifecycleService(
+        repository=ExecutionExperienceReviewRepository(
+            database_session,
+            workspace_scope,
+        ),
+        runtime_store=get_governed_execution_experience_runtime_store(),
+    )
+
+
 def get_owner_approved_governed_execution_service(
     approval_service: ExecutionApprovalService = Depends(
         get_execution_approval_service
@@ -2119,14 +2157,18 @@ def get_owner_approved_governed_execution_service(
     experience_runtime_integration: GovernedExecutionExperienceRuntimeIntegration = Depends(
         get_governed_execution_experience_runtime_integration
     ),
+    experience_owner_review_lifecycle: ExecutionExperienceReviewLifecycleService | None = Depends(
+        get_optional_execution_experience_review_lifecycle_service
+    ),
 ) -> OwnerApprovedGovernedExecutionService:
-    """Compose D181 plus post-authority D182→D185 evidence observation."""
+    """Compose D181 plus post-authority D182→D185→D186 evidence observation."""
     return OwnerApprovedGovernedExecutionService(
         binding_store=binding_store,
         approval_service=approval_service,
         workspace_scope=workspace_scope,
         outcome_feedback_recorder=outcome_feedback_recorder,
         experience_runtime_integration=experience_runtime_integration,
+        experience_owner_review_lifecycle=experience_owner_review_lifecycle,
     )
 
 

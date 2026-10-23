@@ -37,6 +37,11 @@ from app.services.owner_approved_governed_execution import (
     CognitiveExecutionBindingStoreFullError,
     OwnerApprovedGovernedExecutionError,
 )
+from app.services.execution_experience_review_lifecycle import (
+    ExecutionExperienceReviewConflictError,
+    ExecutionExperienceReviewNotFoundError,
+    ExecutionExperienceReviewValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +266,39 @@ def register_exception_handlers(app: FastAPI) -> None:
             status.HTTP_409_CONFLICT,
             error.reason_code,
             "The cognitive execution decision could not be completed safely.",
+        )
+
+    @app.exception_handler(ExecutionExperienceReviewNotFoundError)
+    async def handle_execution_experience_review_not_found(
+        _: Request,
+        error: ExecutionExperienceReviewNotFoundError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_404_NOT_FOUND,
+            "EXECUTION_EXPERIENCE_REVIEW_NOT_FOUND",
+            str(error),
+        )
+
+    @app.exception_handler(ExecutionExperienceReviewConflictError)
+    async def handle_execution_experience_review_conflict(
+        _: Request,
+        error: ExecutionExperienceReviewConflictError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_409_CONFLICT,
+            "EXECUTION_EXPERIENCE_REVIEW_CONFLICT",
+            str(error),
+        )
+
+    @app.exception_handler(ExecutionExperienceReviewValidationError)
+    async def handle_execution_experience_review_validation(
+        _: Request,
+        error: ExecutionExperienceReviewValidationError,
+    ) -> JSONResponse:
+        return error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "EXECUTION_EXPERIENCE_REVIEW_VALIDATION_ERROR",
+            str(error),
         )
 
     @app.exception_handler(ExecutionApprovalNotPendingError)

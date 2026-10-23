@@ -10,6 +10,10 @@ from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.document_chunk_embedding import DocumentChunkEmbedding
 from app.models.execution_audit_event import ExecutionAuditEventRecord
+from app.models.execution_experience_review import (
+    ExecutionExperienceReviewEventRecord,
+    ExecutionExperienceReviewRecord,
+)
 from app.models.message import Message
 from app.models.message_citation import MessageCitation
 from app.models.memory import Memory
@@ -35,6 +39,8 @@ __all__ = [
     "DocumentChunk",
     "DocumentChunkEmbedding",
     "ExecutionAuditEventRecord",
+    "ExecutionExperienceReviewEventRecord",
+    "ExecutionExperienceReviewRecord",
     "Memory",
     "MemoryVersion",
     "TrustedExperienceEventRecord",
