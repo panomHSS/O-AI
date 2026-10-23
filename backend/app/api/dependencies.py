@@ -300,6 +300,10 @@ from app.services.governed_execution_outcome_feedback import (
     GovernedExecutionOutcomeFeedbackRecorder,
     GovernedExecutionOutcomeFeedbackStore,
 )
+from app.services.governed_execution_experience_runtime import (
+    GovernedExecutionExperienceRuntimeIntegration,
+    GovernedExecutionExperienceRuntimeStore,
+)
 from app.services.calendar_write_approval import (
     CalendarWriteApprovalService,
     CalendarWriteApprovalStore,
@@ -1717,6 +1721,23 @@ def get_governed_execution_outcome_feedback_recorder(
     )
 
 
+@lru_cache
+def get_governed_execution_experience_runtime_store(
+) -> GovernedExecutionExperienceRuntimeStore:
+    """Compose the bounded process-local D185 runtime evidence store."""
+    return GovernedExecutionExperienceRuntimeStore()
+
+
+@lru_cache
+def get_governed_execution_experience_runtime_integration(
+) -> GovernedExecutionExperienceRuntimeIntegration:
+    """Compose D185 from the existing D182 store plus ephemeral D185 store."""
+    return GovernedExecutionExperienceRuntimeIntegration(
+        feedback_store=get_governed_execution_outcome_feedback_store(),
+        runtime_store=get_governed_execution_experience_runtime_store(),
+    )
+
+
 def get_command_execution_coordinator(
     planner: ExecutionPlanner = Depends(get_execution_planner),
     guard: ExecutionGuard = Depends(get_execution_guard),
@@ -2095,13 +2116,17 @@ def get_owner_approved_governed_execution_service(
     outcome_feedback_recorder: GovernedExecutionOutcomeFeedbackRecorder = Depends(
         get_governed_execution_outcome_feedback_recorder
     ),
+    experience_runtime_integration: GovernedExecutionExperienceRuntimeIntegration = Depends(
+        get_governed_execution_experience_runtime_integration
+    ),
 ) -> OwnerApprovedGovernedExecutionService:
-    """Compose D181 decision gate plus post-decision D182 observation."""
+    """Compose D181 plus post-authority D182→D185 evidence observation."""
     return OwnerApprovedGovernedExecutionService(
         binding_store=binding_store,
         approval_service=approval_service,
         workspace_scope=workspace_scope,
         outcome_feedback_recorder=outcome_feedback_recorder,
+        experience_runtime_integration=experience_runtime_integration,
     )
 
 

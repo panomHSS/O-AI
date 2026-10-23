@@ -24,6 +24,9 @@ from app.services.governed_action import governed_action_intent_digest
 from app.services.governed_execution_outcome_feedback import (
     GovernedExecutionOutcomeFeedbackRecorder,
 )
+from app.services.governed_execution_experience_runtime import (
+    GovernedExecutionExperienceRuntimeIntegration,
+)
 
 DEFAULT_MAX_COGNITIVE_EXECUTION_BINDINGS = 100
 
@@ -124,6 +127,7 @@ class OwnerApprovedGovernedExecutionService:
         approval_service: ExecutionApprovalService,
         workspace_scope: WorkspaceScope | None,
         outcome_feedback_recorder: GovernedExecutionOutcomeFeedbackRecorder | None = None,
+        experience_runtime_integration: GovernedExecutionExperienceRuntimeIntegration | None = None,
     ) -> None:
         if not isinstance(binding_store, CognitiveExecutionBindingStore):
             raise TypeError("binding_store must be a CognitiveExecutionBindingStore.")
@@ -139,6 +143,7 @@ class OwnerApprovedGovernedExecutionService:
             else None
         )
         self._outcome_feedback_recorder = outcome_feedback_recorder
+        self._experience_runtime_integration = experience_runtime_integration
 
     def binding_for(self, approval_id: str) -> CognitiveExecutionBinding | None:
         return self._store.get(approval_id)
@@ -197,9 +202,20 @@ class OwnerApprovedGovernedExecutionService:
         if recorder is None:
             return
         try:
-            recorder.try_record(binding, outcome)
+            recorded = recorder.try_record(binding, outcome)
         except Exception:
             # D182 is post-authority observation and cannot alter D45/D40 outcome.
+            return
+        if not recorded:
+            return
+
+        integration = self._experience_runtime_integration
+        if integration is None:
+            return
+        try:
+            integration.try_integrate(binding.approval_id)
+        except Exception:
+            # D185 is post-authority evidence flow and cannot alter D45/D40 outcome.
             return
 
     def _require_workspace(self, binding: CognitiveExecutionBinding) -> None:
