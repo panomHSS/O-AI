@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, case, func, select, update
 from sqlalchemy.orm import Session
 
+from app.contracts.governed_execution_experience_retrieval import (
+    D188_MAX_EVIDENCE,
+    TrustedExecutionExperienceRetrievalQuery,
+)
 from app.contracts.governed_execution_experience_trust import (
     GovernedExecutionExperienceTrustPromotionProposal,
 )
@@ -17,7 +21,7 @@ from app.models.trusted_execution_experience import (
 
 
 class TrustedExecutionExperienceRepository:
-    """Workspace-scoped D187 trusted execution-experience repository."""
+    """Workspace-scoped D187 lifecycle + D188 read-only retrieval boundary."""
 
     def __init__(self, session: Session, workspace_scope: WorkspaceScope) -> None:
         self._session = session
@@ -135,6 +139,56 @@ class TrustedExecutionExperienceRepository:
             select(func.count(TrustedExecutionExperienceRecord.id)).where(*filters)
         ) or 0
         return self._session.scalars(statement).all(), int(total)
+
+    def retrieve_trusted_evidence(
+        self,
+        query: TrustedExecutionExperienceRetrievalQuery,
+    ) -> tuple[Sequence[TrustedExecutionExperienceRecord], bool]:
+        """Read only current D187 TRUSTED roots using frozen D188 tiers."""
+
+        if type(query) is not TrustedExecutionExperienceRetrievalQuery:
+            raise ValueError("trusted_execution_experience_retrieval_query_invalid")
+        if query.workspace_id.value != self._workspace_id:
+            raise ValueError("workspace_mismatch")
+
+        relevance_tier = case(
+            (
+                and_(
+                    TrustedExecutionExperienceRecord.adapter_id == query.adapter_id,
+                    TrustedExecutionExperienceRecord.operation == query.operation,
+                ),
+                0,
+            ),
+            (
+                TrustedExecutionExperienceRecord.operation == query.operation,
+                1,
+            ),
+            (
+                TrustedExecutionExperienceRecord.adapter_id == query.adapter_id,
+                2,
+            ),
+            else_=3,
+        )
+        statement = (
+            select(TrustedExecutionExperienceRecord)
+            .where(
+                TrustedExecutionExperienceRecord.workspace_id == self._workspace_id,
+                TrustedExecutionExperienceRecord.state == "TRUSTED",
+                TrustedExecutionExperienceRecord.current_revision == 1,
+                TrustedExecutionExperienceRecord.target_kind == query.target_kind,
+                TrustedExecutionExperienceRecord.capability_id == query.capability_id,
+                TrustedExecutionExperienceRecord.effect == query.effect,
+                TrustedExecutionExperienceRecord.risk_class == query.risk_class,
+            )
+            .order_by(
+                relevance_tier.asc(),
+                TrustedExecutionExperienceRecord.updated_at.desc(),
+                TrustedExecutionExperienceRecord.id.asc(),
+            )
+            .limit(D188_MAX_EVIDENCE + 1)
+        )
+        rows = tuple(self._session.scalars(statement).all())
+        return rows[:D188_MAX_EVIDENCE], len(rows) > D188_MAX_EVIDENCE
 
     def history(
         self,
